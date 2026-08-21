@@ -1,0 +1,11 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/generatePosts.ts": { "maxDuration": 120 },
+    "api/publishDue.ts": { "maxDuration": 300 }
+  }
+}

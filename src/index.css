@@ -1,0 +1,95 @@
+:root {
+  --text: #3f3f46;
+  --text-muted: #71717a;
+  --text-h: #18181b;
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --neutral-bg: #f4f4f5;
+  --border: #e4e4e7;
+  --accent: #1d9bf0;
+  --accent-bg: rgba(29, 155, 240, 0.1);
+  --danger: #d0342c;
+  --danger-bg: rgba(208, 52, 44, 0.08);
+  --success: #16a34a;
+  --success-bg: rgba(22, 163, 74, 0.08);
+  --warning-bg: #fff7e6;
+  --warning-border: #f5c66b;
+
+  font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', Roboto, sans-serif;
+  color-scheme: light;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --text: #d4d7dc;
+    --text-muted: #8b98a5;
+    --text-h: #f4f4f5;
+    --bg: #0f1419;
+    --surface: #16202a;
+    --neutral-bg: #202a33;
+    --border: #2f3336;
+    --accent: #3fa9f5;
+    --accent-bg: rgba(63, 169, 245, 0.16);
+    --danger: #f4443c;
+    --danger-bg: rgba(244, 68, 60, 0.14);
+    --success: #3fbf67;
+    --success-bg: rgba(63, 191, 103, 0.14);
+    --warning-bg: rgba(245, 198, 107, 0.12);
+    --warning-border: #a9863f;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --text: #d4d7dc;
+  --text-muted: #8b98a5;
+  --text-h: #f4f4f5;
+  --bg: #0f1419;
+  --surface: #16202a;
+  --neutral-bg: #202a33;
+  --border: #2f3336;
+  --accent: #3fa9f5;
+  --accent-bg: rgba(63, 169, 245, 0.16);
+  --danger: #f4443c;
+  --danger-bg: rgba(244, 68, 60, 0.14);
+  --success: #3fbf67;
+  --success-bg: rgba(63, 191, 103, 0.14);
+  --warning-bg: rgba(245, 198, 107, 0.12);
+  --warning-border: #a9863f;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+h1, h2, h3 {
+  color: var(--text-h);
+  font-weight: 600;
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+input, select {
+  font: inherit;
+}
+
+a {
+  color: var(--accent);
+}

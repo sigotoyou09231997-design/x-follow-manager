@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "es2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "esnext",
+    "types": ["vite/client"],
+    "allowArbitraryExtensions": true,
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* ローカルdev版(Dexie)とArtifact版で永続化層を差し替えるためのエイリアス。
+       型チェックはローカルdev版の実装を基準に行う。 */
+    "paths": {
+      "#store": ["./src/db/db.ts"],
+      "#accounts-hook": ["./src/hooks/useAccounts.ts"],
+      "#csv": ["./src/lib/csv.ts"],
+      "#schedule-view": ["./src/components/schedule/ScheduleView.tsx"]
+    },
+
+    /* Linting */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"]
+}
