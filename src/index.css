@@ -118,9 +118,22 @@
   box-sizing: border-box;
 }
 
+/* 縦スクロールバーが出たり消えたりするたびに、中央寄せのレイアウトが
+   左右にずれる（横振れする）のを防ぐ。常に同じ幅を確保しておく。
+   スクロールバーが重ね表示のモバイルでは無駄な帯になり得るので、
+   常時表示のバーを持つ広い画面にだけ適用する。 */
+@media (min-width: 641px) {
+  html {
+    scrollbar-gutter: stable;
+  }
+}
+
 body {
   margin: 0;
   min-height: 100dvh;
+  /* 想定外の要素がはみ出しても横スクロールを起こさないための保険。
+     position: sticky を壊さないよう html ではなく body に掛ける。 */
+  overflow-x: clip;
   background: var(--bg);
   color: var(--text);
   overscroll-behavior-y: none;
@@ -137,6 +150,7 @@ h3 {
 
 p {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 /* ボタン・入力の共通土台。個別の見た目は App.css 側で与える。 */
