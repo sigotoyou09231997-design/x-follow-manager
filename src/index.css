@@ -1,66 +1,116 @@
-:root {
-  --text: #3f3f46;
-  --text-muted: #71717a;
-  --text-h: #18181b;
-  --bg: #fafafa;
-  --surface: #ffffff;
-  --neutral-bg: #f4f4f5;
-  --border: #e4e4e7;
-  --accent: #1d9bf0;
-  --accent-bg: rgba(29, 155, 240, 0.1);
-  --danger: #d0342c;
-  --danger-bg: rgba(208, 52, 44, 0.08);
-  --success: #16a34a;
-  --success-bg: rgba(22, 163, 74, 0.08);
-  --warning-bg: #fff7e6;
-  --warning-border: #f5c66b;
+/* ============================================================
+   デザイントークン
+   Xのプロダクトに寄せた配色。ライトは白基調、ダークは黒に近い
+   ニュートラルで、アクセントはXブルー。
+   ============================================================ */
 
-  font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', Roboto, sans-serif;
+:root {
+  /* 面 */
+  --bg: #ffffff;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f7f9f9;
+  --neutral-bg: #eff3f4;
+  --border: #eff3f4;
+  --border-strong: #cfd9de;
+
+  /* 文字 */
+  --text: #0f1419;
+  --text-h: #0f1419;
+  --text-muted: #536471;
+
+  /* アクセント */
+  --accent: #1d9bf0;
+  --accent-hover: #1a8cd8;
+  --accent-bg: rgba(29, 155, 240, 0.1);
+  --on-accent: #ffffff;
+
+  /* 状態 */
+  --danger: #f4212e;
+  --danger-bg: rgba(244, 33, 46, 0.1);
+  --success: #00ba7c;
+  --success-bg: rgba(0, 186, 124, 0.1);
+  --warning: #b8860b;
+  --warning-bg: rgba(255, 212, 0, 0.12);
+  --warning-border: rgba(255, 212, 0, 0.4);
+
+  /* 陰影・形 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-pill: 999px;
+
+  /* 端末の安全領域（iPhoneのノッチ・ホームバー） */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic',
+    'Segoe UI', Roboto, system-ui, sans-serif;
   color-scheme: light;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --text: #d4d7dc;
-    --text-muted: #8b98a5;
-    --text-h: #f4f4f5;
-    --bg: #0f1419;
-    --surface: #16202a;
-    --neutral-bg: #202a33;
+    --bg: #000000;
+    --bg-elevated: #16181c;
+    --surface: #16181c;
+    --surface-2: #1e2126;
+    --neutral-bg: #202327;
     --border: #2f3336;
-    --accent: #3fa9f5;
-    --accent-bg: rgba(63, 169, 245, 0.16);
-    --danger: #f4443c;
-    --danger-bg: rgba(244, 68, 60, 0.14);
-    --success: #3fbf67;
-    --success-bg: rgba(63, 191, 103, 0.14);
-    --warning-bg: rgba(245, 198, 107, 0.12);
-    --warning-border: #a9863f;
+    --border-strong: #3e4144;
+
+    --text: #e7e9ea;
+    --text-h: #f7f9f9;
+    --text-muted: #71767b;
+
+    --accent: #1d9bf0;
+    --accent-hover: #4cb0f5;
+    --accent-bg: rgba(29, 155, 240, 0.16);
+
+    --danger: #f4212e;
+    --danger-bg: rgba(244, 33, 46, 0.16);
+    --success: #00ba7c;
+    --success-bg: rgba(0, 186, 124, 0.16);
+    --warning: #ffd400;
+    --warning-bg: rgba(255, 212, 0, 0.1);
+    --warning-border: rgba(255, 212, 0, 0.3);
+
+    --shadow-sm: none;
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
     color-scheme: dark;
   }
 }
 
 :root[data-theme='dark'] {
-  --text: #d4d7dc;
-  --text-muted: #8b98a5;
-  --text-h: #f4f4f5;
-  --bg: #0f1419;
-  --surface: #16202a;
-  --neutral-bg: #202a33;
+  --bg: #000000;
+  --bg-elevated: #16181c;
+  --surface: #16181c;
+  --surface-2: #1e2126;
+  --neutral-bg: #202327;
   --border: #2f3336;
-  --accent: #3fa9f5;
-  --accent-bg: rgba(63, 169, 245, 0.16);
-  --danger: #f4443c;
-  --danger-bg: rgba(244, 68, 60, 0.14);
-  --success: #3fbf67;
-  --success-bg: rgba(63, 191, 103, 0.14);
-  --warning-bg: rgba(245, 198, 107, 0.12);
-  --warning-border: #a9863f;
+  --border-strong: #3e4144;
+  --text: #e7e9ea;
+  --text-h: #f7f9f9;
+  --text-muted: #71767b;
+  --accent-hover: #4cb0f5;
+  --accent-bg: rgba(29, 155, 240, 0.16);
+  --danger-bg: rgba(244, 33, 46, 0.16);
+  --success-bg: rgba(0, 186, 124, 0.16);
+  --warning: #ffd400;
+  --warning-bg: rgba(255, 212, 0, 0.1);
+  --warning-border: rgba(255, 212, 0, 0.3);
+  --shadow-sm: none;
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
   color-scheme: dark;
 }
 
@@ -70,26 +120,62 @@
 
 body {
   margin: 0;
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
+  overscroll-behavior-y: none;
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
+  margin: 0;
   color: var(--text-h);
-  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+p {
   margin: 0;
 }
 
-button {
+/* ボタン・入力の共通土台。個別の見た目は App.css 側で与える。 */
+button,
+input,
+select,
+textarea {
   font: inherit;
-  cursor: pointer;
+  color: inherit;
 }
 
-input, select {
-  font: inherit;
+button {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* キーボード操作時だけリングを出す。マウス操作では邪魔にならない。 */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 a {
   color: var(--accent);
+}
+
+/* 数値は桁が揃わないと一覧で目が滑るため等幅にする。 */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

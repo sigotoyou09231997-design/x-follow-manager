@@ -212,6 +212,10 @@ export function PostComposer({ editing, initialSegments, onSaved, onCancel }: Pr
       {segments.map((segment, index) => {
         const used = weightedLength(segment.text)
         const remaining = MAX_WEIGHTED_LENGTH - used
+        const ratio = Math.min(used / MAX_WEIGHTED_LENGTH, 1)
+        // 数字を読む前に「まだ余裕があるか」が分かるようにバーで示す。
+        const meterTone =
+          remaining < 0 ? ' composer__meter-fill--over' : remaining <= 20 ? ' composer__meter-fill--warn' : ''
         return (
           <div key={index} className="composer__segment">
             {segments.length > 1 && (
@@ -233,6 +237,12 @@ export function PostComposer({ editing, initialSegments, onSaved, onCancel }: Pr
               placeholder={index === 0 ? 'いまどうしてる？' : '続きを書く…'}
               rows={4}
             />
+            <div className="composer__meter">
+              <div
+                className={`composer__meter-fill${meterTone}`}
+                style={{ width: `${ratio * 100}%` }}
+              />
+            </div>
             <div className="composer__segment-foot">
               <button
                 type="button"

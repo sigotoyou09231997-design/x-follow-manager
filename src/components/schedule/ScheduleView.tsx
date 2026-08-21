@@ -138,12 +138,14 @@ export function ScheduleView() {
         >
           AIで投稿案を作る
         </button>
-        <button type="button" className="btn btn--ghost btn--small" onClick={() => void reload()}>
-          再読み込み
-        </button>
-        <button type="button" className="btn btn--ghost btn--small" onClick={() => void signOut()}>
-          ログアウト
-        </button>
+        <div className="schedule-view__toolbar-end">
+          <button type="button" className="btn btn--ghost btn--small" onClick={() => void reload()}>
+            再読み込み
+          </button>
+          <button type="button" className="btn btn--ghost btn--small" onClick={() => void signOut()}>
+            ログアウト
+          </button>
+        </div>
       </div>
 
       {pane === 'compose' && (
