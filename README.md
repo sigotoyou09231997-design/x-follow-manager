@@ -38,13 +38,18 @@ X API は 2026年2月から**従量課金制**になり、無料枠はありま�
 | **URLを含む投稿1件** | **$0.200** |
 | 画像のメタデータ（代替テキスト） | $0.005 |
 
-1. https://developer.x.com/ で開発者登録し、Projectとappを作る
-2. 開発者コンソールでクレジットを購入する（残高が尽きると投稿が失敗する）
+1. https://console.x.com で開発者登録し、appを作る
+2. 開発者コンソール（https://console.x.com）でクレジットを購入する（残高が尽きると投稿が失敗する）
+   - **自動リチャージ**（金額としきい値）と **Spend cap**（1請求サイクルの上限）を必ず自分で設定する
 3. app の **User authentication settings** を開き、以下を設定する
    - App permissions: **Read and write**
-   - Type of App: **Web App / Automated App or Bot**（＝confidential client。client secretが発行される）
+   - Type of App: **Web App**（＝confidential client。client secretが発行される。
+     Native App / Single Page App を選ぶとsecretが出ず、この実装は動かない）
    - Callback URI: `https://<あなたのVercelドメイン>/x-callback`
-     - ローカルで試す場合は `http://localhost:5173/x-callback` も追加する
+     - **完全一致**で判定される（プロトコル・末尾スラッシュ含む）。1つのappに最大10個まで登録できる
+     - ローカル検証用には `http://127.0.0.1:3000/x-callback`（`vercel dev`）を追加する。
+       **`localhost` は不可**で、Xが許可するのは `http://127.0.0.1` だけ。
+       ブラウザも `localhost` ではなく `127.0.0.1` で開くこと（origin が一致しないと弾かれる）
    - Website URL: 任意
 4. **Client ID** と **Client Secret** を控える
 
@@ -62,6 +67,7 @@ LIFE HUB（todoアプリ）と同じプロジェクトに相乗りできます�
 2. Authentication → Providers で **Google** を有効にする
 3. Authentication → URL Configuration の Redirect URLs に以下を追加する
    - `https://<あなたのVercelドメイン>/**`
+   - `http://127.0.0.1:3000/**`
    - `http://localhost:5173/**`
 4. Project Settings → API から **Project URL**、**anon key**、**service_role key** を控える
 
