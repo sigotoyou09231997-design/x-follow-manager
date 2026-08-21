@@ -6,6 +6,7 @@ import { SummaryBar } from './components/SummaryBar'
 import { AccountListView } from './components/AccountListView'
 import { BatchWorkView } from './components/BatchWorkView'
 import { SettingsView } from './components/SettingsView'
+import { Icon, type IconName } from './components/Icon'
 import { X_CALLBACK_PATH } from './lib/schedule/constants'
 import { useAccounts, useSummary } from '#accounts-hook'
 import { parseArchiveFile } from './lib/archiveParser'
@@ -20,6 +21,13 @@ const ScheduleView = lazy(() =>
 )
 
 type Tab = 'list' | 'work' | 'schedule' | 'settings'
+
+const TABS: { id: Tab; label: string; icon: IconName }[] = [
+  { id: 'list', label: '一覧', icon: 'list' },
+  { id: 'work', label: '作業モード', icon: 'tasks' },
+  { id: 'schedule', label: '予約投稿', icon: 'calendar' },
+  { id: 'settings', label: '設定', icon: 'settings' },
+]
 
 function buildFingerprint(file: File): string {
   return `${file.name}:${file.size}:${file.lastModified}`
@@ -122,26 +130,17 @@ function App() {
         {hasData && summary && <SummaryBar summary={summary} />}
 
         <nav className="tab-nav">
-          <button type="button" className={tab === 'list' ? 'active' : ''} onClick={() => setTab('list')}>
-            一覧
-          </button>
-          <button type="button" className={tab === 'work' ? 'active' : ''} onClick={() => setTab('work')}>
-            作業モード
-          </button>
-          <button
-            type="button"
-            className={tab === 'schedule' ? 'active' : ''}
-            onClick={() => setTab('schedule')}
-          >
-            予約投稿
-          </button>
-          <button
-            type="button"
-            className={tab === 'settings' ? 'active' : ''}
-            onClick={() => setTab('settings')}
-          >
-            設定
-          </button>
+          {TABS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={tab === item.id ? 'tab-nav__item active' : 'tab-nav__item'}
+              onClick={() => setTab(item.id)}
+            >
+              <Icon name={item.icon} size={20} />
+              <span>{item.label}</span>
+            </button>
+          ))}
         </nav>
 
         {/* 予約投稿はアーカイブの読み込みと無関係に使えるので、hasDataで閉じない。 */}

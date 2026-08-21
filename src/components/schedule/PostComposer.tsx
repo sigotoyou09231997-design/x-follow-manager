@@ -9,6 +9,7 @@ import {
 import { containsUrl, isOverLimit, MAX_WEIGHTED_LENGTH, weightedLength } from '../../lib/schedule/textLength'
 import type { PostSegment, RepeatRule, ScheduledPost } from '../../lib/schedule/types'
 import { RepeatRuleEditor } from './RepeatRuleEditor'
+import { Icon } from '../Icon'
 
 const MAX_MEDIA_PER_SEGMENT = 4
 
@@ -204,8 +205,8 @@ export function PostComposer({ editing, initialSegments, onSaved, onCancel }: Pr
     <div className="composer">
       <div className="composer__header">
         <h3>{editing ? '予約を編集' : '新しい投稿'}</h3>
-        <button type="button" className="btn btn--ghost" onClick={onCancel}>
-          閉じる
+        <button type="button" className="btn btn--icon" onClick={onCancel} aria-label="閉じる">
+          <Icon name="close" />
         </button>
       </div>
 
@@ -250,6 +251,7 @@ export function PostComposer({ editing, initialSegments, onSaved, onCancel }: Pr
                 onClick={() => openFilePicker(index)}
                 disabled={uploading || segment.media.length >= MAX_MEDIA_PER_SEGMENT}
               >
+                <Icon name="image" size={16} />
                 画像を追加
               </button>
               <span className={remaining < 0 ? 'composer__count composer__count--over' : 'composer__count'}>
@@ -282,7 +284,8 @@ export function PostComposer({ editing, initialSegments, onSaved, onCancel }: Pr
       })}
 
       <button type="button" className="btn btn--ghost btn--small composer__add-segment" onClick={addSegment}>
-        ＋ スレッドに追加（連投）
+        <Icon name="thread" size={16} />
+        スレッドに追加（連投）
       </button>
 
       <input
@@ -324,6 +327,7 @@ export function PostComposer({ editing, initialSegments, onSaved, onCancel }: Pr
           onClick={() => void save('schedule')}
           disabled={saving || overLimit}
         >
+          <Icon name={repeatRule ? 'repeat' : 'send'} size={16} />
           {saving ? '保存中…' : repeatRule ? '繰り返し予約する' : '予約する'}
         </button>
       </div>

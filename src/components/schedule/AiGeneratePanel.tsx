@@ -3,6 +3,7 @@ import { generatePosts, type GeneratedPost } from '../../lib/schedule/api'
 import { createScheduledPosts } from '../../lib/schedule/postsStore'
 import { weightedLength, MAX_WEIGHTED_LENGTH } from '../../lib/schedule/textLength'
 import type { PostSegment } from '../../lib/schedule/types'
+import { Icon } from '../Icon'
 
 interface Props {
   onSaved: () => void
@@ -91,7 +92,10 @@ export function AiGeneratePanel({ onSaved, onEdit }: Props) {
 
   return (
     <div className="ai-panel">
-      <h3 className="ai-panel__title">AIに投稿案を作ってもらう</h3>
+      <h3 className="ai-panel__title">
+        <Icon name="sparkles" size={18} />
+        AIに投稿案を作ってもらう
+      </h3>
 
       <label className="ai-panel__field">
         <span>何について投稿する？</span>
@@ -151,6 +155,7 @@ export function AiGeneratePanel({ onSaved, onEdit }: Props) {
         onClick={() => void handleGenerate()}
         disabled={generating}
       >
+        <Icon name="sparkles" size={16} />
         {generating ? '作成中…' : '投稿案を作る'}
       </button>
 

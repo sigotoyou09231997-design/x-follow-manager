@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Icon } from '../Icon'
 import { disconnectX, startXConnect } from '../../lib/schedule/api'
 import type { XAccountStatus } from '../../lib/schedule/types'
 
@@ -58,6 +59,7 @@ export function XConnectCard({ account, onChanged }: Props) {
         </button>
       ) : (
         <button type="button" className="btn btn--primary" onClick={handleConnect} disabled={busy}>
+          <Icon name="link" />
           {busy ? '接続中…' : 'Xと連携する'}
         </button>
       )}

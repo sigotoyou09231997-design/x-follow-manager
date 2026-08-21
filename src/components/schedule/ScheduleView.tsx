@@ -4,6 +4,7 @@ import { completeXConnect } from '../../lib/schedule/api'
 import { signInWithGoogle, signOut, useSupabaseAuth } from '../../hooks/useSupabaseAuth'
 import { useScheduledPosts } from '../../hooks/useScheduledPosts'
 import type { PostSegment, ScheduledPost } from '../../lib/schedule/types'
+import { Icon } from '../Icon'
 import { AiGeneratePanel } from './AiGeneratePanel'
 import { PostComposer } from './PostComposer'
 import { ScheduledPostList } from './ScheduledPostList'
@@ -129,6 +130,7 @@ export function ScheduleView() {
           className={pane === 'compose' ? 'btn btn--primary' : 'btn btn--ghost'}
           onClick={() => (pane === 'compose' ? closePane() : openCompose())}
         >
+          <Icon name="plus" />
           新しい投稿
         </button>
         <button
@@ -136,14 +138,15 @@ export function ScheduleView() {
           className={pane === 'ai' ? 'btn btn--primary' : 'btn btn--ghost'}
           onClick={() => (pane === 'ai' ? closePane() : setPane('ai'))}
         >
+          <Icon name="sparkles" />
           AIで投稿案を作る
         </button>
         <div className="schedule-view__toolbar-end">
-          <button type="button" className="btn btn--ghost btn--small" onClick={() => void reload()}>
-            再読み込み
+          <button type="button" className="btn btn--ghost btn--small" onClick={() => void reload()} aria-label="再読み込み">
+            <Icon name="refresh" size={16} />
           </button>
-          <button type="button" className="btn btn--ghost btn--small" onClick={() => void signOut()}>
-            ログアウト
+          <button type="button" className="btn btn--ghost btn--small" onClick={() => void signOut()} aria-label="ログアウト">
+            <Icon name="logout" size={16} />
           </button>
         </div>
       </div>

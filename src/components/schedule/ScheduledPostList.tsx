@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { deleteScheduledPost, updateScheduledPost } from '../../lib/schedule/postsStore'
 import { describeRepeatRule } from '../../lib/schedule/repeat'
+import { Icon } from '../Icon'
 import type { ScheduledPost } from '../../lib/schedule/types'
 
 type Filter = 'all' | 'scheduled' | 'draft' | 'repeating' | 'posted' | 'failed'
@@ -153,6 +154,7 @@ export function ScheduledPostList({ posts, onChanged, onEdit }: Props) {
                     onClick={() => onEdit(post)}
                     disabled={busy}
                   >
+                    <Icon name="edit" size={15} />
                     編集
                   </button>
                 )}
@@ -181,6 +183,7 @@ export function ScheduledPostList({ posts, onChanged, onEdit }: Props) {
                     }
                     disabled={busy}
                   >
+                    <Icon name="refresh" size={15} />
                     もう一度試す
                   </button>
                 )}
@@ -191,6 +194,7 @@ export function ScheduledPostList({ posts, onChanged, onEdit }: Props) {
                     target="_blank"
                     rel="noreferrer"
                   >
+                    <Icon name="external" size={15} />
                     Xで見る
                   </a>
                 )}
@@ -203,6 +207,7 @@ export function ScheduledPostList({ posts, onChanged, onEdit }: Props) {
                   }}
                   disabled={busy}
                 >
+                  <Icon name="trash" size={15} />
                   削除
                 </button>
               </div>
