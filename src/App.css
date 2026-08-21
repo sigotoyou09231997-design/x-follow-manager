@@ -1159,3 +1159,14 @@
     align-items: flex-start;
   }
 }
+
+.schedule-view__config {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}

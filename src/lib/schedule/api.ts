@@ -4,7 +4,7 @@ import { requireSupabase } from '../supabase'
 // サーバー側で本人確認できるようにする。
 
 async function authorizedFetch<T>(path: string, body: unknown): Promise<T> {
-  const client = requireSupabase()
+  const client = await requireSupabase()
   const {
     data: { session },
   } = await client.auth.getSession()

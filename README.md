@@ -76,33 +76,28 @@ LIFE HUB（todoアプリ）と同じプロジェクトに相乗りできます�
 1. このディレクトリをVercelにデプロイする
 2. 環境変数を設定する（`.env.example` を参照）
 
-   | 変数名 | 値 | 公開範囲 |
+   | 変数名 | 値 | 備考 |
    | --- | --- | --- |
-   | `VITE_SUPABASE_URL` | SupabaseのProject URL | ブラウザに埋め込まれる |
-   | `VITE_SUPABASE_ANON_KEY` | Supabaseのanon key | ブラウザに埋め込まれる |
-   | `SUPABASE_URL` | 同上 | サーバーのみ |
-   | `SUPABASE_SERVICE_ROLE_KEY` | Supabaseのservice_role key | **サーバーのみ。絶対に`VITE_`を付けない** |
-   | `ANTHROPIC_API_KEY` | AnthropicのAPIキー | サーバーのみ |
-   | `X_CLIENT_ID` | XアプリのClient ID | サーバーのみ |
-   | `X_CLIENT_SECRET` | XアプリのClient Secret | サーバーのみ |
-   | `CRON_SECRET` | 自分で決めるランダムな長い文字列 | サーバーのみ |
+   | `SUPABASE_URL` | SupabaseのProject URL | ブラウザへは `/api/config` 経由で配られる |
+   | `SUPABASE_ANON_KEY` | Supabaseのanon key | 同上（`VITE_SUPABASE_ANON_KEY` でも可） |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Supabaseのservice_role key | **サーバー専用。ブラウザには絶対に出さない** |
+   | `ANTHROPIC_API_KEY` | AnthropicのAPIキー | サーバー専用 |
+   | `X_CLIENT_ID` | XアプリのClient ID | サーバー専用 |
+   | `X_CLIENT_SECRET` | XアプリのClient Secret | サーバー専用 |
+   | `CRON_SECRET` | 自分で決めるランダムな長い文字列 | サーバー専用 |
 
-3. 再デプロイして反映する
+   > **接続情報はビルド時ではなく実行時に配ります。**
+   > Vercelでは「Sensitive」に設定した変数がビルド時に渡されず、さらにビルドキャッシュの
+   > 影響も受けるため、`VITE_` 方式だと「環境変数は正しいのに画面には未設定と出る」という
+   > 切り分け不能な状態に陥ります（実際に踏みました）。
+   > そのため `api/config.ts` が実行時に `SUPABASE_URL` / `SUPABASE_ANON_KEY` を返し、
+   > ブラウザは起動時にそれを取得します。**環境変数を直せば再デプロイなしで反映されます。**
+   > ここで配るのは公開前提の2つだけで、service_role key や各種シークレットは返しません。
+   >
+   > 設定漏れの切り分けは `https://<ドメイン>/api/config` を開けば分かります
+   > （どれが設定済みかを true/false で返します。値は返しません）。
 
-> **注意1: `VITE_` の2つを Vercel の「Sensitive」にしてはいけません。**
-> Sensitive な変数は実行時（Functions内）にしか注入されず、**ビルド時には渡されません**。
-> Sensitive のままだと、何度再デプロイしても予約投稿の画面は出てきません。
-> この2つは元々ブラウザに露出する前提の値（anon key はRLSで保護される設計）なので、
-> 通常の変数として登録して問題ありません。残り6つは実行時にしか使わないので Sensitive のままで正しいです。
->
-> **注意2:** `VITE_` で始まる変数は**ビルド時**にJSへ焼き込まれます。未設定のままビルドすると、
-> 予約投稿の画面コードごとバンドルから消えます（設定チェックが常に偽になり、まるごと最適化で削られる）。
-> あとから環境変数を追加した場合は、**必ず再デプロイ**してください。追加しただけでは反映されません。
-> ローカルで確認するときも `.env` に `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` が必要です。
->
-> **反映されたかの確認方法:** 配信中の `index.html` が参照するJSのファイル名を見る。
-> 環境変数が渡っていれば、渡っていないときとは別のハッシュになり、
-> `ScheduleView-*.js` チャンクが数百KBになる（渡っていないと5KB程度に削られる）。
+3. 環境変数はすべて Sensitive にして構いません（実行時にしか使わないため）
 
 ## 4. 定期実行（毎分のチェック）
 

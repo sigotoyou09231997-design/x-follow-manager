@@ -46,7 +46,7 @@ function fromRow(row: ScheduledPostRow): ScheduledPost {
 }
 
 export async function fetchScheduledPosts(): Promise<ScheduledPost[]> {
-  const client = requireSupabase()
+  const client = await requireSupabase()
   const { data, error } = await client
     .from(TABLE)
     .select('*')
@@ -65,7 +65,7 @@ export interface CreatePostInput {
 }
 
 export async function createScheduledPost(input: CreatePostInput): Promise<ScheduledPost> {
-  const client = requireSupabase()
+  const client = await requireSupabase()
   const {
     data: { user },
   } = await client.auth.getUser()
@@ -89,7 +89,7 @@ export async function createScheduledPost(input: CreatePostInput): Promise<Sched
 /** 複数の下書きを一度に作る。AI一括生成の保存で使う。 */
 export async function createScheduledPosts(inputs: CreatePostInput[]): Promise<ScheduledPost[]> {
   if (inputs.length === 0) return []
-  const client = requireSupabase()
+  const client = await requireSupabase()
   const {
     data: { user },
   } = await client.auth.getUser()
@@ -121,7 +121,7 @@ export interface UpdatePostInput {
 }
 
 export async function updateScheduledPost(id: string, input: UpdatePostInput): Promise<void> {
-  const client = requireSupabase()
+  const client = await requireSupabase()
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (input.segments !== undefined) patch.segments = input.segments
   if (input.scheduledAt !== undefined) patch.scheduled_at = input.scheduledAt
@@ -136,7 +136,7 @@ export async function updateScheduledPost(id: string, input: UpdatePostInput): P
 }
 
 export async function deleteScheduledPost(id: string): Promise<void> {
-  const client = requireSupabase()
+  const client = await requireSupabase()
   const { error } = await client.from(TABLE).delete().eq('id', id)
   if (error) throw new Error(`予約の削除に失敗しました: ${error.message}`)
 }
@@ -151,7 +151,7 @@ export async function deleteScheduledPost(id: string): Promise<void> {
  * IndexedDBではなくStorageに置く点が重要。
  */
 export async function uploadPostMedia(file: File): Promise<{ path: string; mime: string }> {
-  const client = requireSupabase()
+  const client = await requireSupabase()
   const {
     data: { user },
   } = await client.auth.getUser()
@@ -169,14 +169,14 @@ export async function uploadPostMedia(file: File): Promise<{ path: string; mime:
 
 /** サムネイル表示用の署名付きURL（1時間有効）。 */
 export async function signMediaUrl(path: string): Promise<string | undefined> {
-  const client = requireSupabase()
+  const client = await requireSupabase()
   const { data, error } = await client.storage.from(MEDIA_BUCKET).createSignedUrl(path, 3600)
   if (error) return undefined
   return data?.signedUrl
 }
 
 export async function deletePostMedia(path: string): Promise<void> {
-  const client = requireSupabase()
+  const client = await requireSupabase()
   await client.storage.from(MEDIA_BUCKET).remove([path])
 }
 
@@ -185,7 +185,7 @@ export async function deletePostMedia(path: string): Promise<void> {
 // ---------------------------------------------------------------
 
 export async function fetchXAccountStatus(): Promise<XAccountStatus | undefined> {
-  const client = requireSupabase()
+  const client = await requireSupabase()
   // トークン本体はRLSで完全に隠してあるため、専用関数経由で表示用の情報だけ取る。
   const { data, error } = await client.rpc('my_x_account')
   if (error) throw new Error(`X連携状態の取得に失敗しました: ${error.message}`)

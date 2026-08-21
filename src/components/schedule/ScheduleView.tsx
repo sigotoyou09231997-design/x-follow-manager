@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { isSupabaseConfigured } from '../../lib/supabase'
 import { X_CALLBACK_PATH } from '../../lib/schedule/constants'
 import { completeXConnect } from '../../lib/schedule/api'
 import { signInWithGoogle, signOut, useSupabaseAuth } from '../../hooks/useSupabaseAuth'
@@ -14,7 +13,7 @@ import { XConnectCard } from './XConnectCard'
 type Pane = 'none' | 'compose' | 'ai'
 
 export function ScheduleView() {
-  const { session, loading: authLoading } = useSupabaseAuth()
+  const { session, loading: authLoading, configured, configStatus } = useSupabaseAuth()
   const loggedIn = !!session
   const { posts, summary, xAccount, loading, error, reload } = useScheduledPosts(loggedIn)
 
@@ -54,22 +53,33 @@ export function ScheduleView() {
     })()
   }, [loggedIn, reload])
 
-  if (!isSupabaseConfigured) {
+  if (authLoading) {
+    return <p className="loading-indicator">読み込み中…</p>
+  }
+
+  if (!configured) {
+    // どの環境変数が欠けているかまで出す。ここが分からないと、設定したのに
+    // 動かないときに何を直せばよいのか画面から判断できない。
     return (
       <div className="schedule-view schedule-view--notice">
         <p>
-          予約投稿機能を使うには、環境変数 <code>VITE_SUPABASE_URL</code> と{' '}
-          <code>VITE_SUPABASE_ANON_KEY</code> の設定が必要です。
+          予約投稿の接続情報を取得できませんでした。サーバーの環境変数{' '}
+          <code>SUPABASE_URL</code> と <code>VITE_SUPABASE_ANON_KEY</code> を確認してください。
         </p>
+        {configStatus && (
+          <ul className="schedule-view__config">
+            {Object.entries(configStatus).map(([key, ok]) => (
+              <li key={key}>
+                {ok ? '✅' : '❌'} {key}
+              </li>
+            ))}
+          </ul>
+        )}
         <p className="schedule-view__hint">
           非相互フォローの整理機能は設定なしでこれまで通り使えます。
         </p>
       </div>
     )
-  }
-
-  if (authLoading) {
-    return <p className="loading-indicator">読み込み中…</p>
   }
 
   if (!loggedIn) {
