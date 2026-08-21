@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from './supabaseAdmin'
+import { getSupabaseAdmin } from './supabaseAdmin.js'
 
 /**
  * Authorization: Bearer <supabase access token> を検証し、ユーザーIDを返す。

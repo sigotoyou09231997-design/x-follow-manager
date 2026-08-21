@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import Anthropic from '@anthropic-ai/sdk'
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
-import { requireUserId, UnauthorizedError } from './_lib/auth'
+import { requireUserId, UnauthorizedError } from './_lib/auth.js'
 
 const MODEL = 'claude-opus-5'
 

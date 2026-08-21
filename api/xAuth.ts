@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { requireUserId, UnauthorizedError } from './_lib/auth'
-import { getSupabaseAdmin } from './_lib/supabaseAdmin'
-import { exchangeAuthorizationCode, fetchMe, X_SCOPES } from './_lib/xClient'
+import { requireUserId, UnauthorizedError } from './_lib/auth.js'
+import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
+import { exchangeAuthorizationCode, fetchMe, X_SCOPES } from './_lib/xClient.js'
 
 // XのOAuth 2.0(PKCE)のうち、クライアントシークレットを使う部分と
 // トークンの保管をサーバー側で行う。ブラウザにはトークンを一切渡さない。

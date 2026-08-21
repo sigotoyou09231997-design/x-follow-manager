@@ -1,15 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { requireCronSecret, UnauthorizedError } from './_lib/auth'
-import { getSupabaseAdmin } from './_lib/supabaseAdmin'
+import { requireCronSecret, UnauthorizedError } from './_lib/auth.js'
+import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 import {
   createPost,
   refreshAccessToken,
   setMediaAltText,
   uploadMedia,
   XApiError,
-} from './_lib/xClient'
-import { nextOccurrence } from '../src/lib/schedule/repeat'
-import type { PostSegment, RepeatRule } from '../src/lib/schedule/types'
+} from './_lib/xClient.js'
+import { nextOccurrence } from '../src/lib/schedule/repeat.js'
+import type { PostSegment, RepeatRule } from '../src/lib/schedule/types.js'
 
 // Supabase の pg_cron から毎分呼ばれ、投稿時刻を過ぎた予約をXへ送る。
 // ブラウザが閉じていても動くよう、処理は完全にサーバー側で完結する。

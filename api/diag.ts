@@ -40,8 +40,8 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     ['@supabase/supabase-js', () => import('@supabase/supabase-js')],
     ['@anthropic-ai/sdk', () => import('@anthropic-ai/sdk')],
     ['zod', () => import('zod')],
-    ['api/_lib (underscore dir)', () => import('./_lib/xClient')],
-    ['../src (api外のファイル)', () => import('../src/lib/schedule/repeat')],
+    ['api/_lib (underscore dir)', () => import('./_lib/xClient.js')],
+    ['../src (api外のファイル)', () => import('../src/lib/schedule/repeat.js')],
   ] as [string, () => Promise<unknown>][]) {
     try {
       await load()
@@ -51,6 +51,18 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     }
   }
   result.imports = imports
+
+  // 5. 実際にデプロイされているファイル構成（_lib が含まれているかの確認）
+  try {
+    const { readdirSync, existsSync } = await import('node:fs')
+    const tree: Record<string, string[]> = {}
+    for (const dir of ['/var/task', '/var/task/api', '/var/task/api/_lib', '/var/task/src']) {
+      tree[dir] = existsSync(dir) ? readdirSync(dir).slice(0, 40) : ['(存在しない)']
+    }
+    result.files = tree
+  } catch (error) {
+    result.files = `NG: ${(error as Error).message}`
+  }
 
   res.setHeader('cache-control', 'no-store')
   return res.status(200).json(result)
