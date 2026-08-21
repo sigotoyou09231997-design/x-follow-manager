@@ -23,12 +23,28 @@ export class XApiError extends Error {
 }
 
 function clientCredentials(): { clientId: string; clientSecret: string } {
-  const clientId = process.env.X_CLIENT_ID
-  const clientSecret = process.env.X_CLIENT_SECRET
+  // 環境変数へ貼り付ける際に改行や前後の空白が紛れ込みやすい。
+  // 混入するとBasic認証の文字列が壊れ、Xからは "Missing valid authorization header"
+  // という、値が間違っているとは分かりにくいエラーで返ってくる。
+  const clientId = process.env.X_CLIENT_ID?.trim()
+  const clientSecret = process.env.X_CLIENT_SECRET?.trim()
   if (!clientId || !clientSecret) {
     throw new Error('X_CLIENT_ID / X_CLIENT_SECRET が設定されていません')
   }
   return { clientId, clientSecret }
+}
+
+/** 認証失敗時の切り分け用。値そのものは絶対に出さず、形だけを返す。 */
+function credentialShape(): string {
+  const rawId = process.env.X_CLIENT_ID ?? ''
+  const rawSecret = process.env.X_CLIENT_SECRET ?? ''
+  const parts = [
+    `clientId=${rawId.trim().length}文字`,
+    `clientSecret=${rawSecret.trim().length}文字`,
+  ]
+  if (rawId !== rawId.trim()) parts.push('clientIdに余分な空白/改行あり')
+  if (rawSecret !== rawSecret.trim()) parts.push('clientSecretに余分な空白/改行あり')
+  return parts.join(', ')
 }
 
 /** Confidential client として Basic 認証ヘッダを組む。 */
@@ -55,7 +71,16 @@ async function requestToken(params: URLSearchParams): Promise<XTokenSet> {
   })
   const text = await response.text()
   if (!response.ok) {
-    throw new XApiError(`トークン取得に失敗しました: ${text}`, response.status, response.status >= 500)
+    // 認証系の失敗は原因が値の不備であることが多いので、値を出さずに形だけ添える。
+    const hint = response.status === 401 || text.includes('unauthorized_client')
+      ? ` / 設定値の形: ${credentialShape()}（Xの画面の値と桁数が一致するか確認してください。` +
+        `Type of App が Web App でないとClient Secretは無効です）`
+      : ''
+    throw new XApiError(
+      `トークン取得に失敗しました: ${text}${hint}`,
+      response.status,
+      response.status >= 500
+    )
   }
   const data = JSON.parse(text) as {
     access_token: string
