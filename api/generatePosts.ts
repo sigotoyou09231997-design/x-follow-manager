@@ -24,9 +24,15 @@ function apiKeyShape(): string {
   if (key.startsWith('sk-ant-admin')) parts.push('Admin key（メッセージ送信には使えません）')
   else if (key.startsWith('sk-ant-')) parts.push('接頭辞は sk-ant- で正しい')
   else parts.push('接頭辞が sk-ant- ではない')
-  // 正規の鍵は sk-ant-api03- + 約95文字で100文字を超える。極端に短いときは
-  // 貼り付けが途中で切れている（コンソールの伏字表示をコピーした等）。
-  if (key.length > 0 && key.length < 60) {
+  // コンソールは既存の鍵を sk-ant-api03-xuP...IQAA のように省略表示する。
+  // これをコピーすると省略記号がそのまま値になり、23文字前後で保存される。
+  if (key.includes('...') || key.includes('\u2026')) {
+    parts.push(
+      'マスク表示をコピーしています → 「...」は省略記号で、実際の鍵ではありません。' +
+        '鍵の全文は新規作成した直後の画面でしか表示されません'
+    )
+  } else if (key.length > 0 && key.length < 60) {
+    // 正規の鍵は sk-ant-api03- + 約95文字で100文字を超える。
     parts.push('短すぎる → 値が途中で切れています。鍵を新規発行して全文を貼り直してください')
   }
   return parts.join(', ')
