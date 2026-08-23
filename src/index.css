@@ -1,7 +1,8 @@
 /* ============================================================
    デザイントークン
-   Xのプロダクトに寄せた配色。ライトは白基調、ダークは黒に近い
-   ニュートラルで、アクセントはXブルー。
+   モノトーン基調（黒・白・グレー）。ダークを基準に設計し、
+   ライトはそこから反転して逆算している。彩度の高い色は状態表示
+   （危険・成功・警告）だけに残す。
    ============================================================ */
 
 :root {
@@ -9,37 +10,37 @@
   --bg: #ffffff;
   --bg-elevated: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f7f9f9;
-  --neutral-bg: #eff3f4;
-  --border: #eff3f4;
-  --border-strong: #cfd9de;
+  --surface-2: #f5f5f5;
+  --neutral-bg: #eeeeee;
+  --border: #e4e4e4;
+  --border-strong: #d4d4d6;
 
   /* 文字 */
-  --text: #0f1419;
-  --text-h: #0f1419;
-  --text-muted: #536471;
+  --text: #111111;
+  --text-h: #000000;
+  --text-muted: #6b6b6f;
 
-  /* アクセント */
-  --accent: #1d9bf0;
-  --accent-hover: #1a8cd8;
-  --accent-bg: rgba(29, 155, 240, 0.1);
+  /* アクセント: 色ではなく「白黒反転」で主役を示す */
+  --accent: #111111;
+  --accent-hover: #000000;
+  --accent-bg: rgba(0, 0, 0, 0.06);
   --on-accent: #ffffff;
 
   /* 状態 */
-  --danger: #f4212e;
-  --danger-bg: rgba(244, 33, 46, 0.1);
-  --success: #00ba7c;
-  --success-bg: rgba(0, 186, 124, 0.1);
-  --warning: #b8860b;
-  --warning-bg: rgba(255, 212, 0, 0.12);
-  --warning-border: rgba(255, 212, 0, 0.4);
+  --danger: #d93a3a;
+  --danger-bg: rgba(217, 58, 58, 0.08);
+  --success: #12946a;
+  --success-bg: rgba(18, 148, 106, 0.1);
+  --warning: #8a6d1f;
+  --warning-bg: rgba(232, 195, 122, 0.18);
+  --warning-border: rgba(190, 150, 60, 0.4);
 
   /* 陰影・形 */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12);
-  --radius: 16px;
-  --radius-sm: 10px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.12);
+  --radius: 28px;
+  --radius-sm: 16px;
   --radius-pill: 999px;
 
   /* 端末の安全領域（iPhoneのノッチ・ホームバー） */
@@ -57,60 +58,70 @@
   -webkit-text-size-adjust: 100%;
 }
 
+/* ダーク（設計の基準）。@media と data-theme の2箇所は同じ内容に揃える。 */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #000000;
-    --bg-elevated: #16181c;
-    --surface: #16181c;
-    --surface-2: #1e2126;
-    --neutral-bg: #202327;
-    --border: #2f3336;
-    --border-strong: #3e4144;
+    --bg: #0a0a0c;
+    --bg-elevated: #151517;
+    --surface: #151517;
+    --surface-2: #1c1c1f;
+    --neutral-bg: #232326;
+    --border: #2a2a2d;
+    --border-strong: #3a3a3e;
 
-    --text: #e7e9ea;
-    --text-h: #f7f9f9;
-    --text-muted: #71767b;
+    --text: #f2f2f0;
+    --text-h: #ffffff;
+    --text-muted: #9a9a9e;
 
-    --accent: #1d9bf0;
-    --accent-hover: #4cb0f5;
-    --accent-bg: rgba(29, 155, 240, 0.16);
+    --accent: #ffffff;
+    --accent-hover: #e6e6e4;
+    --accent-bg: rgba(255, 255, 255, 0.1);
+    --on-accent: #0a0a0c;
 
-    --danger: #f4212e;
-    --danger-bg: rgba(244, 33, 46, 0.16);
-    --success: #00ba7c;
-    --success-bg: rgba(0, 186, 124, 0.16);
-    --warning: #ffd400;
-    --warning-bg: rgba(255, 212, 0, 0.1);
-    --warning-border: rgba(255, 212, 0, 0.3);
+    --danger: #ff5b5b;
+    --danger-bg: rgba(255, 91, 91, 0.14);
+    --success: #4fd1a1;
+    --success-bg: rgba(79, 209, 161, 0.14);
+    --warning: #e8c37a;
+    --warning-bg: rgba(232, 195, 122, 0.1);
+    --warning-border: rgba(232, 195, 122, 0.32);
 
     --shadow-sm: none;
-    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
-    --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.6);
+    --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.7);
     color-scheme: dark;
   }
 }
 
 :root[data-theme='dark'] {
-  --bg: #000000;
-  --bg-elevated: #16181c;
-  --surface: #16181c;
-  --surface-2: #1e2126;
-  --neutral-bg: #202327;
-  --border: #2f3336;
-  --border-strong: #3e4144;
-  --text: #e7e9ea;
-  --text-h: #f7f9f9;
-  --text-muted: #71767b;
-  --accent-hover: #4cb0f5;
-  --accent-bg: rgba(29, 155, 240, 0.16);
-  --danger-bg: rgba(244, 33, 46, 0.16);
-  --success-bg: rgba(0, 186, 124, 0.16);
-  --warning: #ffd400;
-  --warning-bg: rgba(255, 212, 0, 0.1);
-  --warning-border: rgba(255, 212, 0, 0.3);
+  --bg: #0a0a0c;
+  --bg-elevated: #151517;
+  --surface: #151517;
+  --surface-2: #1c1c1f;
+  --neutral-bg: #232326;
+  --border: #2a2a2d;
+  --border-strong: #3a3a3e;
+
+  --text: #f2f2f0;
+  --text-h: #ffffff;
+  --text-muted: #9a9a9e;
+
+  --accent: #ffffff;
+  --accent-hover: #e6e6e4;
+  --accent-bg: rgba(255, 255, 255, 0.1);
+  --on-accent: #0a0a0c;
+
+  --danger: #ff5b5b;
+  --danger-bg: rgba(255, 91, 91, 0.14);
+  --success: #4fd1a1;
+  --success-bg: rgba(79, 209, 161, 0.14);
+  --warning: #e8c37a;
+  --warning-bg: rgba(232, 195, 122, 0.1);
+  --warning-border: rgba(232, 195, 122, 0.32);
+
   --shadow-sm: none;
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.7);
   color-scheme: dark;
 }
 
@@ -144,8 +155,8 @@ h2,
 h3 {
   margin: 0;
   color: var(--text-h);
-  letter-spacing: -0.01em;
-  line-height: 1.25;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 p {
@@ -178,8 +189,12 @@ button:disabled {
   border-radius: 4px;
 }
 
+/* モノトーン基調では色でリンクを示せないので、下線で示す。 */
 a {
-  color: var(--accent);
+  color: var(--text-h);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--border-strong);
 }
 
 /* 数値は桁が揃わないと一覧で目が滑るため等幅にする。 */

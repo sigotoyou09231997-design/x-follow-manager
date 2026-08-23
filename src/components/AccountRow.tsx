@@ -1,71 +1,46 @@
+import { Avatar } from './Avatar'
+import { Icon } from './Icon'
+import { relativeTime } from '../lib/relativeTime'
 import type { AccountRecord } from '../lib/types'
 
 const STATUS_LABEL: Record<AccountRecord['status'], string> = {
-  pending: '未処理',
+  pending: '未確認',
   done: '解除済み',
-  protected: '保護',
+  protected: '残す',
   skipped: 'スキップ',
 }
 
 interface Props {
   account: AccountRecord
+  /** 詳細パネルに出ている1件。PCでは選択行、モバイルでは直前に開いた行。 */
+  selected?: boolean
+  /** バッチ内の作業対象としてフォーカスが当たっている行。 */
   focused?: boolean
-  onOpenProfile: (account: AccountRecord) => void
-  onMarkDone: (account: AccountRecord) => void
-  onToggleProtect: (account: AccountRecord) => void
-  onFocus?: (account: AccountRecord) => void
+  onSelect: (account: AccountRecord) => void
 }
 
-export function AccountRow({ account, focused, onOpenProfile, onMarkDone, onToggleProtect, onFocus }: Props) {
-  const label = account.displayName || (account.username ? `@${account.username}` : null)
-  const subLabel = account.username && account.displayName ? `@${account.username}` : account.accountId ? `ID: ${account.accountId}` : null
+export function AccountRow({ account, selected, focused, onSelect }: Props) {
+  const name = account.displayName || account.username || account.accountId || '(不明なアカウント)'
+  const handle = account.username ? `@${account.username}` : account.accountId ? `ID: ${account.accountId}` : ''
+  const stamp = relativeTime(account.updatedAt || account.importedAt)
 
   return (
-    <div
-      className={`account-row${focused ? ' account-row--focused' : ''}`}
-      onClick={() => onFocus?.(account)}
+    <button
+      type="button"
+      className={`account-row${selected ? ' account-row--selected' : ''}${focused ? ' account-row--focused' : ''}`}
+      onClick={() => onSelect(account)}
+      aria-current={selected ? 'true' : undefined}
     >
-      <div className="account-row__identity">
-        <span className="account-row__name">{label ?? subLabel ?? '(不明なアカウント)'}</span>
-        {label && subLabel && <span className="account-row__sub">{subLabel}</span>}
-      </div>
-      <span className={`status-badge status-badge--${account.status}`}>{STATUS_LABEL[account.status]}</span>
-      <div className="account-row__actions">
-        <a
-          className="btn btn--secondary"
-          href={account.profileUrl}
-          target="_blank"
-          rel="noreferrer noopener"
-          onClick={(e) => {
-            e.stopPropagation()
-            onOpenProfile(account)
-          }}
-        >
-          Xで開く
-        </a>
-        <button
-          type="button"
-          className="btn btn--primary"
-          disabled={account.status === 'done'}
-          title="Xで実際にフォロー解除した後に押してください（自動検知はしません）"
-          onClick={(e) => {
-            e.stopPropagation()
-            onMarkDone(account)
-          }}
-        >
-          解除済みにする
-        </button>
-        <button
-          type="button"
-          className="btn btn--ghost"
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggleProtect(account)
-          }}
-        >
-          {account.status === 'protected' ? '保護を解除' : '保護'}
-        </button>
-      </div>
-    </div>
+      <Avatar account={account} size={44} />
+      <span className="account-row__identity">
+        <span className="account-row__name">{name}</span>
+        {handle && <span className="account-row__sub">{handle}</span>}
+      </span>
+      {account.status !== 'pending' && (
+        <span className={`status-badge status-badge--${account.status}`}>{STATUS_LABEL[account.status]}</span>
+      )}
+      <span className="account-row__time tnum">{stamp}</span>
+      <Icon name="chevron-right" size={18} className="account-row__chevron" />
+    </button>
   )
 }
