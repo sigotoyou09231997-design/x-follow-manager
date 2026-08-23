@@ -78,6 +78,61 @@ test.describe('X非相互フォロー整理ツール', () => {
     expect(download.suggestedFilename()).toBe('x-non-mutual-all.csv')
   })
 
+  // 中央の＋が「押しても何も起きない」状態にならないことを守る。
+  // 以前は未確認0件のとき disabled になり、理由の表示もなく無反応だった。
+  test('モバイル: 中央の＋は常に反応する（続きから再開 / 完了を明示）', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/')
+    await page.locator('input[type="file"]').setInputFiles(ARCHIVE_PATH)
+
+    const fab = page.locator('.bottom-nav__fab')
+    const panel = page.locator('.review-panel')
+
+    // 1回目: バッチが始まり、先頭の1件が確認カードに出る
+    await fab.click()
+    await expect(panel.locator('.review-panel__progress')).toHaveText('1 / 30')
+
+    // 1件処理してカードを閉じ、もう一度押すと同じバッチの続きから再開する
+    await panel.getByRole('button', { name: '残す', exact: true }).click()
+    await expect(panel.locator('.review-panel__progress')).toHaveText('2 / 30')
+    await panel.getByRole('button', { name: '閉じる' }).click()
+    await expect(panel).toBeHidden()
+
+    await fab.click()
+    await expect(panel.locator('.review-panel__progress')).toHaveText('2 / 30')
+    await panel.getByRole('button', { name: '閉じる' }).click()
+
+    // 未確認を0件にする。UIで30件処理すると遅いので、保存済みデータを直接書き換える。
+    await page.evaluate(async () => {
+      const request = indexedDB.open('x-follow-manager')
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result)
+        request.onerror = () => reject(request.error)
+      })
+      const tx = db.transaction('accounts', 'readwrite')
+      const store = tx.objectStore('accounts')
+      const rows = await new Promise<{ status: string; completedAt?: number; updatedAt: number }[]>((resolve) => {
+        const req = store.getAll()
+        req.onsuccess = () => resolve(req.result)
+      })
+      for (const row of rows) {
+        row.status = 'done'
+        row.completedAt = Date.now()
+        row.updatedAt = Date.now()
+        store.put(row)
+      }
+      await new Promise((resolve) => {
+        tx.oncomplete = resolve
+      })
+    })
+    await page.reload()
+
+    // 未確認0件でも無反応にはせず、「すべて確認済み」だと分かる画面へ送る
+    await expect(fab).toBeEnabled()
+    await fab.click()
+    await expect(page.getByText('未確認のアカウントはありません。すべて確認済みです。')).toBeVisible()
+  })
+
   test('設定画面からローカルデータを削除できる', async ({ page }) => {
     await page.goto('/')
     await page.locator('input[type="file"]').setInputFiles(ARCHIVE_PATH)

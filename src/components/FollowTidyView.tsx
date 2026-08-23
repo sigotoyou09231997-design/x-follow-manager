@@ -239,7 +239,11 @@ export function FollowTidyView({
       <div className="tidy-layout">
         <div className="tidy-layout__list">
           {filtered.length === 0 ? (
-            <p className="empty-state">該当するアカウントがありません</p>
+            <p className="empty-state">
+              {filter === 'pending' && !search.trim()
+                ? '未確認のアカウントはありません。すべて確認済みです。'
+                : '該当するアカウントがありません'}
+            </p>
           ) : (
             <>
               <div className="account-table">

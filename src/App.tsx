@@ -129,13 +129,35 @@ function App() {
     setDetectedFiles([])
   }
 
-  // 「次の◯人を確認する」。バッチを取り直して、先頭の1件を詳細に出す。
+  // 一覧のツールバーから明示的に押したとき。いつでもバッチを取り直す。
   async function startNextBatch() {
     const keys = await getNextBatchKeys(batchSize)
     await setMeta(META_KEYS.currentBatchKeys, keys)
     setFilter('all')
     setTab('tidy')
     setSelectedKey(keys[0] ?? null)
+  }
+
+  // FAB とサイドバーのCTA。「押しても何も起きない」を作らないための入口で、
+  // 進行中のバッチがあれば再開し、未確認が無いときはその事実が分かる画面に送る。
+  async function openNextReview() {
+    const unfinished = batchAccounts.find((account) => account.status === 'pending')
+    if (unfinished) {
+      setFilter('all')
+      setTab('tidy')
+      setSelectedKey(unfinished.key)
+      return
+    }
+
+    if ((summary?.pending ?? 0) === 0) {
+      // 未確認0件。空の一覧を出して「すべて確認済み」だと分かるようにする。
+      setFilter('pending')
+      setTab('tidy')
+      setSelectedKey(null)
+      return
+    }
+
+    await startNextBatch()
   }
 
   // 「残すリスト」はフォロー整理の派生画面なので、下部バーでは同じ項目を現在地として扱う。
@@ -214,8 +236,7 @@ function App() {
           <button
             type="button"
             className="btn btn--primary side-nav__cta"
-            onClick={startNextBatch}
-            disabled={(summary?.pending ?? 0) === 0}
+            onClick={openNextReview}
           >
             <Icon name="plus" size={18} />
             次の{batchSize}人を確認
@@ -346,8 +367,7 @@ function App() {
         <button
           type="button"
           className="bottom-nav__fab"
-          onClick={startNextBatch}
-          disabled={(summary?.pending ?? 0) === 0}
+          onClick={openNextReview}
           aria-label={`次の${batchSize}人を確認する`}
         >
           <Icon name="plus" size={24} />
