@@ -1232,7 +1232,13 @@ input[type='checkbox'] {
 }
 
 .settings-section--danger {
-  border-color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+}
+
+/* 縦積みのセクション内でボタンが全幅に伸びると、破壊的操作が必要以上に
+   目立つ。内容ぶんの幅に留める。 */
+.settings-section > .btn {
+  align-self: flex-start;
 }
 
 .settings-section__desc {
@@ -1368,6 +1374,7 @@ input[type='checkbox'] {
   .home-view,
   .history-view,
   .settings-view,
+  .schedule-view,
   .onboarding {
     width: 100%;
     max-width: 720px;
