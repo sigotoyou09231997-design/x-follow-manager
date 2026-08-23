@@ -24,6 +24,11 @@ function apiKeyShape(): string {
   if (key.startsWith('sk-ant-admin')) parts.push('Admin key（メッセージ送信には使えません）')
   else if (key.startsWith('sk-ant-')) parts.push('接頭辞は sk-ant- で正しい')
   else parts.push('接頭辞が sk-ant- ではない')
+  // 正規の鍵は sk-ant-api03- + 約95文字で100文字を超える。極端に短いときは
+  // 貼り付けが途中で切れている（コンソールの伏字表示をコピーした等）。
+  if (key.length > 0 && key.length < 60) {
+    parts.push('短すぎる → 値が途中で切れています。鍵を新規発行して全文を貼り直してください')
+  }
   return parts.join(', ')
 }
 
