@@ -2286,22 +2286,28 @@ input[type='checkbox'] {
     flex: 1;
   }
 
-  /* 主要2つと補助アイコンを1行に収める。入り切らない分は横スクロールで拾う。
-     折り返すと補助ボタンだけが次の行に取り残されて据わりが悪い。 */
+  /* 以前はここを1行の横スクロールにしていたが、390px幅で52pxはみ出し、
+     スクロールできると気づけないまま補助ボタンが切れて見えていた。
+     主要2つは1行に収まるので、入り切らない補助アイコンだけ折り返す。 */
   .schedule-view__toolbar {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-    margin: 0 -16px;
-    padding: 0 16px;
-  }
-
-  .schedule-view__toolbar::-webkit-scrollbar {
-    display: none;
+    flex-wrap: wrap;
+    margin: 0;
+    padding: 0;
   }
 
   .schedule-view__toolbar > .btn {
     flex: 0 0 auto;
+  }
+
+  /* 中身がアイコンだけの補助ボタンは、文字ぶんの横余白を削って正方形にする */
+  .schedule-view__toolbar-end .btn--small {
+    width: 36px;
+    min-height: 36px;
+    padding: 0;
+  }
+
+  .schedule-view__toolbar-end .btn--small svg {
+    margin: 0;
   }
 
   .composer__field {
