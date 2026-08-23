@@ -2295,7 +2295,13 @@ input[type='checkbox'] {
     padding: 0;
   }
 
+  /* 主要2つで1行を埋め切る。自然幅のままだと1行目だけ右に48px余り、
+     次行の補助アイコン（右端揃え）と食い違って端がガタつく。 */
   .schedule-view__toolbar > .btn {
+    flex: 1 1 auto;
+  }
+
+  .schedule-view__toolbar-end {
     flex: 0 0 auto;
   }
 
