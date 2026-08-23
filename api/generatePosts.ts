@@ -6,6 +6,27 @@ import { requireUserId, UnauthorizedError } from './_lib/auth.js'
 
 const MODEL = 'claude-opus-5'
 
+// 環境変数へ貼り付ける際に改行や前後の空白が紛れ込みやすい。混入したままだと
+// Anthropicには別の文字列として送られ、401（APIキーが無効）で返ってくる。
+// X_CLIENT_ID / X_CLIENT_SECRET で同じ問題があったため、同様にtrimする。
+function anthropicApiKey(): string | undefined {
+  const key = process.env.ANTHROPIC_API_KEY?.trim()
+  return key || undefined
+}
+
+/** 401時の切り分け用。値そのものは絶対に出さず、形だけを返す。 */
+function apiKeyShape(): string {
+  const raw = process.env.ANTHROPIC_API_KEY ?? ''
+  const key = raw.trim()
+  const parts = [`${key.length}文字`]
+  if (raw !== key) parts.push('前後に余分な空白/改行あり')
+  if (/^["']|["']$/.test(key)) parts.push('引用符が含まれている')
+  if (key.startsWith('sk-ant-admin')) parts.push('Admin key（メッセージ送信には使えません）')
+  else if (key.startsWith('sk-ant-')) parts.push('接頭辞は sk-ant- で正しい')
+  else parts.push('接頭辞が sk-ant- ではない')
+  return parts.join(', ')
+}
+
 const GeneratedPostsSchema = z.object({
   posts: z.array(
     z.object({
@@ -92,7 +113,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(status).json({ error: (error as Error).message })
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  const apiKey = anthropicApiKey()
+  if (!apiKey) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY が設定されていません' })
   }
 
@@ -111,7 +133,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const mode = payload.mode === 'thread' ? 'thread' : 'single'
   const threadLength = Math.min(Math.max(Math.floor(payload.threadLength ?? 3), 2), 10)
 
-  const client = new Anthropic()
+  const client = new Anthropic({ apiKey })
 
   try {
     const response = await client.messages.parse({
@@ -151,7 +173,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(429).json({ error: 'AIの利用制限に達しました。しばらく待ってお試しください' })
     }
     if (error instanceof Anthropic.AuthenticationError) {
-      return res.status(500).json({ error: 'Anthropic APIキーが無効です' })
+      // Anthropicが鍵そのものを拒否した状態。残高不足ではこのエラーにはならない
+      // （その場合は下のAPIErrorでメッセージがそのまま出る）。
+      return res.status(500).json({
+        error:
+          'Anthropic APIキーが拒否されました（401）。console.anthropic.com で有効な鍵か確認してください。' +
+          ` / 設定値の形: ${apiKeyShape()}`,
+      })
     }
     if (error instanceof Anthropic.APIError) {
       return res.status(502).json({ error: `AI呼び出しに失敗しました: ${error.message}` })
