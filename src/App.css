@@ -1778,9 +1778,27 @@ input[type='checkbox'] {
   color: var(--text-muted);
 }
 
+/* 日付・時刻の入力は、必要な幅がブラウザによって違う（同じ内容でも
+   Chromiumは200px、Safariは164px、UIの言語でも変わる）。縮められると
+   日付が見切れるので、内容が要求する幅は必ず確保する。 */
 .composer__field input {
   flex: 1;
   max-width: 260px;
+  min-width: fit-content;
+}
+
+/* ラベルが縮んで「終了日（任 / 意）」のように折り返すのを防ぐ。 */
+.composer__field > span,
+.repeat-editor__field > span,
+.repeat-editor__toggle > span {
+  flex: none;
+}
+
+/* 終了日は日付1つぶんで足りるのに、行いっぱい（1400px幅で1126px）まで
+   伸びていた。他の入力と同じ上限で止める。 */
+.repeat-editor__field input[type='date'] {
+  max-width: 260px;
+  min-width: fit-content;
 }
 
 .composer__warning {
@@ -1854,6 +1872,8 @@ input[type='checkbox'] {
 .repeat-editor__interval input,
 .repeat-editor__field input[type='number'] {
   width: 68px;
+  /* Chromeはスピナーぶん68pxに収まらない。足りない分は広げる。 */
+  min-width: fit-content;
 }
 
 .repeat-editor__weekdays {
