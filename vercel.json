@@ -1,6 +1,17 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "headers": [
+    {
+      "source": "/(sw.js|version.json|push-sw.js)",
+      "headers": [
+        {
+          "key": "cache-control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/((?!api/).*)",
@@ -12,6 +23,9 @@
       "maxDuration": 60
     },
     "api/publishDue.ts": {
+      "maxDuration": 60
+    },
+    "api/checkAppUpdate.ts": {
       "maxDuration": 60
     }
   }

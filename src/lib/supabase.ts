@@ -8,6 +8,8 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 interface RuntimeConfig {
   supabaseUrl?: string
   supabaseAnonKey?: string
+  /** Web Pushの公開鍵。購読の作成に使う（公開前提の値）。 */
+  vapidPublicKey?: string
   configured?: Record<string, boolean>
 }
 
@@ -48,6 +50,11 @@ export async function requireSupabase(): Promise<SupabaseClient> {
     )
   }
   return client
+}
+
+/** Web Pushの公開鍵。未設定なら undefined。getSupabase()の後に参照する。 */
+export function getVapidPublicKey(): string | undefined {
+  return lastConfig?.vapidPublicKey
 }
 
 /** 画面に出す設定状況（どれが未設定かの切り分け用）。getSupabase()の後に参照する。 */

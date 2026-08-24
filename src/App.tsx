@@ -6,6 +6,7 @@ import { HomeView } from './components/HomeView'
 import { HistoryView } from './components/HistoryView'
 import { FollowTidyView, type FilterKey } from './components/FollowTidyView'
 import { SettingsView } from './components/SettingsView'
+import { UpdateBanner } from './components/UpdateBanner'
 import { Icon, type IconName } from './components/Icon'
 import { X_CALLBACK_PATH } from './lib/schedule/constants'
 import { useAccounts, useCurrentBatchKeys, useSummary } from '#accounts-hook'
@@ -197,6 +198,8 @@ function App() {
 
   return (
     <div className="app-shell">
+      <UpdateBanner />
+
       <header className="app-header">
         <button type="button" className="app-header__logo" onClick={() => goto('home')}>
           Follow tidy

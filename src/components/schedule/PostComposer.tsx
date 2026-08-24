@@ -7,6 +7,7 @@ import {
   uploadPostMedia,
 } from '../../lib/schedule/postsStore'
 import { containsUrl, isOverLimit, MAX_WEIGHTED_LENGTH, weightedLength } from '../../lib/schedule/textLength'
+import { registerEditingGuard } from '../../lib/editingGuard'
 import type { PostSegment, RepeatRule, ScheduledPost } from '../../lib/schedule/types'
 import { AiAssistPanel } from './AiAssistPanel'
 import { RepeatRuleEditor } from './RepeatRuleEditor'
@@ -81,6 +82,12 @@ export function PostComposer({ editing, onSaved, onCancel, onDraftsAdded }: Prop
     // segments全体を依存に入れると署名のたびに再実行されるため、件数の変化だけを見る。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [segments.length, segments.map((s) => s.media.length).join(',')])
+
+  // 書きかけの本文があるあいだは、更新バナーの自動リロードを待たせる。
+  // ここで書いた文章はサーバーにも端末にも残らないので、読み込み直すと消えてしまう。
+  const draftRef = useRef(false)
+  draftRef.current = segments.some((s) => s.text.trim() || s.media.length > 0)
+  useEffect(() => registerEditingGuard(() => draftRef.current), [])
 
   function updateSegment(index: number, patch: Partial<PostSegment>) {
     setSegments((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)))

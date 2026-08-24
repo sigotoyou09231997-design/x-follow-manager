@@ -1,5 +1,13 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { FileDropZone } from './FileDropZone'
+
+// 通知の設定はSupabase（ログイン状態と購読情報の保存）を必要とする。
+// 設定画面は起動時に読み込まれるので、ここで普通にimportすると
+// 非相互フォローの整理しか使わない人にまでSupabaseを配ることになる。
+// 予約投稿タブと同じく、開いたときに初めて読み込む。
+const PushSettings = lazy(() =>
+  import('#push-settings').then((module) => ({ default: module.PushSettings }))
+)
 
 interface Props {
   onReimport: (file: File) => void
@@ -43,6 +51,10 @@ export function SettingsView({ onReimport, onClearAll, lastImportedAt, importing
         )}
         <FileDropZone onFile={onReimport} disabled={importing} />
       </section>
+
+      <Suspense fallback={null}>
+        <PushSettings />
+      </Suspense>
 
       <section className="settings-section settings-section--danger">
         <h2>データの削除</h2>

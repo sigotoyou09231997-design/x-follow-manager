@@ -1251,6 +1251,12 @@ input[type='checkbox'] {
   color: var(--text-muted);
 }
 
+.settings-section__error {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
 .confirm-box {
   background: var(--danger-bg);
   border: 1px solid var(--danger);
@@ -1613,6 +1619,78 @@ input[type='checkbox'] {
 
 .stat--danger .stat__value {
   color: var(--danger);
+}
+
+/* --- アップデートの帯 --- */
+
+/* 画面最上部に被せる。ヘッダーやモーダルより前に出したいので、既存のどの層よりも上。 */
+.update-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: var(--text-h);
+  color: var(--bg);
+  box-shadow: var(--shadow-md);
+  padding-top: env(safe-area-inset-top);
+  animation: update-banner-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes update-banner-in {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.update-banner__body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 12px 20px;
+}
+
+.update-banner__text {
+  min-width: 0;
+}
+
+.update-banner__title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.update-banner__meta {
+  margin-top: 2px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* 「いま切り替わりつつある」ことが伝わるように、進み具合を線で見せる。 */
+.update-banner__track {
+  height: 3px;
+  background: rgba(127, 127, 127, 0.3);
+}
+
+.update-banner__fill {
+  height: 100%;
+  background: var(--accent, currentColor);
+  transition-property: width;
+  transition-timing-function: linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-banner {
+    animation: none;
+  }
+
+  .update-banner__fill {
+    transition: none;
+  }
 }
 
 /* --- コンポーザー --- */

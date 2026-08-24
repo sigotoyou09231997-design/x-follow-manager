@@ -4,7 +4,7 @@
     "target": "es2023",
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
-    "types": ["vite/client"],
+    "types": ["vite/client", "vite-plugin-pwa/client"],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
 
@@ -22,7 +22,8 @@
       "#store": ["./src/db/db.ts"],
       "#accounts-hook": ["./src/hooks/useAccounts.ts"],
       "#csv": ["./src/lib/csv.ts"],
-      "#schedule-view": ["./src/components/schedule/ScheduleView.tsx"]
+      "#schedule-view": ["./src/components/schedule/ScheduleView.tsx"],
+      "#push-settings": ["./src/components/PushSettings.tsx"]
     },
 
     /* Linting */

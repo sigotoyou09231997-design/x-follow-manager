@@ -10,6 +10,8 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "verbatimModuleSyntax": true,
+    /* web-push のようなCommonJSパッケージを default import で受けるため。 */
+    "esModuleInterop": true,
     "moduleDetection": "force",
     "noEmit": true,
     "strict": true,

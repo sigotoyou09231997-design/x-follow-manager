@@ -15,6 +15,8 @@ export default defineConfig({
       '#csv': path.resolve(import.meta.dirname, 'src/artifact/downloadCsv.ts'),
       // 予約投稿はサーバー前提の機能なので、Artifact版では案内だけのスタブに差し替える。
       '#schedule-view': path.resolve(import.meta.dirname, 'src/artifact/ScheduleViewStub.tsx'),
+      // 通知もサーバー(とデプロイ)前提なので、Supabaseごと連れてこないよう空に差し替える。
+      '#push-settings': path.resolve(import.meta.dirname, 'src/artifact/PushSettingsStub.tsx'),
     },
   },
   build: {

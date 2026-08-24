@@ -14,6 +14,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 export default function handler(_req: VercelRequest, res: VercelResponse) {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
   const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
+  // Web Pushの公開鍵。名前のとおり公開してよい値で、これが無いと購読を作れない。
+  const vapidPublicKey = process.env.VAPID_PUBLIC_KEY?.trim() || undefined
 
   // 設定漏れの切り分け用。値は返さず、設定済みかどうかだけを返す。
   const configured = {
@@ -24,9 +26,12 @@ export default function handler(_req: VercelRequest, res: VercelResponse) {
     xClientId: !!process.env.X_CLIENT_ID,
     xClientSecret: !!process.env.X_CLIENT_SECRET,
     cronSecret: !!process.env.CRON_SECRET,
+    vapidPublicKey: !!vapidPublicKey,
+    vapidPrivateKey: !!process.env.VAPID_PRIVATE_KEY,
+    vapidSubject: !!process.env.VAPID_SUBJECT,
   }
 
   // 環境変数を直したらすぐ反映されてほしいのでキャッシュさせない。
   res.setHeader('cache-control', 'no-store')
-  return res.status(200).json({ supabaseUrl, supabaseAnonKey, configured })
+  return res.status(200).json({ supabaseUrl, supabaseAnonKey, vapidPublicKey, configured })
 }
