@@ -22,6 +22,12 @@ interface Props {
   onCancel: () => void
   /** AIがまとめて作った案を下書き保存したとき、一覧を取り直させる。 */
   onDraftsAdded?: () => void
+  /**
+   * 'inline' … 予約投稿タブの一覧の上に開く、これまでの形。
+   * 'sheet'  … ＋から前面にかぶせて出す形（ComposerSheet が使う）。
+   *            見出しと保存ボタンを上下に貼り付けて、長い本文でも操作を見失わないようにする。
+   */
+  variant?: 'inline' | 'sheet'
 }
 
 function emptySegment(): PostSegment {
@@ -41,7 +47,13 @@ function fromLocalInputValue(value: string): string | undefined {
   return Number.isNaN(ts) ? undefined : new Date(ts).toISOString()
 }
 
-export function PostComposer({ editing, onSaved, onCancel, onDraftsAdded }: Props) {
+export function PostComposer({
+  editing,
+  onSaved,
+  onCancel,
+  onDraftsAdded,
+  variant = 'inline',
+}: Props) {
   const [segments, setSegments] = useState<PostSegment[]>(
     () => editing?.segments ?? [emptySegment()]
   )
@@ -225,7 +237,7 @@ export function PostComposer({ editing, onSaved, onCancel, onDraftsAdded }: Prop
   }
 
   return (
-    <div className="composer">
+    <div className={variant === 'sheet' ? 'composer composer--sheet' : 'composer'}>
       <div className="composer__header">
         <h3>{editing ? '予約を編集' : '新しい投稿'}</h3>
         <button type="button" className="btn btn--icon" onClick={onCancel} aria-label="閉じる">

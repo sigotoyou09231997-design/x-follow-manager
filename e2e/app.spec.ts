@@ -156,6 +156,7 @@ test.describe('X非相互フォロー整理ツール', () => {
   test('設定画面からローカルデータを削除できる', async ({ page }) => {
     await page.goto('/')
     await page.locator('input[type="file"]').setInputFiles(ARCHIVE_PATH)
+    await expect(page.locator('.summary-stat__value').nth(2)).toHaveText('30')
 
     const sideNav = page.locator('.side-nav')
     await sideNav.getByRole('button', { name: 'フォロー整理' }).click()

@@ -83,6 +83,9 @@ function App() {
   }, [accountList, batchKeys])
 
   async function handleFile(file: File) {
+    // 解析には時間がかかる。その間にユーザーが別の画面へ移っていたら、
+    // 読み込み完了を理由に引き戻さない（自分で開いた画面が勝手に閉じるため）。
+    const tabAtStart = tab
     setImporting(true)
     setErrorMessage([])
     setWarnings([])
@@ -98,8 +101,7 @@ function App() {
 
       setWarnings(parsed.warnings)
       setSelectedKey(null)
-      // 解析中に予約投稿へ移った（中央の＋を押した）場合まで引き戻さない。
-      setTab((current) => (current === 'schedule' ? current : 'home'))
+      setTab((current) => (current === tabAtStart ? 'home' : current))
     } catch (error) {
       setErrorMessage([
         'アーカイブZIPの読み込みに失敗しました。ファイルが破損していないか確認してください。',

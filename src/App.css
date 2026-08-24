@@ -1899,6 +1899,142 @@ input[type='checkbox'] {
   justify-content: flex-end;
 }
 
+/* --- ＋から開くコンポーザー（かぶせて出す形） --- */
+
+/* 予約投稿タブの中に開くコンポーザーとは別の見せ方にしている。
+   一覧を暗くして前に出し、スマホでは下から立ち上がるシート、
+   PCでは中央のダイアログとして扱う。 */
+.composer-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  animation: composer-sheet-fade 0.18s ease both;
+}
+
+@keyframes composer-sheet-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.composer-sheet__panel {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  max-height: 92dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  /* 下から出る面なので、角丸は上だけ。カードより一段強くして「別の層」に見せる。 */
+  border-radius: 28px 28px 0 0;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+  animation: composer-sheet-rise 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes composer-sheet-rise {
+  from {
+    transform: translateY(24px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* 下から引き上げた面であることを示す摘み。装飾なので操作はしない。 */
+.composer-sheet__grip {
+  flex: none;
+  width: 40px;
+  height: 4px;
+  margin: 10px auto 0;
+  border-radius: var(--radius-pill);
+  background: var(--border-strong);
+}
+
+/* シート版のコンポーザーは、カードの装飾を脱いで面いっぱいに広がる。 */
+.composer--sheet {
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 18px calc(18px + env(safe-area-inset-bottom));
+  gap: 16px;
+}
+
+/* 本文が伸びても、見出しと「予約する」は常に見えている状態にする。
+   ＋から開いた人は書き切って予約するところまでが一続きの操作なので、
+   スクロールで操作を見失わせない。 */
+.composer--sheet .composer__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+  padding: 4px 0 12px;
+  margin-bottom: -4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.composer--sheet .composer__header h3 {
+  font-size: 17px;
+}
+
+.composer--sheet .composer__actions {
+  position: sticky;
+  bottom: 0;
+  background: var(--surface);
+  padding: 12px 0 0;
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+}
+
+.composer--sheet .composer__actions .btn {
+  flex: 1;
+}
+
+/* PCでは下端に貼り付ける必然がないので、中央のダイアログとして置く。 */
+@media (min-width: 900px) {
+  .composer-sheet {
+    align-items: center;
+  }
+
+  .composer-sheet__panel {
+    max-height: 86vh;
+    border-radius: var(--radius);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  }
+
+  .composer-sheet__grip {
+    display: none;
+  }
+
+  .composer--sheet {
+    padding: 18px 22px 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-sheet,
+  .composer-sheet__panel {
+    animation: none;
+  }
+}
+
 /* --- 繰り返し設定 --- */
 
 .repeat-editor {
@@ -2457,8 +2593,23 @@ input[type='checkbox'] {
     gap: 6px;
   }
 
+  /* 縦積みでは入力が行いっぱいに広がるので、内容が要求する幅（fit-content）を
+     下限として持つ必要がない。むしろ datetime-local の fit-content は端末や
+     言語によってカードの幅を超えることがあり、そうなると右へはみ出して
+     右端が切れる（iPhoneで発生。app-shellが overflow-x: clip なので、
+     横スクロールすらできず見えないまま切れる）。横幅の指定だけに従わせる。 */
   .composer__field input {
     max-width: none;
+    min-width: 0;
+    width: 100%;
+  }
+
+  /* 終了日（date）も同じ理由。こちらはラベルと同じ行に置いたままにしたいので、
+     残り幅いっぱいまで伸ばしつつ、足りなければ縮められるようにする。 */
+  .repeat-editor__field input[type='date'] {
+    flex: 1;
+    max-width: none;
+    min-width: 0;
   }
 
   .x-connect {

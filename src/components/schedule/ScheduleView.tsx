@@ -3,8 +3,10 @@ import { X_CALLBACK_PATH } from '../../lib/schedule/constants'
 import { completeXConnect } from '../../lib/schedule/api'
 import { signInWithGoogle, signOut, useSupabaseAuth } from '../../hooks/useSupabaseAuth'
 import { useScheduledPosts } from '../../hooks/useScheduledPosts'
+import { isEditing } from '../../lib/editingGuard'
 import type { ScheduledPost } from '../../lib/schedule/types'
 import { Icon } from '../Icon'
+import { ComposerSheet } from './ComposerSheet'
 import { PostComposer } from './PostComposer'
 import { ScheduledPostList } from './ScheduledPostList'
 import { ScheduleSummaryBar } from './ScheduleSummaryBar'
@@ -19,7 +21,9 @@ interface Props {
   composeRequest?: number
 }
 
-type Pane = 'none' | 'compose'
+// 'compose' … 一覧の上に開く、これまでのコンポーザー
+// 'sheet'   … ＋から前面にかぶせて出すコンポーザー
+type Pane = 'none' | 'compose' | 'sheet'
 
 export function ScheduleView({ composeRequest = 0 }: Props) {
   const { session, loading: authLoading, configured, configStatus } = useSupabaseAuth()
@@ -61,11 +65,11 @@ export function ScheduleView({ composeRequest = 0 }: Props) {
     })()
   }, [loggedIn, reload])
 
-  // 中央の＋から来たときは、そのまま新規作成のコンポーザーを開く。
+  // 中央の＋から来たときは、かぶせて出す方のコンポーザーを開く。
   useEffect(() => {
     if (composeRequest <= 0) return
     setEditing(undefined)
-    setPane('compose')
+    setPane('sheet')
   }, [composeRequest])
 
   if (authLoading) {
@@ -121,6 +125,13 @@ export function ScheduleView({ composeRequest = 0 }: Props) {
     setEditing(undefined)
   }
 
+  // かぶせて出している間に書いた本文は、保存するまでどこにも残らない。
+  // 背景やEscで閉じるのは指が滑っただけのこともあるので、書きかけなら一度止める。
+  function closeSheet() {
+    if (isEditing() && !window.confirm('書きかけの投稿を破棄しますか？')) return
+    closePane()
+  }
+
   return (
     <div className="schedule-view">
       {callbackMessage && <p className="schedule-view__success">{callbackMessage}</p>}
@@ -165,6 +176,17 @@ export function ScheduleView({ composeRequest = 0 }: Props) {
             void reload()
           }}
           onCancel={closePane}
+          onDraftsAdded={() => void reload()}
+        />
+      )}
+
+      {pane === 'sheet' && (
+        <ComposerSheet
+          onClose={closeSheet}
+          onSaved={() => {
+            closePane()
+            void reload()
+          }}
           onDraftsAdded={() => void reload()}
         />
       )}
