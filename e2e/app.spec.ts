@@ -78,27 +78,47 @@ test.describe('X非相互フォロー整理ツール', () => {
     expect(download.suggestedFilename()).toBe('x-non-mutual-all.csv')
   })
 
-  // 中央の＋が「押しても何も起きない」状態にならないことを守る。
+  // 中央の＋は予約投稿の作成入口。押した先が予約投稿タブであることを守る。
+  test('モバイル: 中央の＋は予約投稿を開く', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/')
+    await page.locator('input[type="file"]').setInputFiles(ARCHIVE_PATH)
+    await expect(page.locator('.summary-stat__value').nth(2)).toHaveText('30')
+
+    await page.locator('.bottom-nav__fab').click()
+
+    // preview には /api が無いため、予約投稿は「接続情報が取れない」案内を出す。
+    // ここで見たいのは、＋が予約投稿タブへ確かに移動していること。
+    await expect(page.locator('.schedule-view')).toBeVisible()
+    await expect(
+      page.locator('.bottom-nav__item', { hasText: '予約投稿' })
+    ).toHaveClass(/active/)
+  })
+
+  // 確認作業が「押しても何も起きない」状態にならないことを守る。
   // 以前は未確認0件のとき disabled になり、理由の表示もなく無反応だった。
-  test('モバイル: 中央の＋は常に反応する（続きから再開 / 完了を明示）', async ({ page }) => {
+  test('モバイル: ホームから確認を始め、続きから再開できる', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/')
     await page.locator('input[type="file"]').setInputFiles(ARCHIVE_PATH)
 
-    const fab = page.locator('.bottom-nav__fab')
     const panel = page.locator('.review-panel')
+    const home = page.locator('.bottom-nav__item', { hasText: 'ホーム' })
+    const startButton = () => page.locator('.task-item').getByRole('button')
 
     // 1回目: バッチが始まり、先頭の1件が確認カードに出る
-    await fab.click()
+    await startButton().click()
     await expect(panel.locator('.review-panel__progress')).toHaveText('1 / 30')
 
-    // 1件処理してカードを閉じ、もう一度押すと同じバッチの続きから再開する
+    // 1件処理してカードを閉じ、ホームへ戻ると「続きから」になる
     await panel.getByRole('button', { name: '残す', exact: true }).click()
     await expect(panel.locator('.review-panel__progress')).toHaveText('2 / 30')
     await panel.getByRole('button', { name: '閉じる' }).click()
     await expect(panel).toBeHidden()
 
-    await fab.click()
+    await home.click()
+    await expect(startButton()).toHaveText('続きから')
+    await startButton().click()
     await expect(panel.locator('.review-panel__progress')).toHaveText('2 / 30')
     await panel.getByRole('button', { name: '閉じる' }).click()
 
@@ -128,8 +148,8 @@ test.describe('X非相互フォロー整理ツール', () => {
     await page.reload()
 
     // 未確認0件でも無反応にはせず、「すべて確認済み」だと分かる画面へ送る
-    await expect(fab).toBeEnabled()
-    await fab.click()
+    await expect(startButton()).toBeEnabled()
+    await startButton().click()
     await expect(page.getByText('未確認のアカウントはありません。すべて確認済みです。')).toBeVisible()
   })
 

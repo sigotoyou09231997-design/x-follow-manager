@@ -409,7 +409,6 @@ input[type='checkbox'] {
 .card,
 .settings-section,
 .composer,
-.ai-panel,
 .x-connect,
 .post-item,
 .account-table,
@@ -1905,59 +1904,97 @@ input[type='checkbox'] {
   line-height: 1.6;
 }
 
-/* --- AI生成 --- */
+/* --- AI下書き支援（コンポーザー内） --- */
 
-.ai-panel {
+/* 本文欄と同じカードの中に入るので、面を重ねずに一段くぼんだ区画として見せる。 */
+.ai-assist {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.ai-assist--open {
+  border-color: var(--border-strong);
+}
+
+/* 折りたたみの見出し。閉じているときは1行のボタンにしか見えないようにして、
+   自分で書きたいだけの人の邪魔をしない。 */
+.ai-assist__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 14px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ai-assist__toggle:hover {
+  background: var(--neutral-bg);
+}
+
+.ai-assist__toggle-label {
+  flex: 1;
+}
+
+.ai-assist__body {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 18px;
+  padding: 0 14px 14px;
 }
 
-.ai-panel__title {
-  font-size: 16px;
-  font-weight: 800;
+.ai-assist__hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
 }
 
-.ai-panel__field {
+.ai-assist__field {
   display: flex;
   flex-direction: column;
   gap: 6px;
   font-size: 13px;
 }
 
-.ai-panel__field > span {
+.ai-assist__field > span {
   color: var(--text-muted);
   font-weight: 600;
 }
 
-.ai-panel__field--inline {
+.ai-assist__field--inline {
   flex-direction: row;
   align-items: center;
   gap: 10px;
 }
 
-.ai-panel__field--inline select {
+.ai-assist__field--inline select {
   width: auto;
 }
 
-.ai-panel__field--inline input[type='number'] {
+.ai-assist__field--inline input[type='number'] {
   width: 72px;
 }
 
-.ai-panel__options {
+.ai-assist__options {
   display: flex;
   gap: 18px;
   flex-wrap: wrap;
 }
 
-.ai-panel__error {
+.ai-assist__error {
   color: var(--danger);
   font-size: 13px;
   font-weight: 600;
 }
 
-.ai-panel__results {
+.ai-assist__results {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1965,11 +2002,12 @@ input[type='checkbox'] {
   border-top: 1px solid var(--border);
 }
 
-.ai-panel__results-head {
+.ai-assist__results-head {
   font-size: 13px;
   color: var(--text-muted);
 }
 
+/* 案カードは、くぼんだAI区画の上に置くので一段明るい面にする。 */
 .ai-result {
   display: flex;
   flex-direction: column;
@@ -1977,7 +2015,7 @@ input[type='checkbox'] {
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  background: var(--surface);
   transition: border-color 0.15s, background 0.15s;
 }
 
@@ -2297,7 +2335,6 @@ input[type='checkbox'] {
   }
 
   .composer,
-  .ai-panel,
   .settings-section {
     padding: 14px;
   }
@@ -2379,7 +2416,6 @@ input[type='checkbox'] {
 /* 面にごく薄いハイライトを乗せると、平坦な塗りより奥行きが出る。 */
 .settings-section,
 .composer,
-.ai-panel,
 .x-connect,
 .post-item,
 .account-table {
@@ -2426,8 +2462,7 @@ input[type='checkbox'] {
   animation-delay: 0.16s;
 }
 
-.composer,
-.ai-panel {
+.composer {
   animation: rise 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
@@ -2461,14 +2496,13 @@ input[type='checkbox'] {
 }
 
 /* 見出しにアイコンを並べる */
-.ai-panel__title,
 .composer__header h3 {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.ai-panel__title svg {
+.ai-assist__toggle svg:first-child {
   color: var(--accent);
 }
 

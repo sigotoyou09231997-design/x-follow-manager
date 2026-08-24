@@ -67,6 +67,8 @@ function App() {
   const [warnings, setWarnings] = useState<string[]>([])
   const [errorMessage, setErrorMessage] = useState<string[]>([])
   const [detectedFiles, setDetectedFiles] = useState<string[]>([])
+  // 中央の＋を押した回数。ScheduleViewはこれが増えたらコンポーザーを開く。
+  const [composeRequest, setComposeRequest] = useState(0)
 
   const headerSearchRef = useRef<HTMLInputElement>(null)
   const listSearchRef = useRef<HTMLInputElement>(null)
@@ -95,7 +97,8 @@ function App() {
 
       setWarnings(parsed.warnings)
       setSelectedKey(null)
-      setTab('home')
+      // 解析中に予約投稿へ移った（中央の＋を押した）場合まで引き戻さない。
+      setTab((current) => (current === 'schedule' ? current : 'home'))
     } catch (error) {
       setErrorMessage([
         'アーカイブZIPの読み込みに失敗しました。ファイルが破損していないか確認してください。',
@@ -158,6 +161,14 @@ function App() {
     }
 
     await startNextBatch()
+  }
+
+  // 中央の＋（FAB）。予約投稿の作成画面を直接開く。
+  // フォロー整理の「次の◯人を確認」は、ホームの今日のタスクとフォロー整理の
+  // ツールバーから始められるので、モバイルでも入口は失われない。
+  function openCompose() {
+    setTab('schedule')
+    setComposeRequest((prev) => prev + 1)
   }
 
   // 「残すリスト」はフォロー整理の派生画面なので、下部バーでは同じ項目を現在地として扱う。
@@ -268,7 +279,7 @@ function App() {
           {/* 予約投稿はアーカイブの読み込みと無関係に使えるので、hasDataで閉じない。 */}
           {tab === 'schedule' && (
             <Suspense fallback={<p className="loading-indicator">読み込み中…</p>}>
-              <ScheduleView />
+              <ScheduleView composeRequest={composeRequest} />
             </Suspense>
           )}
 
@@ -308,7 +319,7 @@ function App() {
                     onSearchFocus={focusSearch}
                     onGotoPending={() => goto('tidy', 'pending')}
                     onGotoProtected={() => goto('protected', 'protected')}
-                    onStartBatch={startNextBatch}
+                    onReview={openNextReview}
                   />
                 </>
               )}
@@ -367,8 +378,8 @@ function App() {
         <button
           type="button"
           className="bottom-nav__fab"
-          onClick={openNextReview}
-          aria-label={`次の${batchSize}人を確認する`}
+          onClick={openCompose}
+          aria-label="投稿を作る"
         >
           <Icon name="plus" size={24} />
         </button>

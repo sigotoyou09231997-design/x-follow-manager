@@ -13,7 +13,8 @@ interface Props {
   onSearchFocus: () => void
   onGotoPending: () => void
   onGotoProtected: () => void
-  onStartBatch: () => void
+  /** 未確認の確認作業を始める / 途中のバッチを再開する。 */
+  onReview: () => void
 }
 
 export function HomeView({
@@ -24,7 +25,7 @@ export function HomeView({
   onSearchFocus,
   onGotoPending,
   onGotoProtected,
-  onStartBatch,
+  onReview,
 }: Props) {
   const doneInBatch = batchAccounts.filter((a) => a.status !== 'pending').length
   const remainingInBatch = batchAccounts.length - doneInBatch
@@ -83,16 +84,11 @@ export function HomeView({
                   : `未確認${summary.pending.toLocaleString()}人から次のバッチを始めましょう`}
               </span>
             </span>
-            {(batchAccounts.length === 0 || remainingInBatch === 0) && (
-              <button
-                type="button"
-                className="btn btn--primary btn--small"
-                onClick={onStartBatch}
-                disabled={summary.pending === 0}
-              >
-                開始
-              </button>
-            )}
+            {/* 進行中でも押せるようにしておく。中央の＋が予約投稿になったぶん、
+                モバイルで「続きから再開する」入口はここが担う。 */}
+            <button type="button" className="btn btn--primary btn--small" onClick={onReview}>
+              {remainingInBatch > 0 ? '続きから' : '開始'}
+            </button>
           </li>
         </ul>
       </section>

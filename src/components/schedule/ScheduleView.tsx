@@ -3,24 +3,31 @@ import { X_CALLBACK_PATH } from '../../lib/schedule/constants'
 import { completeXConnect } from '../../lib/schedule/api'
 import { signInWithGoogle, signOut, useSupabaseAuth } from '../../hooks/useSupabaseAuth'
 import { useScheduledPosts } from '../../hooks/useScheduledPosts'
-import type { PostSegment, ScheduledPost } from '../../lib/schedule/types'
+import type { ScheduledPost } from '../../lib/schedule/types'
 import { Icon } from '../Icon'
-import { AiGeneratePanel } from './AiGeneratePanel'
 import { PostComposer } from './PostComposer'
 import { ScheduledPostList } from './ScheduledPostList'
 import { ScheduleSummaryBar } from './ScheduleSummaryBar'
 import { XConnectCard } from './XConnectCard'
 
-type Pane = 'none' | 'compose' | 'ai'
+interface Props {
+  /**
+   * 増えるたびにコンポーザーを開く。モバイル下部バーの中央＋から渡ってくる。
+   * boolean だと「開いて閉じてもう一度押す」が同じ値になって効かないため、
+   * 押された回数をそのまま渡してもらう。
+   */
+  composeRequest?: number
+}
 
-export function ScheduleView() {
+type Pane = 'none' | 'compose'
+
+export function ScheduleView({ composeRequest = 0 }: Props) {
   const { session, loading: authLoading, configured, configStatus } = useSupabaseAuth()
   const loggedIn = !!session
   const { posts, summary, xAccount, loading, error, reload } = useScheduledPosts(loggedIn)
 
   const [pane, setPane] = useState<Pane>('none')
   const [editing, setEditing] = useState<ScheduledPost>()
-  const [seeded, setSeeded] = useState<PostSegment[]>()
   const [callbackMessage, setCallbackMessage] = useState<string>()
   const [callbackError, setCallbackError] = useState<string>()
 
@@ -53,6 +60,13 @@ export function ScheduleView() {
       }
     })()
   }, [loggedIn, reload])
+
+  // 中央の＋から来たときは、そのまま新規作成のコンポーザーを開く。
+  useEffect(() => {
+    if (composeRequest <= 0) return
+    setEditing(undefined)
+    setPane('compose')
+  }, [composeRequest])
 
   if (authLoading) {
     return <p className="loading-indicator">読み込み中…</p>
@@ -97,16 +111,14 @@ export function ScheduleView() {
     )
   }
 
-  function openCompose(post?: ScheduledPost, segments?: PostSegment[]) {
+  function openCompose(post?: ScheduledPost) {
     setEditing(post)
-    setSeeded(segments)
     setPane('compose')
   }
 
   function closePane() {
     setPane('none')
     setEditing(undefined)
-    setSeeded(undefined)
   }
 
   return (
@@ -125,21 +137,15 @@ export function ScheduleView() {
       )}
 
       <div className="schedule-view__toolbar">
+        {/* 「新しい投稿」と「AIで投稿案を作る」は別々の入口だったが、
+            AI支援はコンポーザーの中に入れて入口を1つにした。 */}
         <button
           type="button"
           className={pane === 'compose' ? 'btn btn--primary' : 'btn btn--ghost'}
           onClick={() => (pane === 'compose' ? closePane() : openCompose())}
         >
           <Icon name="plus" />
-          新しい投稿
-        </button>
-        <button
-          type="button"
-          className={pane === 'ai' ? 'btn btn--primary' : 'btn btn--ghost'}
-          onClick={() => (pane === 'ai' ? closePane() : setPane('ai'))}
-        >
-          <Icon name="sparkles" />
-          AIで投稿案を作る
+          投稿を作る
         </button>
         <div className="schedule-view__toolbar-end">
           <button type="button" className="btn btn--ghost btn--small" onClick={() => void reload()} aria-label="再読み込み">
@@ -154,22 +160,12 @@ export function ScheduleView() {
       {pane === 'compose' && (
         <PostComposer
           editing={editing}
-          initialSegments={seeded}
           onSaved={() => {
             closePane()
             void reload()
           }}
           onCancel={closePane}
-        />
-      )}
-
-      {pane === 'ai' && (
-        <AiGeneratePanel
-          onSaved={() => {
-            setPane('none')
-            void reload()
-          }}
-          onEdit={(segments) => openCompose(undefined, segments)}
+          onDraftsAdded={() => void reload()}
         />
       )}
 

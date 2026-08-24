@@ -8,6 +8,7 @@ import {
 } from '../../lib/schedule/postsStore'
 import { containsUrl, isOverLimit, MAX_WEIGHTED_LENGTH, weightedLength } from '../../lib/schedule/textLength'
 import type { PostSegment, RepeatRule, ScheduledPost } from '../../lib/schedule/types'
+import { AiAssistPanel } from './AiAssistPanel'
 import { RepeatRuleEditor } from './RepeatRuleEditor'
 import { Icon } from '../Icon'
 
@@ -16,10 +17,10 @@ const MAX_MEDIA_PER_SEGMENT = 4
 interface Props {
   /** 編集対象。未指定なら新規作成。 */
   editing?: ScheduledPost
-  /** AI生成から流し込まれた初期本文。 */
-  initialSegments?: PostSegment[]
   onSaved: () => void
   onCancel: () => void
+  /** AIがまとめて作った案を下書き保存したとき、一覧を取り直させる。 */
+  onDraftsAdded?: () => void
 }
 
 function emptySegment(): PostSegment {
@@ -39,9 +40,9 @@ function fromLocalInputValue(value: string): string | undefined {
   return Number.isNaN(ts) ? undefined : new Date(ts).toISOString()
 }
 
-export function PostComposer({ editing, initialSegments, onSaved, onCancel }: Props) {
+export function PostComposer({ editing, onSaved, onCancel, onDraftsAdded }: Props) {
   const [segments, setSegments] = useState<PostSegment[]>(
-    () => editing?.segments ?? initialSegments ?? [emptySegment()]
+    () => editing?.segments ?? [emptySegment()]
   )
   const [scheduledAt, setScheduledAt] = useState(() => toLocalInputValue(editing?.scheduledAt))
   const [repeatRule, setRepeatRule] = useState<RepeatRule | undefined>(editing?.repeatRule)
@@ -98,6 +99,21 @@ export function PostComposer({ editing, initialSegments, onSaved, onCancel }: Pr
   function removeSegment(index: number) {
     for (const media of segments[index].media) discardMediaIfUnsaved(media.path)
     setSegments((prev) => (prev.length === 1 ? [emptySegment()] : prev.filter((_, i) => i !== index)))
+  }
+
+  /**
+   * AIが作った案を本文欄へ流し込む。
+   * 添付済みの画像は本文とは別に選んだものなので、位置が対応する分はそのまま残す。
+   * 案が短くなって行き場を失った画像のうち、この画面で上げただけのものは消す
+   * （保存済みの投稿から来た画像は、保存せず閉じたときに失われないよう残す）。
+   */
+  function applyGenerated(generated: PostSegment[]) {
+    for (let i = generated.length; i < segments.length; i += 1) {
+      for (const media of segments[i].media) discardMediaIfUnsaved(media.path)
+    }
+    setSegments(
+      generated.map((segment, index) => ({ text: segment.text, media: segments[index]?.media ?? [] }))
+    )
   }
 
   function openFilePicker(segmentIndex: number) {
@@ -209,6 +225,12 @@ export function PostComposer({ editing, initialSegments, onSaved, onCancel }: Pr
           <Icon name="close" />
         </button>
       </div>
+
+      <AiAssistPanel
+        currentText={segments.map((s) => s.text).join('\n\n')}
+        onUse={applyGenerated}
+        onSavedDrafts={() => onDraftsAdded?.()}
+      />
 
       {segments.map((segment, index) => {
         const used = weightedLength(segment.text)
