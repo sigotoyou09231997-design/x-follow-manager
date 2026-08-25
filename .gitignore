@@ -17,6 +17,9 @@ dist-ssr
 # E2E用のテストZIPだけは合成データなので例外的に含める（無いとE2Eが動かない）
 !e2e/fixtures/test-archive.zip
 
+# デザイン確認用のスクリーンショット（scripts/design-shots.mjs の出力）
+.design-shots/
+
 # Playwright
 /test-results/
 /playwright-report/
