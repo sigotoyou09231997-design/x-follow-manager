@@ -166,6 +166,8 @@ test.describe('X非相互フォロー整理ツール', () => {
     await page.getByRole('button', { name: 'ローカルデータをすべて削除' }).click()
     await page.getByRole('button', { name: '削除を実行する' }).click()
 
-    await expect(page.getByText('Xアーカイブ ZIP をドロップ')).toBeVisible()
+    // 削除するとホームへ戻り、Heroが読み込みの入口に切り替わる
+    await expect(page.getByText('アーカイブを読み込む')).toBeVisible()
+    await expect(page.getByText('まだアーカイブがありません')).toBeVisible()
   })
 })

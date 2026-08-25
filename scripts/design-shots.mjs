@@ -26,6 +26,13 @@ function arg(name, fallback) {
 
 const BASE_URL = arg('--url', process.env.DESIGN_SHOTS_URL ?? 'http://localhost:4173')
 const OUT_DIR = path.resolve(ROOT, arg('--out', '.design-shots'))
+// 直したところだけ撮り直したいとき: --screens home,tidy / --viewports mobile
+const ONLY_SCREENS = arg('--screens', '')
+  .split(',')
+  .filter(Boolean)
+const ONLY_VIEWPORTS = arg('--viewports', '')
+  .split(',')
+  .filter(Boolean)
 
 const VIEWPORTS = [
   // PC: ヘッダー＋左サイドバー＋中央＋右詳細の3カラム
@@ -103,7 +110,7 @@ const SCREENS = [
       await gotoTab(page, '設定')
       await page.getByRole('button', { name: 'ローカルデータをすべて削除' }).click()
       await page.getByRole('button', { name: '削除を実行する' }).click()
-      await page.getByText('Xアーカイブ ZIP をドロップ').waitFor()
+      await page.getByText('まだアーカイブがありません').waitFor()
     },
   },
 ]
@@ -129,12 +136,22 @@ async function gotoTab(page, label) {
 
 async function seed(page) {
   await page.goto(BASE_URL)
-  await page.locator('input[type="file"]').setInputFiles(ARCHIVE)
+  // ホームは保存済みデータを読み終えてから描画されるので、まずそれを待つ。
+  // 待たずにファイル入力の有無を見ると、まだ何も描かれていない一瞬を
+  // 「読み込み済み」と誤読して、そのまま待ちぼうけになる。
+  await page.locator('.home-view').waitFor()
+  // 同じcontextの中ではIndexedDBが共有されるので、2枚目以降は既に読み込み済み。
+  // 読み込みボタン（＝ファイル入力）が出ているときだけ入れ直す。
+  const input = page.locator('input[type="file"]').first()
+  if ((await input.count()) > 0) await input.setInputFiles(ARCHIVE)
   await page.locator('.summary-stat__value').first().waitFor()
 }
 
 async function main() {
-  await rm(OUT_DIR, { recursive: true, force: true })
+  // 一部だけ撮り直すときは、残りの画像を消さない。
+  if (!ONLY_SCREENS.length && !ONLY_VIEWPORTS.length) {
+    await rm(OUT_DIR, { recursive: true, force: true })
+  }
   await mkdir(OUT_DIR, { recursive: true })
 
   // Playwright同梱のブラウザが無い環境（CIコンテナなど）では、既にある
@@ -145,6 +162,7 @@ async function main() {
   let shots = 0
 
   for (const viewport of VIEWPORTS) {
+    if (ONLY_VIEWPORTS.length && !ONLY_VIEWPORTS.includes(viewport.name)) continue
     for (const theme of THEMES) {
       const context = await browser.newContext({
         viewport: { width: viewport.width, height: viewport.height },
@@ -154,6 +172,7 @@ async function main() {
 
       for (const screen of SCREENS) {
         if (screen.pcOnly && viewport.width < 1024) continue
+        if (ONLY_SCREENS.length && !ONLY_SCREENS.includes(screen.name)) continue
         const page = await context.newPage()
         // テーマは data-theme が @media より強い。CSSの2系統が食い違っていても
         // 撮ったテーマの通りに写るよう、明示的に指定する。
@@ -165,6 +184,12 @@ async function main() {
         await screen.open(page, viewport)
         // フォントの再描画とスクロール位置の確定を待つ。これが無いと
         // 「同じ画面なのに前後で数pxずれた画像」になり、比較の役に立たない。
+        // クリックした場所にポインタが残ると、その下のボタンが :hover のまま写る。
+        // 「押している最中の色」が既定の色に見えてしまうので、端へ逃がす。
+        await page.mouse.move(0, 0)
+        // 画面を切り替えてもスクロール位置は残る。上端から撮らないと、
+        // 「ヘッダーに隠れた見出し」のような実際には起きていない絵になる。
+        await page.evaluate(() => window.scrollTo(0, 0))
         await page.evaluate(() => document.fonts.ready)
         await page.waitForTimeout(300)
 

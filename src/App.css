@@ -6,8 +6,8 @@
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  /* 下部バーに隠れないよう本文の下に余白を積む */
-  padding-bottom: calc(84px + var(--safe-bottom));
+  /* 下部バー(72px)に隠れないよう、本文の下にバー分＋24pxを積む */
+  padding-bottom: calc(96px + var(--safe-bottom));
 }
 
 .app-header {
@@ -175,9 +175,10 @@
   align-items: center;
   justify-content: space-around;
   gap: 2px;
+  min-height: calc(72px + var(--safe-bottom));
   padding: 8px 8px calc(8px + var(--safe-bottom));
   background: var(--bg);
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
   backdrop-filter: saturate(180%) blur(14px);
   -webkit-backdrop-filter: saturate(180%) blur(14px);
   border-top: 1px solid var(--border);
@@ -190,13 +191,13 @@
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  min-height: 52px;
+  min-height: 56px;
   padding: 6px 2px;
   border: none;
-  border-radius: 16px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -204,18 +205,21 @@
   transition: background 0.15s, color 0.15s;
 }
 
+/* 選択中は色だけでなく背景のピルでも示す。色覚や明るい屋外では、
+   色の違いだけだと現在地が分からなくなる。 */
 .bottom-nav__item.active {
-  color: var(--text-h);
-  background: var(--neutral-bg);
+  color: var(--accent);
+  background: var(--accent-bg);
+  font-weight: 800;
 }
 
 /* 中央の＋。ナビ項目ではなく「次の◯人を確認する」の操作なので、
    一回り大きく浮かせて区別する。 */
 .bottom-nav__fab {
   flex: none;
-  width: 58px;
-  height: 58px;
-  margin: -22px 6px 0;
+  width: 56px;
+  height: 56px;
+  margin: -12px 6px 0;
   display: grid;
   place-items: center;
   border: none;
@@ -243,9 +247,9 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 40px;
-  padding: 0 18px;
-  border-radius: var(--radius-pill);
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
   background: var(--surface-2);
   color: var(--text-h);
@@ -253,7 +257,8 @@
   font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
-  transition: background 0.15s, border-color 0.15s, opacity 0.15s, transform 0.08s;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease),
+    opacity var(--dur) var(--ease), transform 0.08s var(--ease);
 }
 
 .btn:active {
@@ -267,8 +272,8 @@
 
 /* アイコンだけの正方形ボタン。補助操作をラベル無しで置きたいときに使う。 */
 .btn--icon {
-  width: 38px;
-  min-height: 38px;
+  width: 44px;
+  min-height: 44px;
   padding: 0;
   border-radius: 50%;
   background: transparent;
@@ -290,8 +295,9 @@
   transform: none;
 }
 
-/* 主役は色ではなく「白黒反転」で示す。 */
+/* 主役はインクネイビー。1画面にいくつも置かない。 */
 .btn--primary {
+  box-shadow: var(--shadow-sm);
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
@@ -300,6 +306,19 @@
 .btn--primary:hover:not(:disabled) {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
+}
+
+/* 「残す」専用。状態色（セージ）をそのまま操作に使う数少ない場所で、
+   一覧のバッジと同じ色にして「押した結果どう表示されるか」を一致させる。 */
+.btn--sage {
+  background: var(--success-strong);
+  border-color: var(--success-strong);
+  color: #ffffff;
+}
+
+.btn--sage:hover:not(:disabled) {
+  background: var(--success-hover);
+  border-color: var(--success-hover);
 }
 
 /* 反転ボタンが「オン」の状態。押し戻せることを控えめに示す。 */
@@ -349,15 +368,35 @@
 }
 
 .btn--small {
-  min-height: 34px;
+  min-height: 36px;
   padding: 0 14px;
   font-size: 13px;
 }
 
 .btn--block {
   width: 100%;
-  min-height: 50px;
+  min-height: 54px;
   font-size: 15px;
+}
+
+/* 写真の上に置く白いボタン。写真が明るくても輪郭が消えないよう、
+   面は不透明のアイボリーにして影を落とす。
+   色をトークンで取らないのは、乗っているのが「写真」であってページの面では
+   ないため。ダークテーマで面と文字を反転させると、写真の上で沈んで消える。 */
+.btn--on-photo {
+  min-height: 54px;
+  padding: 0 26px;
+  background: #fbf9f5;
+  border-color: transparent;
+  color: #11213d;
+  font-size: 15px;
+  box-shadow: var(--shadow-lg);
+}
+
+.btn--on-photo:hover:not(:disabled) {
+  background: #ffffff;
+  border-color: transparent;
+  color: #11213d;
 }
 
 /* ============================================================
@@ -407,16 +446,209 @@ input[type='checkbox'] {
    ============================================================ */
 
 .card,
+.surface-card,
 .settings-section,
 .composer,
 .x-connect,
 .post-item,
-.account-table,
 .schedule-view--notice {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
+}
+
+/* ============================================================
+   写真の面（PhotoHero）
+   写真は差し替えられる前提なので、明るい写真が来ても白文字が読めるよう
+   scrim（暗いグラデーション）を必ず挟む。scrimを外すと、素材次第で
+   見出しが背景に溶けて読めなくなる。
+   ============================================================ */
+
+.photo-hero {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  min-height: 300px;
+  max-height: 360px;
+  padding: 0;
+  border-radius: var(--radius-hero);
+  overflow: hidden;
+  background: var(--neutral-bg);
+  box-shadow: var(--shadow-md);
+}
+
+.photo-hero--compact {
+  min-height: 148px;
+  max-height: 200px;
+}
+
+.photo-hero--compact .photo-hero__title {
+  font-size: clamp(20px, 5.4vw, 24px);
+}
+
+.photo-hero--compact .photo-hero__body {
+  padding: 18px 20px;
+}
+
+.photo-hero__image {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-hero__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--photo-scrim);
+}
+
+.photo-hero__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 24px 20px;
+}
+
+.photo-hero__overline {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.photo-hero__title {
+  color: #ffffff;
+  /* 狭い画面で「残そ / う。」のように語の途中で折れるのを避けるため、
+     幅に応じて縮める。 */
+  font-size: clamp(22px, 6.6vw, 28px);
+  font-weight: 800;
+  line-height: 1.32;
+}
+
+.photo-hero__subtitle {
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 14px;
+}
+
+.photo-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.photo-hero__trust {
+  /* CTAと同じ行に並ぶと、広い画面で「ボタンの付属物」に見えてしまう。
+     必ず改行させて、写真の下端に置くラベルとして読ませる。 */
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.trust-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: var(--radius-pill);
+  background: rgba(251, 249, 245, 0.18);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.photo-hero__trust-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 6px;
+  border: none;
+  background: none;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ============================================================
+   一覧の行としてのリンク（カードの中に積む）
+   ============================================================ */
+
+.link-list {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+}
+
+.link-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 12px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  transition: background var(--dur) var(--ease);
+}
+
+.link-row + .link-row {
+  border-top: 1px solid var(--border);
+}
+
+.link-row:hover {
+  background: var(--surface-2);
+}
+
+.link-row__icon {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.link-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.link-row__label {
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.link-row__desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.link-row__chevron {
+  flex: none;
+  color: var(--text-muted);
 }
 
 .overline {
@@ -444,10 +676,24 @@ input[type='checkbox'] {
   padding: 40px 0;
 }
 
+/* 空の状態は「何も無い理由」と「次にできること」を一緒に置く。
+   文字だけを中央に置くと、壊れているのか空なのか区別が付かない。 */
 .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   text-align: center;
   color: var(--text-muted);
-  padding: 48px 16px;
+  padding: 36px 20px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.empty-state__hint {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 /* アーカイブに画像が無いので、頭文字のモノグラムでアバターを作る。 */
@@ -525,13 +771,13 @@ input[type='checkbox'] {
 .onboarding {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   align-items: center;
-  padding: 24px 0;
+  padding: 22px 18px;
 }
 
 .onboarding__title {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 800;
   text-align: center;
 }
@@ -549,17 +795,49 @@ input[type='checkbox'] {
   max-width: 560px;
   border: 1.5px dashed var(--border-strong);
   border-radius: var(--radius);
-  padding: 48px 20px;
+  padding: 40px 20px;
   text-align: center;
-  background: var(--surface);
+  background: var(--surface-2);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
 }
 
 .file-drop:hover,
 .file-drop--active {
-  border-color: var(--text-h);
-  background: var(--surface-2);
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+/* 写真の上に置く白ボタン。見た目はボタンでも、ZIPをここへ落とせるのは
+   これまでと同じ（ドラッグで読み込む使い方を残すため）。 */
+.file-drop--button {
+  width: auto;
+  max-width: none;
+  min-height: 54px;
+  padding: 0 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  /* 写真の上に置くので、テーマに関係なく白い面のままにする（.btn--on-photo と同じ理由）。 */
+  background: #fbf9f5;
+  box-shadow: var(--shadow-lg);
+}
+
+.file-drop--button:hover,
+.file-drop--button.file-drop--active {
+  background: #ffffff;
+  border-color: transparent;
+}
+
+.file-drop__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #11213d;
+  font-size: 15px;
+  font-weight: 800;
 }
 
 .file-drop--disabled {
@@ -582,20 +860,62 @@ input[type='checkbox'] {
    ホーム
    ============================================================ */
 
-.home-greeting h1 {
-  font-size: 30px;
-  font-weight: 800;
-}
-
-.home-greeting p {
-  margin-top: 6px;
-  color: var(--text-muted);
-}
-
 .home-view {
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: 24px;
+}
+
+/* Heroと、その下に重ねるカードのひとまとまり。
+   gapを持つ .home-view の直下で負のマージンを使うと、gapを変えるたびに
+   重なり量がずれるので、重なる2枚だけを gap の無い箱に入れている。 */
+.home-top {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Heroの文字がカードに隠れないよう、重なるぶんだけ下を空けておく。 */
+.home-top .photo-hero__body {
+  padding-bottom: 46px;
+}
+
+.home-top > .surface-card {
+  position: relative;
+  z-index: 1;
+  margin: -34px 10px 0;
+}
+
+.home-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.home-metrics__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.home-metrics__stamp {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.home-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+}
+
+.home-empty__desc {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text-muted);
 }
 
 .home-search {
@@ -607,7 +927,7 @@ input[type='checkbox'] {
   padding: 0 20px;
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
-  background: var(--surface-2);
+  background: var(--surface);
   color: var(--text-muted);
   font-size: 14px;
   text-align: left;
@@ -749,13 +1069,19 @@ input[type='checkbox'] {
   gap: 1px;
   background: var(--border);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   overflow: hidden;
+}
+
+/* カードの中に入れるときは、二重の枠に見えないよう外枠を消す。 */
+.home-metrics .summary-bar {
+  border: none;
+  border-radius: var(--radius-sm);
 }
 
 .summary-stat {
   background: var(--surface);
-  padding: 16px 8px;
+  padding: 14px 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -827,15 +1153,16 @@ input[type='checkbox'] {
 
 .filter-tab {
   border: 1px solid var(--border);
-  background: var(--neutral-bg);
+  background: var(--surface);
   border-radius: var(--radius-pill);
-  min-height: 36px;
+  min-height: 38px;
   padding: 0 16px;
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
 }
 
 .filter-tab:hover:not(.filter-tab--active) {
@@ -888,7 +1215,7 @@ input[type='checkbox'] {
 
 .batch-progress__fill {
   height: 100%;
-  background: var(--text-h);
+  background: var(--accent);
   border-radius: inherit;
   transition: width 0.3s;
 }
@@ -915,7 +1242,7 @@ input[type='checkbox'] {
 .account-table {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  gap: 8px;
 }
 
 .account-row {
@@ -923,29 +1250,31 @@ input[type='checkbox'] {
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 12px 16px;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  background: transparent;
+  min-height: 68px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
   color: var(--text);
   text-align: left;
-  transition: background 0.12s;
-}
-
-.account-row:last-child {
-  border-bottom: none;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
 }
 
 .account-row:hover {
-  background: var(--surface-2);
+  border-color: var(--border-strong);
 }
 
+/* いま確認している1件。枠だけで示すと一覧の中で埋もれるので、
+   面の色も少し変えて「開いているのはこれ」と分かるようにする。 */
 .account-row--selected {
-  background: var(--neutral-bg);
+  border-color: var(--accent);
+  background: var(--accent-bg);
 }
 
 .account-row--focused {
-  box-shadow: inset 3px 0 0 var(--text-h);
+  box-shadow: inset 3px 0 0 var(--accent), var(--shadow-sm);
 }
 
 .account-row__identity {
@@ -994,14 +1323,16 @@ input[type='checkbox'] {
   color: var(--text-muted);
 }
 
+/* 色だけで意味を伝えないよう、バッジは必ずテキストを持つ（AccountRow側）。 */
+
 .status-badge--done {
-  background: var(--success-bg);
-  color: var(--success);
+  background: var(--neutral-bg);
+  color: var(--text-muted);
 }
 
 .status-badge--protected {
-  background: var(--neutral-bg);
-  color: var(--text-h);
+  background: var(--success-bg);
+  color: var(--success);
 }
 
 .pagination {
@@ -1228,6 +1559,48 @@ input[type='checkbox'] {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* 設定は文章が多い画面なので、見出しは画面タイトルほど大きくしない
+   （20px。これ以上大きいと、1画面に見出しだけが並んで見える） */
+.settings-section h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.settings-section__icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.settings-section__icon--danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* 長い説明は畳んでおく。要点は上の1文で言い切り、
+   読みたい人だけが開く形にする。 */
+.settings-details > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  color: var(--text-h);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-details[open] > summary {
+  margin-bottom: 6px;
 }
 
 .settings-section--danger {
@@ -1530,11 +1903,17 @@ input[type='checkbox'] {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 18px 20px;
+  padding: 20px;
   border-radius: var(--radius);
-  background: linear-gradient(135deg, #3a3a40 0%, #17171a 100%);
-  color: #fff;
+  background: linear-gradient(135deg, var(--card-navy-2) 0%, var(--card-navy) 100%);
+  color: var(--on-card-navy);
   box-shadow: var(--shadow-md);
+}
+
+/* 濃紺の面の上では、区切りは線ではなく余白と明度差で作る。 */
+.stat-hero__main {
+  padding-right: 16px;
+  border-right: 1px solid rgba(251, 249, 245, 0.16);
 }
 
 .stat-hero__main {
@@ -1555,7 +1934,7 @@ input[type='checkbox'] {
 .stat-hero__label {
   font-size: 14px;
   font-weight: 700;
-  opacity: 0.9;
+  color: var(--on-card-navy-muted);
 }
 
 .stat-hero__next {
@@ -1569,7 +1948,7 @@ input[type='checkbox'] {
 
 .stat-hero__next-label {
   font-size: 11px;
-  opacity: 0.8;
+  color: var(--on-card-navy-muted);
 }
 
 .stat-hero__next-value {
@@ -1585,7 +1964,7 @@ input[type='checkbox'] {
   gap: 1px;
   background: var(--border);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
@@ -1828,6 +2207,28 @@ input[type='checkbox'] {
   display: block;
 }
 
+/* 画像の追加枠。サムネイルと同じマス目に収まるよう、幅ではなく比率で決める。 */
+.composer__media-add {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.composer__media-add:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.composer__schedule-readable {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
 .composer__media-placeholder {
   display: flex;
   align-items: center;
@@ -1934,9 +2335,68 @@ input[type='checkbox'] {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(10, 18, 32, 0.5);
   backdrop-filter: blur(2px);
   animation: composer-sheet-fade 0.18s ease both;
+}
+
+/* シートの背後に敷くカバー写真。シートが上に載るので、見えるのは上側だけ。 */
+.composer-sheet__cover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 42%;
+  overflow: hidden;
+  background: var(--neutral-bg);
+}
+
+.composer-sheet__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.composer-sheet__cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(10, 18, 32, 0.5), rgba(10, 18, 32, 0.15));
+}
+
+.composer-sheet__cover-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: calc(10px + var(--safe-top)) 12px 10px;
+  color: #ffffff;
+}
+
+.composer-sheet__cover-title {
+  font-size: 16px;
+  font-weight: 800;
+  /* ×の幅ぶんを引いて中央に見せる。 */
+  margin-right: 44px;
+  flex: 1;
+  text-align: center;
+}
+
+.composer-sheet__cover-close {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(251, 249, 245, 0.2);
+  color: #ffffff;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 @keyframes composer-sheet-fade {
@@ -1952,14 +2412,14 @@ input[type='checkbox'] {
   position: relative;
   width: 100%;
   max-width: 560px;
-  /* 92dvh は「キーボードが無いときに背景を少し覗かせる」ための値。
+  /* 82dvh は「上のカバー写真を見せたまま書ける」ための値。
      キーボードが出ると見えている範囲の方が狭くなるので、そちらに従う。 */
-  max-height: min(92dvh, 100%);
+  max-height: min(82dvh, 100%);
   display: flex;
   flex-direction: column;
   background: var(--surface);
   /* 下から出る面なので、角丸は上だけ。カードより一段強くして「別の層」に見せる。 */
-  border-radius: 28px 28px 0 0;
+  border-radius: var(--radius-modal) var(--radius-modal) 0 0;
   border: 1px solid var(--border);
   border-bottom: none;
   box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.28);
@@ -2006,7 +2466,8 @@ input[type='checkbox'] {
    上下の余白は貼り付く見出し・操作の側に持たせる。ここに置くと、その余白の分だけ
    本文が見出しの上・ボタンの下に覗いてしまう。 */
 .composer.composer--sheet {
-  padding: 0 18px;
+  /* 見出しがカバー側へ移ったぶん、シートの上端に少し余白を足す。 */
+  padding: 6px 18px 0;
 }
 
 /* シートの中は縮めずにスクロールさせる。
@@ -2020,20 +2481,6 @@ input[type='checkbox'] {
 /* 本文が伸びても、見出しと「予約する」は常に見えている状態にする。
    ＋から開いた人は書き切って予約するところまでが一続きの操作なので、
    スクロールで操作を見失わせない。 */
-.composer--sheet .composer__header {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--surface);
-  padding: 18px 0 12px;
-  margin-bottom: -4px;
-  border-bottom: 1px solid var(--border);
-}
-
-.composer--sheet .composer__header h3 {
-  font-size: 17px;
-}
-
 .composer--sheet .composer__actions {
   position: sticky;
   bottom: 0;
@@ -2449,7 +2896,66 @@ input[type='checkbox'] {
 }
 
 .post-item--posted {
-  opacity: 0.75;
+  opacity: 0.8;
+}
+
+/* これから投稿するものだけ、写真の下敷き（＝仮素材のウォームグラデーション）を
+   敷いて前に出す。一覧すべてを写真にすると本文が読みにくくなるうえ、
+   「次に何が出るか」が埋もれる。 */
+.post-item--photo {
+  border-color: transparent;
+  color: #ffffff;
+  /* カードはHeroより文字量が多いので、下だけ暗くするグラデーションではなく
+     全面を一様に落とす。下半分だけ暗いと、上に置いた日時が読みづらくなる。 */
+  background-image: linear-gradient(rgba(10, 18, 32, 0.52), rgba(10, 18, 32, 0.68)),
+    linear-gradient(var(--post-tint, transparent), var(--post-tint, transparent)),
+    url('./assets/photos/text-card-fallback.svg');
+  background-size: cover;
+  background-position: center;
+  padding: 18px;
+}
+
+/* 同じ絵が続くと一覧が単調になるので、色味だけ3種で回す。 */
+.post-item--tone-0 {
+  --post-tint: rgba(120, 82, 42, 0.34);
+}
+
+.post-item--tone-1 {
+  --post-tint: rgba(38, 58, 92, 0.4);
+}
+
+.post-item--tone-2 {
+  --post-tint: rgba(92, 72, 58, 0.3);
+}
+
+.post-item--photo::before {
+  display: none;
+}
+
+.post-item--photo .post-item__when,
+.post-item--photo .post-item__text,
+.post-item--photo .post-item__segment-index {
+  color: #ffffff;
+}
+
+.post-item--photo .post-item__media-count {
+  background: rgba(251, 249, 245, 0.2);
+  color: #ffffff;
+}
+
+/* 写真の上ではアイボリーの輪郭にする。既定の枠色は暗い面に埋もれる。 */
+.post-item--photo .btn--ghost {
+  border-color: rgba(251, 249, 245, 0.45);
+  color: #ffffff;
+}
+
+.post-item--photo .btn--ghost:hover:not(:disabled) {
+  background: rgba(251, 249, 245, 0.16);
+}
+
+.post-item--photo .btn--ghost.btn--danger {
+  border-color: rgba(255, 173, 173, 0.6);
+  color: #ffd7d7;
 }
 
 .post-item--failed {
@@ -2505,6 +3011,25 @@ input[type='checkbox'] {
 .post-item__status--failed {
   background: var(--danger-bg);
   color: var(--danger);
+}
+
+/* 写真の面に載る状態ピルは、白い半透明にして写真から浮かせる。
+   本文と同じ色にすると、明るい写真では両方まとめて読めなくなる。 */
+.post-item--photo .post-item__status {
+  background: rgba(251, 249, 245, 0.22);
+  color: #ffffff;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.post-item--photo .post-item__status--scheduled,
+.post-item--photo .post-item__status--publishing {
+  background: var(--success-bg);
+  color: var(--success-strong);
+}
+
+.post-item--photo .post-item__segment-index {
+  background: rgba(251, 249, 245, 0.24);
 }
 
 .post-item__body {
@@ -2575,6 +3100,29 @@ input[type='checkbox'] {
 @media (max-width: 640px) {
   .app-header {
     padding: calc(12px + var(--safe-top)) 16px 8px;
+  }
+
+  /* ツールバーが3段に折り返すと、一覧が画面の下へ押し出される。
+     フィルタと補助操作をそれぞれ横スクロールの1行にまとめる。 */
+  .tidy-toolbar {
+    flex-wrap: nowrap;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .tidy-toolbar__end {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tidy-toolbar__end::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tidy-toolbar__end > .btn--ghost {
+    margin-left: 0;
   }
 
   .main-content {
@@ -2701,8 +3249,7 @@ input[type='checkbox'] {
 .settings-section,
 .composer,
 .x-connect,
-.post-item,
-.account-table {
+.post-item {
   box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.03);
   transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
 }
@@ -2750,12 +3297,12 @@ input[type='checkbox'] {
   animation: rise 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-/* ヒーロー: 単色より奥行きのあるオーロラ状のグラデーションにする */
+/* ヒーロー: 単色より奥行きが出るよう、紺に光を1つ落とす */
 .stat-hero {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, #3a3a40 0%, #1e1e22 58%, #101012 100%);
-  box-shadow: 0 10px 30px -14px rgba(0, 0, 0, 0.7);
+  background: linear-gradient(135deg, var(--card-navy-2) 0%, var(--card-navy) 62%, #0c1626 100%);
+  box-shadow: var(--shadow-md);
 }
 
 .stat-hero::after {
@@ -2766,17 +3313,13 @@ input[type='checkbox'] {
   width: 240px;
   height: 240px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.4), transparent 68%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.22), transparent 68%);
   pointer-events: none;
 }
 
 .stat-hero__main,
 .stat-hero__next {
   position: relative;
-}
-
-.stat-hero__label {
-  opacity: 0.92;
 }
 
 /* 見出しにアイコンを並べる */

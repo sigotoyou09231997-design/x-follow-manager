@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 600" width="1600" height="600" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="tb-base" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#7a6450"/>
+      <stop offset="0.55" stop-color="#4c3c2e"/>
+      <stop offset="1" stop-color="#2a221c"/>
+    </linearGradient>
+    <radialGradient id="tb-light" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffe9c9" stop-opacity="0.55"/>
+      <stop offset="0.55" stop-color="#f2cfa0" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#f2cfa0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="tb-vignette" cx="0.5" cy="0.45" r="0.75">
+      <stop offset="0.5" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.3"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="600" fill="url(#tb-base)"/>
+  <ellipse cx="1248" cy="72" rx="880" ry="300" fill="url(#tb-light)"/>
+  <ellipse cx="480" cy="390" rx="560" ry="330" fill="#332a22" opacity="0.5"/>
+  <ellipse cx="1248" cy="180" rx="448" ry="270" fill="#d2ab73" opacity="0.14"/>
+  <rect width="1600" height="600" fill="url(#tb-vignette)"/>
+</svg>

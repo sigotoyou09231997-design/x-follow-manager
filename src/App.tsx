@@ -196,7 +196,9 @@ function App() {
     })
   }
 
-  const needsArchive = !hasData && !importing && tab !== 'schedule' && tab !== 'settings'
+  // ホームは未読込でも自分で読み込み導線を出すので、案内が要るのは
+  // 「一覧を見に来たのに中身が無い」画面だけ。
+  const needsArchive = !hasData && !importing && (tab === 'tidy' || tab === 'protected' || tab === 'history')
 
   return (
     <div className="app-shell">
@@ -220,11 +222,6 @@ function App() {
             }}
           />
         </div>
-
-        <span className="privacy-badge">
-          <Icon name="lock" size={14} />
-          端末内で処理
-        </span>
 
         <button
           type="button"
@@ -279,7 +276,11 @@ function App() {
             />
           )}
 
-          {importing && <p className="loading-indicator">アーカイブを解析しています…</p>}
+          {/* ホームはHeroのボタン自体が「解析しています…」に変わるので、
+              同じことを二重に出さない。 */}
+          {importing && tab !== 'home' && (
+            <p className="loading-indicator">アーカイブを解析しています…</p>
+          )}
 
           {/* 予約投稿はアーカイブの読み込みと無関係に使えるので、hasDataで閉じない。 */}
           {tab === 'schedule' && (
@@ -297,38 +298,44 @@ function App() {
             />
           )}
 
+          {/* 一覧を見に来たのに中身が無いとき。ここで読み込みまで済ませられると
+              「ホームへ戻ってやり直す」手間が無くなる。 */}
           {needsArchive && (
-            <div className="onboarding">
-              <h2 className="onboarding__title">気になる人だけ、残そう。</h2>
-              <FileDropZone onFile={handleFile} disabled={importing} />
+            <div className="surface-card onboarding">
+              <h2 className="onboarding__title">まずアーカイブを読み込みます</h2>
               <p className="onboarding__hint">
                 Xの「設定とプライバシー → アカウント → データのアーカイブをダウンロード」から取得したZIPファイルをそのまま読み込めます。
                 非相互フォローの整理はこのブラウザ内だけで完結し、外部サーバーとは通信しません。
               </p>
+              <FileDropZone onFile={handleFile} disabled={importing} />
             </div>
+          )}
+
+          {/* ホームは未読込でも出す。読み込み導線そのものがHeroの主役なので、
+              「データが無いとホームが空になる」状態を作らない。 */}
+          {tab === 'home' && summary && (
+            <HomeView
+              summary={summary}
+              accounts={accountList}
+              batchAccounts={batchAccounts}
+              batchSize={batchSize}
+              hasData={hasData}
+              importing={importing}
+              importFailed={errorMessage.length > 0}
+              lastImportedAt={summary.lastImportedAt}
+              onFile={handleFile}
+              onSearchFocus={focusSearch}
+              onGotoPending={() => goto('tidy', 'pending')}
+              onGotoProtected={() => goto('protected', 'protected')}
+              onGotoSchedule={() => goto('schedule')}
+              onGotoSettings={() => goto('settings')}
+              onCompose={openCompose}
+              onReview={openNextReview}
+            />
           )}
 
           {hasData && summary && (
             <>
-              {tab === 'home' && (
-                <>
-                  <div className="home-greeting">
-                    <h1>Hey, tidy!</h1>
-                    <p>気になる人だけ、残そう。</p>
-                  </div>
-                  <HomeView
-                    summary={summary}
-                    accounts={accountList}
-                    batchAccounts={batchAccounts}
-                    batchSize={batchSize}
-                    onSearchFocus={focusSearch}
-                    onGotoPending={() => goto('tidy', 'pending')}
-                    onGotoProtected={() => goto('protected', 'protected')}
-                    onReview={openNextReview}
-                  />
-                </>
-              )}
-
               {(tab === 'tidy' || tab === 'protected') && (
                 <FollowTidyView
                   accounts={accountList}

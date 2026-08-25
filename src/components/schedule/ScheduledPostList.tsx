@@ -114,11 +114,16 @@ export function ScheduledPostList({ posts, onChanged, onEdit }: Props) {
       {visible.length === 0 && <p className="post-list__empty">該当する投稿はありません。</p>}
 
       <ul className="post-list__items">
-        {visible.map((post) => {
+        {visible.map((post, index) => {
           const template = isTemplate(post)
           const busy = busyId === post.id
+          // これから出す投稿だけ写真（仮素材のグラデーション）の面にする。
+          // 済んだ投稿・失敗した投稿まで写真にすると、本文が読みにくいうえに
+          // 「次に何が出るか」が一覧の中で埋もれる。
+          const onPhoto = post.status === 'scheduled' || post.status === 'publishing' || post.status === 'draft'
+          const tone = onPhoto ? ` post-item--photo post-item--tone-${index % 3}` : ''
           return (
-            <li key={post.id} className={`post-item post-item--${post.status}`}>
+            <li key={post.id} className={`post-item post-item--${post.status}${tone}`}>
               <div className="post-item__head">
                 <span className="post-item__when">
                   {template && post.repeatRule

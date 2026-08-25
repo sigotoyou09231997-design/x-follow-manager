@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="hh-base" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#8d7a5f"/>
+      <stop offset="0.55" stop-color="#5c4736"/>
+      <stop offset="1" stop-color="#2f2620"/>
+    </linearGradient>
+    <radialGradient id="hh-light" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffe9c9" stop-opacity="0.55"/>
+      <stop offset="0.55" stop-color="#f2cfa0" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#f2cfa0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="hh-vignette" cx="0.5" cy="0.45" r="0.75">
+      <stop offset="0.5" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.3"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#hh-base)"/>
+  <ellipse cx="1248" cy="120" rx="880" ry="500" fill="url(#hh-light)"/>
+  <ellipse cx="352" cy="720" rx="544" ry="300" fill="#3b2f26" opacity="0.55"/>
+  <ellipse cx="992" cy="550" rx="480" ry="220" fill="#c79a63" opacity="0.16"/>
+  <ellipse cx="1360" cy="850" rx="448" ry="240" fill="#241d18" opacity="0.5"/>
+  <rect width="1600" height="1000" fill="url(#hh-vignette)"/>
+</svg>

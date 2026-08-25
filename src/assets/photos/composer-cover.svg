@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="cc-base" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#a08063"/>
+      <stop offset="0.55" stop-color="#6b543f"/>
+      <stop offset="1" stop-color="#332a22"/>
+    </linearGradient>
+    <radialGradient id="cc-light" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffe9c9" stop-opacity="0.55"/>
+      <stop offset="0.55" stop-color="#f2cfa0" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#f2cfa0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="cc-vignette" cx="0.5" cy="0.45" r="0.75">
+      <stop offset="0.5" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.3"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="900" fill="url(#cc-base)"/>
+  <ellipse cx="936" cy="108" rx="660" ry="450" fill="url(#cc-light)"/>
+  <ellipse cx="216" cy="270" rx="360" ry="270" fill="#e8cb8f" opacity="0.2"/>
+  <ellipse cx="840" cy="702" rx="432" ry="270" fill="#2a221c" opacity="0.5"/>
+  <rect width="1200" height="900" fill="url(#cc-vignette)"/>
+</svg>

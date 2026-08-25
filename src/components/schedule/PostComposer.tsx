@@ -41,6 +41,15 @@ function toLocalInputValue(iso?: string): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+/** 「8月28日（木）20:30 に投稿」のように読める形にする。 */
+function describeScheduledAt(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const day = date.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })
+  const time = date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+  return `${day} ${time} に投稿します`
+}
+
 function fromLocalInputValue(value: string): string | undefined {
   if (!value) return undefined
   const ts = new Date(value).getTime()
@@ -265,12 +274,16 @@ export function PostComposer({
 
   return (
     <div className={variant === 'sheet' ? 'composer composer--sheet' : 'composer'}>
-      <div className="composer__header">
-        <h3>{editing ? '予約を編集' : '新しい投稿'}</h3>
-        <button type="button" className="btn btn--icon" onClick={onCancel} aria-label="閉じる">
-          <Icon name="close" />
-        </button>
-      </div>
+      {/* かぶせて出すシートでは、見出しと×は写真のカバー側（ComposerSheet）にある。
+          ここにも出すと同じものが2つ並ぶ。 */}
+      {variant !== 'sheet' && (
+        <div className="composer__header">
+          <h3>{editing ? '予約を編集' : '新しい投稿'}</h3>
+          <button type="button" className="btn btn--icon" onClick={onCancel} aria-label="閉じる">
+            <Icon name="close" />
+          </button>
+        </div>
+      )}
 
       <AiAssistPanel
         currentText={segments.map((s) => s.text).join('\n\n')}
@@ -322,8 +335,9 @@ export function PostComposer({
                 <Icon name="image" size={16} />
                 画像を追加
               </button>
+              {/* 「あと何文字」より「いま何文字」の方が、Xの投稿欄と同じ読み方になる。 */}
               <span className={remaining < 0 ? 'composer__count composer__count--over' : 'composer__count'}>
-                {remaining}
+                {used} / {MAX_WEIGHTED_LENGTH}
               </span>
             </div>
             {segment.media.length > 0 && (
@@ -345,6 +359,19 @@ export function PostComposer({
                     </button>
                   </div>
                 ))}
+                {/* 追加枠。1枚も無いうちは上の「画像を追加」だけを出す
+                    （アイコンだけの入口を唯一の手段にしないため）。 */}
+                {segment.media.length < MAX_MEDIA_PER_SEGMENT && (
+                  <button
+                    type="button"
+                    className="composer__media-add"
+                    onClick={() => openFilePicker(index)}
+                    disabled={uploading}
+                    aria-label="画像を追加"
+                  >
+                    <Icon name="plus" size={20} />
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -375,6 +402,12 @@ export function PostComposer({
             disabled={!!repeatRule}
           />
         </label>
+        {/* datetime-local の表示はブラウザの言語設定に従うので、環境によっては
+            mm/dd/yyyy のまま。指定した日時が伝わるよう、日本語の形を1行添える。
+            保存する値は入力欄のもの（既存のデータ形式）をそのまま使う。 */}
+        {!repeatRule && scheduledAt && (
+          <p className="composer__schedule-readable">{describeScheduledAt(scheduledAt)}</p>
+        )}
         <RepeatRuleEditor value={repeatRule} onChange={setRepeatRule} />
       </div>
 

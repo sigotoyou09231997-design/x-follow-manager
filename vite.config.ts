@@ -49,8 +49,8 @@ export default defineConfig({
         short_name: 'Follow tidy',
         description: '非相互フォローの整理と、Xの予約投稿',
         lang: 'ja',
-        theme_color: '#000000',
-        background_color: '#ffffff',
+        theme_color: '#11213d',
+        background_color: '#f4f0ea',
         display: 'standalone',
         start_url: '/',
         icons: [

@@ -33,7 +33,12 @@ export function HistoryView({ accounts, limit, heading = '履歴', overline = 'T
       </header>
 
       {items.length === 0 ? (
-        <p className="empty-state">まだ記録がありません。確認した結果がここに並びます。</p>
+        <div className="empty-state">
+          <p>まだ記録がありません。</p>
+          <p className="empty-state__hint">
+            フォロー整理で「残す」「解除済み」にしたアカウントが、ここに新しい順で並びます。
+          </p>
+        </div>
       ) : (
         <ol className="timeline">
           {items.map(({ account, at }) => (

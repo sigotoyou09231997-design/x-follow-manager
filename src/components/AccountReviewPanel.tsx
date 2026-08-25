@@ -91,7 +91,7 @@ export function AccountReviewPanel({
       <div className="review-panel__actions">
         <button
           type="button"
-          className={`btn btn--primary btn--block${account.status === 'protected' ? ' btn--on' : ''}`}
+          className={`btn btn--sage btn--block${account.status === 'protected' ? ' btn--on' : ''}`}
           onClick={() => onToggleProtect(account)}
         >
           <Icon name="bookmark" size={18} />

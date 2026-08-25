@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, type RefObject } from 'react'
+import { PHOTOS } from '../assets/photos'
+import { PhotoHero } from '../components/PhotoHero'
 import { AccountRow } from './AccountRow'
 import { AccountReviewPanel } from './AccountReviewPanel'
 import { Icon } from './Icon'
@@ -175,10 +177,15 @@ export function FollowTidyView({
 
   return (
     <div className={`tidy-view${selected ? ' tidy-view--detail-open' : ''}`}>
-      <header className="view-head">
-        <span className="overline">{overline}</span>
-        <h2 className="view-head__title">{heading}</h2>
-      </header>
+      {/* 見出しは写真の帯に重ねる。一覧が延々と続く画面なので、
+          「いまどの一覧を見ているか」を上端で言い切っておく。 */}
+      <PhotoHero
+        compact
+        photo={PHOTOS.tidyBand}
+        overline={overline}
+        title={heading}
+        subtitle={showFilters ? `未確認 ${pendingTotal.toLocaleString()}人` : undefined}
+      />
 
       <input
         ref={searchRef}
@@ -249,11 +256,18 @@ export function FollowTidyView({
       <div className="tidy-layout">
         <div className="tidy-layout__list">
           {filtered.length === 0 ? (
-            <p className="empty-state">
-              {filter === 'pending' && !search.trim()
-                ? '未確認のアカウントはありません。すべて確認済みです。'
-                : '該当するアカウントがありません'}
-            </p>
+            <div className="empty-state">
+              <p>
+                {filter === 'pending' && !search.trim()
+                  ? '未確認のアカウントはありません。すべて確認済みです。'
+                  : '該当するアカウントがありません'}
+              </p>
+              <p className="empty-state__hint">
+                {filter === 'pending' && !search.trim()
+                  ? '「すべて」に切り替えると、確認済みも含めて見られます。'
+                  : '検索語を消すか、別のフィルタに切り替えてみてください。'}
+              </p>
+            </div>
           ) : (
             <>
               <div className="account-table">

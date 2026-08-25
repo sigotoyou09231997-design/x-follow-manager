@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react'
+import { PHOTOS } from '../../assets/photos'
+import { Icon } from '../Icon'
 import { PostComposer } from './PostComposer'
 
 interface Props {
@@ -81,6 +83,23 @@ export function ComposerSheet({ onClose, onSaved, onDraftsAdded }: Props) {
         if (event.target === event.currentTarget) onClose()
       }}
     >
+      {/* シートの背後に見えるカバー。写真は装飾なので alt="" にし、
+          見出し（新しい投稿）と×だけを載せる。 */}
+      <div className="composer-sheet__cover" aria-hidden="true">
+        <img src={PHOTOS.composerCover.src} alt="" />
+      </div>
+      <div className="composer-sheet__cover-bar">
+        <button
+          type="button"
+          className="composer-sheet__cover-close"
+          onClick={onClose}
+          aria-label="閉じる"
+        >
+          <Icon name="close" size={20} />
+        </button>
+        <span className="composer-sheet__cover-title">新しい投稿</span>
+      </div>
+
       <div className="composer-sheet__panel" ref={sheetRef}>
         <div className="composer-sheet__grip" aria-hidden="true" />
         <PostComposer

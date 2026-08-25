@@ -21,7 +21,21 @@ npm test               # ユニットテスト
 npm run test:e2e       # Playwright E2E
 npm run build          # デプロイ用ビルド
 npm run build:artifact # Claude Artifact用の単一HTML（予約投稿は含まれない）
+npm run design:shots   # 各画面のスクリーンショットを .design-shots/ に撮る
 ```
+
+## デザイン
+
+| 見るもの | ファイル |
+| --- | --- |
+| 何を目指しているか（配色・写真・画面ごとの要件） | `docs/REDESIGN_INSTRUCTIONS_UI.md` |
+| どの要素の位置がどこで決まるか | `docs/LAYOUT_MAP.md` |
+| 色・余白・角丸・影・動き（トークン） | `src/index.css` |
+| 写真の差し替え口 | `src/assets/photos.ts` |
+
+**いま入っている写真はレイアウト確認用の仮素材**（ウォームグラデーションのSVG）です。
+ライセンスの分からない画像を置かないための措置で、実写に差し替えるときは
+`src/assets/photos.ts` の import 先だけを同じ縦横比の画像へ変えます。
 
 ---
 

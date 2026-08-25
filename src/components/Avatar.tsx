@@ -1,13 +1,14 @@
 import type { AccountRecord } from '../lib/types'
 
 // アーカイブにはアイコン画像が含まれないので、頭文字のモノグラムで代用する。
-// 色相を持たせるとモノトーンの基調が崩れるため、明度違いのグレーだけを使う。
+// 画面全体がウォーム基調なので、灰色ではなく暖色〜ネイビーの濃淡でそろえる。
+// 彩度は上げない（一覧に並んだときに絵文字のように賑やかになるため）。
 const GRADIENTS = [
-  'linear-gradient(135deg, #4a4a50, #26262a)',
-  'linear-gradient(135deg, #5c5c63, #2f2f34)',
-  'linear-gradient(135deg, #3c3c42, #1b1b1e)',
-  'linear-gradient(135deg, #6b6b72, #3a3a3f)',
-  'linear-gradient(135deg, #55555c, #232327)',
+  'linear-gradient(135deg, #7a6450, #3c3028)',
+  'linear-gradient(135deg, #8a7360, #4a3a2c)',
+  'linear-gradient(135deg, #5c6b7a, #26313f)',
+  'linear-gradient(135deg, #6f6357, #322b24)',
+  'linear-gradient(135deg, #2f4260, #11213d)',
 ]
 
 function hash(value: string): number {

@@ -59,7 +59,12 @@ export function PushSettings() {
 
   return (
     <section className="settings-section">
-      <h2>アップデートの通知</h2>
+      <h2>
+        <span className="settings-section__icon">
+          <Icon name="bell" size={16} />
+        </span>
+        アップデートの通知
+      </h2>
       <p className="settings-section__desc">
         アプリが新しくなったとき、この端末へ通知します。
         画面を開いているときは上部に帯が出て自動で最新版に切り替わるので、こちらは
