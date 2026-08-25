@@ -1922,9 +1922,14 @@ input[type='checkbox'] {
 /* 予約投稿タブの中に開くコンポーザーとは別の見せ方にしている。
    一覧を暗くして前に出し、スマホでは下から立ち上がるシート、
    PCでは中央のダイアログとして扱う。 */
+/* 高さと位置は ComposerSheet.tsx が visualViewport から入れる。
+   キーボードが出ていないときや対応していないブラウザでは、この既定値で画面全体になる。 */
 .composer-sheet {
   position: fixed;
-  inset: 0;
+  top: var(--sheet-top, 0px);
+  left: 0;
+  right: 0;
+  height: var(--sheet-height, 100dvh);
   z-index: 150;
   display: flex;
   align-items: flex-end;
@@ -1947,7 +1952,9 @@ input[type='checkbox'] {
   position: relative;
   width: 100%;
   max-width: 560px;
-  max-height: 92dvh;
+  /* 92dvh は「キーボードが無いときに背景を少し覗かせる」ための値。
+     キーボードが出ると見えている範囲の方が狭くなるので、そちらに従う。 */
+  max-height: min(92dvh, 100%);
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -1990,8 +1997,24 @@ input[type='checkbox'] {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 14px 18px calc(18px + env(safe-area-inset-bottom));
   gap: 16px;
+}
+
+/* 余白だけ .composer.composer--sheet で指定しているのは、ファイル後方のモバイル用
+   メディアクエリに `.composer { padding: 14px }` があり、同じ詳細度だと後勝ちで
+   潰されるため（この指定が無いと、シートの下の余白も端末の丸みに食われる）。
+   上下の余白は貼り付く見出し・操作の側に持たせる。ここに置くと、その余白の分だけ
+   本文が見出しの上・ボタンの下に覗いてしまう。 */
+.composer.composer--sheet {
+  padding: 0 18px;
+}
+
+/* シートの中は縮めずにスクロールさせる。
+   キーボードが出ると高さが半分以下になるが、flexの既定では中身の方が縮む。
+   とくにAI下書きのパネルは overflow:hidden を持つため最小高さが0扱いになり、
+   狭いときに丸ごと潰れて画面から消えてしまう。 */
+.composer--sheet > * {
+  flex: none;
 }
 
 /* 本文が伸びても、見出しと「予約する」は常に見えている状態にする。
@@ -2002,7 +2025,7 @@ input[type='checkbox'] {
   top: 0;
   z-index: 1;
   background: var(--surface);
-  padding: 4px 0 12px;
+  padding: 18px 0 12px;
   margin-bottom: -4px;
   border-bottom: 1px solid var(--border);
 }
@@ -2015,7 +2038,7 @@ input[type='checkbox'] {
   position: sticky;
   bottom: 0;
   background: var(--surface);
-  padding: 12px 0 0;
+  padding: 12px 0 calc(18px + env(safe-area-inset-bottom));
   margin-top: auto;
   border-top: 1px solid var(--border);
 }
@@ -2031,7 +2054,7 @@ input[type='checkbox'] {
   }
 
   .composer-sheet__panel {
-    max-height: 86vh;
+    max-height: min(86vh, 100%);
     border-radius: var(--radius);
     border-bottom: 1px solid var(--border);
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
@@ -2041,8 +2064,8 @@ input[type='checkbox'] {
     display: none;
   }
 
-  .composer--sheet {
-    padding: 18px 22px 20px;
+  .composer.composer--sheet {
+    padding: 0 22px;
   }
 }
 
