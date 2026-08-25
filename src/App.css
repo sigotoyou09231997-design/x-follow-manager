@@ -2200,6 +2200,20 @@ input[type='checkbox'] {
   font-weight: 600;
 }
 
+/* 入力欄はこの1つだけなので、メモを流し込める大きさを取り、
+   例文のプレースホルダーが折り返しても読めるようにしておく。 */
+.ai-assist__message {
+  min-height: 160px;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.ai-assist__message::placeholder {
+  color: var(--text-muted);
+  opacity: 0.75;
+  line-height: 1.7;
+}
+
 .ai-assist__field--inline {
   flex-direction: row;
   align-items: center;

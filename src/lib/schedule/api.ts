@@ -42,14 +42,13 @@ export interface GeneratedPost {
 }
 
 export interface GenerateRequest {
-  topic: string
+  /** AIに伝えたいこと。メモや箇条書き、文体の希望が混ざった自由文。 */
+  message: string
   count: number
   mode: 'single' | 'thread'
   threadLength?: number
-  tone?: string
   styleExamples?: string[]
   currentText?: string
-  instructions?: string
 }
 
 export async function generatePosts(request: GenerateRequest): Promise<GeneratedPost[]> {

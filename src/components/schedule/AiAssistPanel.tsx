@@ -27,12 +27,15 @@ function toSegments(post: GeneratedPost): PostSegment[] {
  * 「AIで作る → 下書きに保存 → 一覧から開き直して日時を付ける」と往復が必要で、
  * さらに本文を書きかけてから助けを借りることもできなかった。
  * 本文欄と同じ画面に置くことで、生成→手直し→予約が1画面で完結する。
+ *
+ * 入力は「AIに伝えたいこと」1つだけにしている。以前は お題 / 文体 / 追加の指示 と
+ * 3つに分かれていたが、書きたいことを頭の中で3つに仕分けてから書く必要があり、
+ * 「言いたいことはあるのにどの欄に書けばいいか分からない」で止まりやすかった。
+ * 思いついた順のメモをそのまま1か所に流し込めば、あとはAI側が仕分ける。
  */
 export function AiAssistPanel({ currentText, onUse, onSavedDrafts }: Props) {
   const [open, setOpen] = useState(false)
-  const [topic, setTopic] = useState('')
-  const [tone, setTone] = useState('')
-  const [instructions, setInstructions] = useState('')
+  const [message, setMessage] = useState('')
   const [count, setCount] = useState(3)
   const [mode, setMode] = useState<'single' | 'thread'>('single')
   const [threadLength, setThreadLength] = useState(3)
@@ -45,8 +48,8 @@ export function AiAssistPanel({ currentText, onUse, onSavedDrafts }: Props) {
   const hasCurrentText = !!currentText?.trim()
 
   async function handleGenerate() {
-    if (!topic.trim()) {
-      setError('何について投稿するかを入力してください')
+    if (!message.trim()) {
+      setError('AIに伝えたいことを入力してください')
       return
     }
     setGenerating(true)
@@ -55,13 +58,11 @@ export function AiAssistPanel({ currentText, onUse, onSavedDrafts }: Props) {
     setSelected(new Set())
     try {
       const posts = await generatePosts({
-        topic,
+        message,
         count,
         mode,
         threadLength,
-        tone: tone.trim() || undefined,
-        instructions: instructions.trim() || undefined,
-        // 書きかけの本文があれば渡す。追加の指示の参照先になる。
+        // 書きかけの本文があれば渡す。「これをもっと短く」の「これ」の参照先になる。
         currentText: currentText?.trim() || undefined,
       })
       setResults(posts)
@@ -102,7 +103,7 @@ export function AiAssistPanel({ currentText, onUse, onSavedDrafts }: Props) {
         picked.map((post) => ({
           segments: toSegments(post),
           status: 'draft' as const,
-          aiPrompt: topic,
+          aiPrompt: message,
         }))
       )
       setResults([])
@@ -125,7 +126,7 @@ export function AiAssistPanel({ currentText, onUse, onSavedDrafts }: Props) {
       >
         <Icon name="sparkles" size={16} />
         <span className="ai-assist__toggle-label">
-          {hasCurrentText ? 'AIに書き直してもらう' : 'AIに下書きを作ってもらう'}
+          {hasCurrentText ? 'AIに書き直してもらう' : 'AIに書いてもらう'}
         </span>
         <Icon name={open ? 'chevron-up' : 'chevron-down'} size={16} />
       </button>
@@ -133,42 +134,27 @@ export function AiAssistPanel({ currentText, onUse, onSavedDrafts }: Props) {
       {open && (
         <div className="ai-assist__body">
           <label className="ai-assist__field">
-            <span>何について投稿する？</span>
+            <span>AIに伝えたいこと</span>
             <textarea
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              rows={3}
-              placeholder="例: 個人開発でWebアプリを作った話。技術より、続けるための工夫を中心に。"
-            />
-          </label>
-
-          <label className="ai-assist__field">
-            <span>文体の指定（任意）</span>
-            <input
-              type="text"
-              value={tone}
-              onChange={(e) => setTone(e.target.value)}
-              placeholder="例: 敬語すぎず、淡々と。絵文字なし。"
-            />
-          </label>
-
-          <label className="ai-assist__field">
-            <span>追加の指示（任意）</span>
-            <input
-              type="text"
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
+              className="ai-assist__message"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={6}
+              // 説明は下のヒントが担当し、ここは書き出しの見本だけにする。
+              // 長くすると欄からはみ出して途中で切れ、かえって読めなくなる。
               placeholder={
-                hasCurrentText ? '例: これをもっと短く、結論から。' : '例: 数字を1つ入れる。'
+                hasCurrentText
+                  ? '例:\nもっと短く、結論から\n最後の一文はいらない\n淡々とした感じに'
+                  : '例:\n3か月作ってたアプリをやっと出した\n一番手こずったのは通知まわり\n誰にも言わずに作ってたので反応が怖い\n淡々と、絵文字なしで'
               }
             />
           </label>
 
-          {hasCurrentText && (
-            <p className="ai-assist__hint">
-              いま本文欄にある文章もAIへ渡します。「これをもっと短く」のような指示が使えます。
-            </p>
-          )}
+          <p className="ai-assist__hint">
+            {hasCurrentText
+              ? 'いま本文欄にある文章もAIへ渡すので、「これをもっと短く」のような書き方が使えます。文体の希望も同じ欄にどうぞ。'
+              : '思いついた順のメモや箇条書きのままで大丈夫です。文体や長さの希望も同じ欄に書けます。書いていないことをAIが勝手に足すことはありません。'}
+          </p>
 
           <div className="ai-assist__options">
             <label className="ai-assist__field ai-assist__field--inline">
@@ -211,7 +197,7 @@ export function AiAssistPanel({ currentText, onUse, onSavedDrafts }: Props) {
             disabled={generating}
           >
             <Icon name="sparkles" size={16} />
-            {generating ? '作成中…' : results.length > 0 ? '作り直す' : '投稿案を作る'}
+            {generating ? '書いています…' : results.length > 0 ? '書き直してもらう' : 'この内容で書いてもらう'}
           </button>
 
           {error && <p className="ai-assist__error">{error}</p>}
@@ -219,7 +205,7 @@ export function AiAssistPanel({ currentText, onUse, onSavedDrafts }: Props) {
           {results.length > 0 && (
             <div className="ai-assist__results">
               <p className="ai-assist__results-head">
-                {results.length}件の案ができました。「本文に使う」で下の本文欄へ入り、そのまま日時を付けて予約できます。
+                伝えたいことから{results.length}件の案を書きました。「本文に使う」で下の本文欄へ入り、そのまま日時を付けて予約できます。
               </p>
               {results.map((post, index) => (
                 <div

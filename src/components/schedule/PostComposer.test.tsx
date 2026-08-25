@@ -25,9 +25,9 @@ describe('PostComposer', () => {
     expect(screen.getByPlaceholderText('いまどうしてる？')).toBeInTheDocument()
 
     // 折りたたみを開くと、生成の入力欄が同じ画面に出る（別画面へ遷移しない）。
-    fireEvent.click(screen.getByRole('button', { name: /AIに下書きを作ってもらう/ }))
-    expect(screen.getByText('何について投稿する？')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /投稿案を作る/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /AIに書いてもらう/ }))
+    expect(screen.getByText('AIに伝えたいこと')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /この内容で書いてもらう/ })).toBeInTheDocument()
     expect(screen.getByPlaceholderText('いまどうしてる？')).toBeInTheDocument()
   })
 
@@ -40,7 +40,7 @@ describe('PostComposer', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /AIに書き直してもらう/ }))
     expect(
-      screen.getByText('いま本文欄にある文章もAIへ渡します。「これをもっと短く」のような指示が使えます。')
+      screen.getByText(/いま本文欄にある文章もAIへ渡すので/)
     ).toBeInTheDocument()
   })
 })
