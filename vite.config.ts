@@ -50,7 +50,7 @@ export default defineConfig({
         description: '非相互フォローの整理と、Xの予約投稿',
         lang: 'ja',
         theme_color: '#11213d',
-        background_color: '#f4f0ea',
+        background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
         icons: [

@@ -380,13 +380,13 @@
 }
 
 /* 写真の上に置く白いボタン。写真が明るくても輪郭が消えないよう、
-   面は不透明のアイボリーにして影を落とす。
+   面は不透明の白にして影を落とす。
    色をトークンで取らないのは、乗っているのが「写真」であってページの面では
    ないため。ダークテーマで面と文字を反転させると、写真の上で沈んで消える。 */
 .btn--on-photo {
   min-height: 54px;
   padding: 0 26px;
-  background: #fbf9f5;
+  background: #ffffff;
   border-color: transparent;
   color: #11213d;
   font-size: 15px;
@@ -821,7 +821,7 @@ input[type='checkbox'] {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   /* 写真の上に置くので、テーマに関係なく白い面のままにする（.btn--on-photo と同じ理由）。 */
-  background: #fbf9f5;
+  background: #ffffff;
   box-shadow: var(--shadow-lg);
 }
 
@@ -2943,7 +2943,7 @@ input[type='checkbox'] {
   color: #ffffff;
 }
 
-/* 写真の上ではアイボリーの輪郭にする。既定の枠色は暗い面に埋もれる。 */
+/* 写真の上では白い輪郭にする。既定の枠色は暗い面に埋もれる。 */
 .post-item--photo .btn--ghost {
   border-color: rgba(251, 249, 245, 0.45);
   color: #ffffff;
