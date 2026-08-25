@@ -84,6 +84,16 @@ export function FollowTidyView({
   const currentPage = Math.min(page, pageCount - 1)
   const pageItems = filtered.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE)
 
+  // 選択は一覧全体を順に進むのに対し、一覧は1ページ200件までしか出していない。
+  // ページが追いかけないと、201件目からは「詳細には出ているのに、一覧のどこにも
+  // 見当たらない」状態になる（バッチの対象がページの外から選ばれたときも同じ）。
+  useEffect(() => {
+    if (!selectedKey) return
+    const index = filtered.findIndex((account) => account.key === selectedKey)
+    if (index < 0) return
+    setPage(Math.floor(index / PAGE_SIZE))
+  }, [selectedKey, filtered])
+
   // 作業中のバッチに含まれる1件を見ているあいだは、バッチが確認キューになる。
   // それ以外（一覧から任意の1件を開いたとき）は、いま見えている一覧がキュー。
   const inBatch = batchAccounts.some((a) => a.key === selectedKey)

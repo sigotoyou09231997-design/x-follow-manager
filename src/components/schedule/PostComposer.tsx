@@ -69,6 +69,20 @@ export function PostComposer({
   // ときに元の投稿から画像だけが失われてしまう。
   const freshlyUploadedRef = useRef<Set<string>>(new Set())
 
+  // どの投稿を開いているか。予約投稿タブでは一覧の上にコンポーザーを出したまま
+  // 別の投稿の「編集」を押せるので、editing だけが差し替わって再マウントされない。
+  // useState の初期値はそのとき読み直されないため、本文が前の対象のまま残り、
+  // そのまま保存すると開いたはずの投稿を空の本文で上書きしてしまう。
+  // props が変わったら描画中にそろえる（Reactが推奨する、派生stateの作り直し方）。
+  const [openedId, setOpenedId] = useState(editing?.id)
+  if (openedId !== editing?.id) {
+    setOpenedId(editing?.id)
+    setSegments(editing?.segments ?? [emptySegment()])
+    setScheduledAt(toLocalInputValue(editing?.scheduledAt))
+    setRepeatRule(editing?.repeatRule)
+    setError(undefined)
+  }
+
   // 保存済みの画像はパスしか持っていないので、表示用の署名付きURLを取り直す。
   useEffect(() => {
     let cancelled = false
@@ -94,6 +108,19 @@ export function PostComposer({
     // segments全体を依存に入れると署名のたびに再実行されるため、件数の変化だけを見る。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [segments.length, segments.map((s) => s.media.length).join(',')])
+
+  // 保存せずに閉じた（あるいは別の投稿へ移った）ときの後始末。
+  // 画像はStorageへ先に上げてしまうので、そのまま閉じると本文から参照されない
+  // ファイルだけが残り続ける（本人が消す手段も画面上にない）。
+  // 保存できた時点で freshlyUploadedRef は空にしてあるので、ここで消えるのは
+  // 「上げたが保存しなかった」ぶんだけ。
+  useEffect(() => {
+    const pending = freshlyUploadedRef.current
+    return () => {
+      for (const path of pending) void deletePostMedia(path)
+      pending.clear()
+    }
+  }, [openedId])
 
   // 書きかけの本文があるあいだは、更新バナーの自動リロードを待たせる。
   // ここで書いた文章はサーバーにも端末にも残らないので、読み込み直すと消えてしまう。

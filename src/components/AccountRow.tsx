@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Avatar } from './Avatar'
 import { Icon } from './Icon'
 import { relativeTime } from '../lib/relativeTime'
@@ -23,9 +24,18 @@ export function AccountRow({ account, selected, focused, onSelect }: Props) {
   const name = account.displayName || account.username || account.accountId || '(不明なアカウント)'
   const handle = account.username ? `@${account.username}` : account.accountId ? `ID: ${account.accountId}` : ''
   const stamp = relativeTime(account.updatedAt || account.importedAt)
+  const ref = useRef<HTMLButtonElement>(null)
+
+  // キーボードや「次へ」で選択が進むと、次の1件は画面の外にあることが多い。
+  // 'nearest' なので、すでに見えている行（＝自分でクリックした行）では動かない。
+  useEffect(() => {
+    if (!selected) return
+    ref.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [selected])
 
   return (
     <button
+      ref={ref}
       type="button"
       className={`account-row${selected ? ' account-row--selected' : ''}${focused ? ' account-row--focused' : ''}`}
       onClick={() => onSelect(account)}

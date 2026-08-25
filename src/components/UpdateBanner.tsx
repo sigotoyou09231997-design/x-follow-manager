@@ -5,8 +5,6 @@ import { Icon } from './Icon'
 
 /** 帯を出してから適用するまでの待ち時間。切り替わることが読み取れる程度の長さ。 */
 const PROGRESS_DURATION_MS = 1500
-/** 書きかけを理由に待てる上限。これを過ぎたら諦めて適用する。 */
-const MAX_DEFER_MS = 5 * 60_000
 
 /**
  * 新しいビルドが公開されたことを画面上部で知らせ、そのまま最新版へ切り替える。
@@ -18,22 +16,28 @@ export function UpdateBanner() {
   const [filled, setFilled] = useState(false)
   /** 書きかけの入力があるせいで切り替えを待っている間だけ true。 */
   const [waiting, setWaiting] = useState(false)
+  /** 待っている間に「今すぐ更新」を押した。書きかけを承知で適用する。 */
+  const [forced, setForced] = useState(false)
 
   useEffect(() => subscribeUpdateAvailable(() => setVisible(true)), [])
 
   useEffect(() => {
-    if (!visible) return
+    if (!visible || forced) return
 
     const raf = requestAnimationFrame(() => setFilled(true))
-    const startedAt = Date.now()
     let cancelled = false
     let timerId = 0
 
     // 発火のたびに書きかけかどうかを見直す。バナーが出たあとに書き始めた場合も待つ。
+    //
+    // 待ち時間に上限は設けない。以前は5分で諦めて適用していたが、適用＝リロードなので、
+    // 書き終わっていない投稿を書いた本人ごと巻き込んで消してしまう。この帯が守ろうと
+    // しているものを、この帯自身が壊すことになる。長く書いている人には、
+    // 「今すぐ更新」を自分で押してもらう。
     function schedule(delay: number) {
       timerId = window.setTimeout(() => {
         if (cancelled) return
-        if (isEditing() && Date.now() - startedAt < MAX_DEFER_MS) {
+        if (isEditing()) {
           setWaiting(true)
           schedule(1000)
           return
@@ -49,9 +53,15 @@ export function UpdateBanner() {
       cancelAnimationFrame(raf)
       window.clearTimeout(timerId)
     }
-  }, [visible])
+  }, [visible, forced])
 
   if (!visible) return null
+
+  function updateNow() {
+    setForced(true)
+    setWaiting(false)
+    void applyUpdate()
+  }
 
   return (
     <div className="update-banner" role="status" aria-live="polite">
@@ -63,6 +73,11 @@ export function UpdateBanner() {
             {waiting ? '入力が終わったら切り替えます' : '最新版に更新しています…'}
           </p>
         </div>
+        {waiting && (
+          <button type="button" className="update-banner__now" onClick={updateNow}>
+            今すぐ更新
+          </button>
+        )}
       </div>
       <div className="update-banner__track">
         <div

@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { UpdateBanner } from './UpdateBanner'
 import { markUpdateAvailable, resetUpdateStateForTest, setUpdateApplier } from '../lib/pwaUpdate'
@@ -55,6 +55,40 @@ describe('UpdateBanner', () => {
     editing = false
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000)
+    })
+    expect(apply).toHaveBeenCalled()
+  })
+
+  // 以前は5分で諦めて適用していたが、適用＝リロードなので、まだ書いている人の
+  // 本文をこの帯自身が消してしまう。書いているあいだは待ち続ける。
+  it('長く書いていても、勝手に切り替えて入力を捨てない', async () => {
+    const apply = vi.fn().mockResolvedValue(undefined)
+    setUpdateApplier(apply)
+    registerEditingGuard(() => true)
+
+    render(<UpdateBanner />)
+    act(() => markUpdateAvailable())
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30 * 60_000)
+    })
+    expect(apply).not.toHaveBeenCalled()
+    expect(screen.getByText('入力が終わったら切り替えます')).toBeInTheDocument()
+  })
+
+  it('待っている間は「今すぐ更新」で自分から切り替えられる', async () => {
+    const apply = vi.fn().mockResolvedValue(undefined)
+    setUpdateApplier(apply)
+    registerEditingGuard(() => true)
+
+    render(<UpdateBanner />)
+    act(() => markUpdateAvailable())
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '今すぐ更新' }))
     })
     expect(apply).toHaveBeenCalled()
   })

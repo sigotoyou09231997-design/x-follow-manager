@@ -1656,7 +1656,25 @@ input[type='checkbox'] {
 }
 
 .update-banner__text {
+  flex: 1;
   min-width: 0;
+}
+
+/* 書きかけを理由に待っているあいだだけ出る、自分で切り替えるためのボタン。 */
+.update-banner__now {
+  flex: none;
+  padding: 6px 12px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.update-banner__now:hover {
+  background: rgba(127, 127, 127, 0.25);
 }
 
 .update-banner__title {

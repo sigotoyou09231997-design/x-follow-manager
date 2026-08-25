@@ -203,7 +203,7 @@ export function ScheduledPostList({ posts, onChanged, onEdit }: Props) {
                   className="btn btn--ghost btn--small btn--danger"
                   onClick={() => {
                     if (!confirm('この投稿を削除します。よろしいですか？')) return
-                    void run(post.id, () => deleteScheduledPost(post.id))
+                    void run(post.id, () => deleteScheduledPost(post))
                   }}
                   disabled={busy}
                 >

@@ -135,10 +135,24 @@ export async function updateScheduledPost(id: string, input: UpdatePostInput): P
   if (error) throw new Error(`予約の更新に失敗しました: ${error.message}`)
 }
 
-export async function deleteScheduledPost(id: string): Promise<void> {
+/**
+ * 予約を削除する。添付画像もStorageから消す。
+ *
+ * 繰り返し予約は、テンプレートと各回の実体行が同じ画像パスを共有している
+ * （サーバー側が segments をそのまま複製するため）。片方を消したときに実体を
+ * 消してしまうと、残っている側の投稿から画像だけが失われるので、
+ * 共有していないふつうの予約のときだけ消す。
+ */
+export async function deleteScheduledPost(post: ScheduledPost): Promise<void> {
   const client = await requireSupabase()
-  const { error } = await client.from(TABLE).delete().eq('id', id)
+  const { error } = await client.from(TABLE).delete().eq('id', post.id)
   if (error) throw new Error(`予約の削除に失敗しました: ${error.message}`)
+
+  if (post.repeatRule || post.repeatParentId) return
+  const paths = post.segments.flatMap((segment) => segment.media.map((media) => media.path))
+  // 画像が消せなくても予約自体は消えている。ここで失敗を投げると
+  // 「削除できませんでした」と出て、消えた予約をもう一度消しにいくことになる。
+  if (paths.length > 0) await client.storage.from(MEDIA_BUCKET).remove(paths)
 }
 
 // ---------------------------------------------------------------
