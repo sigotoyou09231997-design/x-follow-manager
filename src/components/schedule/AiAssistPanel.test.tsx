@@ -64,6 +64,19 @@ describe('AiAssistPanel: 伝えたいことを書くと文章になる', () => {
     )
   })
 
+  // 本文を書いたあとに手直しを頼むだけなのに、上の欄へも何か書かせるのは面倒。
+  it('本文があるなら、指示が空でも「これを整えて」として通す', async () => {
+    generatePosts.mockClear()
+    open('すでに書いた本文')
+
+    fireEvent.click(screen.getByRole('button', { name: /いまの本文を整えてもらう/ }))
+
+    await waitFor(() => expect(generatePosts).toHaveBeenCalled())
+    expect(generatePosts).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('整えて'), currentText: 'すでに書いた本文' })
+    )
+  })
+
   it('選んだ案を本文欄へ流し込める', async () => {
     const { onUse } = open()
 

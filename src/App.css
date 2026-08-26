@@ -2257,6 +2257,53 @@ input[type='checkbox'] {
   align-self: flex-start;
 }
 
+/* 本文のすぐ下に置く、AIへの手直しの注文。
+   頼みたくなるのは書き終えた瞬間なので、上のAIパネルまで戻らずここで済ませる。 */
+.composer__ai-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.composer__ai-edit-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.composer__ai-edit-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 指で押せる大きさは保ちつつ、本文より前に出ないよう面は控えめにする。 */
+.composer__ai-edit-chip {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.composer__ai-edit-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.composer__ai-edit-chip--own {
+  background: none;
+  border-style: dashed;
+  color: var(--text-muted);
+}
+
 .composer__schedule {
   display: flex;
   flex-direction: column;

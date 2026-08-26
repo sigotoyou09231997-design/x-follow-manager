@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { generatePosts, type GeneratedPost } from '../../lib/schedule/api'
 import { createScheduledPosts } from '../../lib/schedule/postsStore'
 import { weightedLength, MAX_WEIGHTED_LENGTH } from '../../lib/schedule/textLength'
+import { DEFAULT_EDIT_MESSAGE, type AiEditRequest } from '../../lib/schedule/aiEdit'
 import type { PostSegment } from '../../lib/schedule/types'
 import { Icon } from '../Icon'
 
@@ -11,6 +12,8 @@ interface Props {
    * 追加の指示に「もっと短く」「後半だけ書き直して」のような指示語が使える。
    */
   currentText?: string
+  /** 本文欄の下のボタンから届く注文。 */
+  editRequest?: AiEditRequest
   /** 選んだ案を本文欄へ流し込む。 */
   onUse: (segments: PostSegment[]) => void
   /** 案をまとめて下書き保存したあと、一覧を取り直させる。 */
@@ -33,7 +36,7 @@ function toSegments(post: GeneratedPost): PostSegment[] {
  * 「言いたいことはあるのにどの欄に書けばいいか分からない」で止まりやすかった。
  * 思いついた順のメモをそのまま1か所に流し込めば、あとはAI側が仕分ける。
  */
-export function AiAssistPanel({ currentText, onUse, onSavedDrafts }: Props) {
+export function AiAssistPanel({ currentText, editRequest, onUse, onSavedDrafts }: Props) {
   const [open, setOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [count, setCount] = useState(3)
@@ -45,10 +48,20 @@ export function AiAssistPanel({ currentText, onUse, onSavedDrafts }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string>()
 
+  const rootRef = useRef<HTMLElement>(null)
+  const messageRef = useRef<HTMLTextAreaElement>(null)
+  const handledNonceRef = useRef(0)
+  const [focusToken, setFocusToken] = useState(0)
+
   const hasCurrentText = !!currentText?.trim()
 
-  async function handleGenerate() {
-    if (!message.trim()) {
+  async function handleGenerate(overrideMessage?: string) {
+    const asked = (overrideMessage ?? message).trim()
+    // 本文があるなら、指示が空でも「これを整えて」と読み替える。
+    // 本文を書いたあとに手直しを頼むだけなのに、上の欄へも何か書かないと
+    // 一歩も進めないのでは、書いた直後に頼めない。
+    const instruction = asked || (hasCurrentText ? DEFAULT_EDIT_MESSAGE : '')
+    if (!instruction) {
       setError('AIに伝えたいことを入力してください')
       return
     }
@@ -58,7 +71,7 @@ export function AiAssistPanel({ currentText, onUse, onSavedDrafts }: Props) {
     setSelected(new Set())
     try {
       const posts = await generatePosts({
-        message,
+        message: instruction,
         count,
         mode,
         threadLength,
@@ -74,6 +87,30 @@ export function AiAssistPanel({ currentText, onUse, onSavedDrafts }: Props) {
       setGenerating(false)
     }
   }
+
+  // 本文欄の下から注文が来たら、開いてそのまま生成まで進める。
+  useEffect(() => {
+    if (!editRequest || editRequest.nonce === handledNonceRef.current) return
+    handledNonceRef.current = editRequest.nonce
+    setOpen(true)
+    // 案が出るのはこのパネル＝本文欄より上なので、連れてこないと画面外で
+    // 生成が終わり、押しても何も起きなかったように見える。
+    rootRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+    if (editRequest.message) {
+      setMessage(editRequest.message)
+      void handleGenerate(editRequest.message)
+    } else {
+      setFocusToken((prev) => prev + 1)
+    }
+    // handleGenerate は毎回作り直されるので依存に入れると注文のたびに走ってしまう。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editRequest])
+
+  // 「自分で伝える」で開いたときだけ、入力欄へカーソルを置く。
+  // 開くのと同じ更新で予約するので、この時点では欄がもう置かれている。
+  useEffect(() => {
+    if (focusToken > 0) messageRef.current?.focus()
+  }, [focusToken])
 
   function toggle(index: number) {
     setSelected((prev) => {
@@ -117,7 +154,7 @@ export function AiAssistPanel({ currentText, onUse, onSavedDrafts }: Props) {
   }
 
   return (
-    <section className={`ai-assist${open ? ' ai-assist--open' : ''}`}>
+    <section ref={rootRef} className={`ai-assist${open ? ' ai-assist--open' : ''}`}>
       <button
         type="button"
         className="ai-assist__toggle"
@@ -136,6 +173,7 @@ export function AiAssistPanel({ currentText, onUse, onSavedDrafts }: Props) {
           <label className="ai-assist__field">
             <span>AIに伝えたいこと</span>
             <textarea
+              ref={messageRef}
               className="ai-assist__message"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -152,7 +190,7 @@ export function AiAssistPanel({ currentText, onUse, onSavedDrafts }: Props) {
 
           <p className="ai-assist__hint">
             {hasCurrentText
-              ? 'いま本文欄にある文章もAIへ渡すので、「これをもっと短く」のような書き方が使えます。文体の希望も同じ欄にどうぞ。'
+              ? 'いま本文欄にある文章もAIへ渡すので、「これをもっと短く」のような書き方が使えます。空のまま押せば、いまの本文をそのまま整えます。'
               : '思いついた順のメモや箇条書きのままで大丈夫です。文体や長さの希望も同じ欄に書けます。書いていないことをAIが勝手に足すことはありません。'}
           </p>
 
@@ -197,7 +235,13 @@ export function AiAssistPanel({ currentText, onUse, onSavedDrafts }: Props) {
             disabled={generating}
           >
             <Icon name="sparkles" size={16} />
-            {generating ? '書いています…' : results.length > 0 ? '書き直してもらう' : 'この内容で書いてもらう'}
+            {generating
+              ? '書いています…'
+              : results.length > 0
+                ? '書き直してもらう'
+                : hasCurrentText && !message.trim()
+                  ? 'いまの本文を整えてもらう'
+                  : 'この内容で書いてもらう'}
           </button>
 
           {error && <p className="ai-assist__error">{error}</p>}

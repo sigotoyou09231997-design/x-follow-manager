@@ -9,6 +9,7 @@ import {
 import { containsUrl, isOverLimit, MAX_WEIGHTED_LENGTH, weightedLength } from '../../lib/schedule/textLength'
 import { registerEditingGuard } from '../../lib/editingGuard'
 import type { PostSegment, RepeatRule, ScheduledPost } from '../../lib/schedule/types'
+import { AI_EDIT_PRESETS, type AiEditRequest } from '../../lib/schedule/aiEdit'
 import { AiAssistPanel } from './AiAssistPanel'
 import { RepeatRuleEditor } from './RepeatRuleEditor'
 import { Icon } from '../Icon'
@@ -72,6 +73,9 @@ export function PostComposer({
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string>()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // 本文欄の下のボタンから、上のAIパネルへ渡す注文。
+  const [aiEditRequest, setAiEditRequest] = useState<AiEditRequest>()
+  const aiEditNonceRef = useRef(0)
   const uploadTargetRef = useRef(0)
   // この画面で新しく上げた画像のパス。保存せずに外した場合だけStorageから消す。
   // 保存済みの投稿から外した画像を即座に消してしまうと、「編集したが保存せずに閉じた」
@@ -171,6 +175,16 @@ export function PostComposer({
     )
   }
 
+  /**
+   * 本文欄の下から、AIへの手直しを頼む。
+   * 頼みたくなるのは本文を書き終えた瞬間なので、そこから上のパネルまで戻って
+   * 指示を打ち込ませない。押した内容をそのまま指示にして生成まで進める。
+   */
+  function requestAiEdit(message: string) {
+    aiEditNonceRef.current += 1
+    setAiEditRequest({ message, nonce: aiEditNonceRef.current })
+  }
+
   function openFilePicker(segmentIndex: number) {
     uploadTargetRef.current = segmentIndex
     fileInputRef.current?.click()
@@ -216,6 +230,7 @@ export function PostComposer({
     )
   }
 
+  const hasText = segments.some((s) => s.text.trim())
   const filled = segments.filter((s) => s.text.trim() || s.media.length > 0)
   const overLimit = segments.some((s) => isOverLimit(s.text))
   const hasUrl = segments.some((s) => containsUrl(s.text))
@@ -287,6 +302,7 @@ export function PostComposer({
 
       <AiAssistPanel
         currentText={segments.map((s) => s.text).join('\n\n')}
+        editRequest={aiEditRequest}
         onUse={applyGenerated}
         onSavedDrafts={() => onDraftsAdded?.()}
       />
@@ -377,6 +393,36 @@ export function PostComposer({
           </div>
         )
       })}
+
+      {/* 本文が空のうちは出さない。手直しは書いたあとの操作で、
+          何もない状態で並んでいても押しようがない。 */}
+      {hasText && (
+        <div className="composer__ai-edit">
+          <span className="composer__ai-edit-label">
+            <Icon name="sparkles" size={14} />
+            書いた文をAIに手直ししてもらう
+          </span>
+          <div className="composer__ai-edit-chips">
+            {AI_EDIT_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                className="composer__ai-edit-chip"
+                onClick={() => requestAiEdit(preset.message)}
+              >
+                {preset.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="composer__ai-edit-chip composer__ai-edit-chip--own"
+              onClick={() => requestAiEdit('')}
+            >
+              自分で伝える
+            </button>
+          </div>
+        </div>
+      )}
 
       <button type="button" className="btn btn--ghost btn--small composer__add-segment" onClick={addSegment}>
         <Icon name="thread" size={16} />

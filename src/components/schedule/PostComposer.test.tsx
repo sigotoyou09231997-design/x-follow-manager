@@ -3,6 +3,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { PostComposer } from './PostComposer'
 import { buildPost } from '../../lib/schedule/testFixtures'
 
+const generatePosts = vi.hoisted(() =>
+  vi.fn(async () => [{ segments: ['手直しされた投稿'], note: '結論から' }])
+)
+vi.mock('../../lib/schedule/api', () => ({ generatePosts }))
+
 // Supabaseに触る保存・画像まわりは、この画面の見た目の検証には不要なので止めておく。
 const deletePostMedia = vi.hoisted(() => vi.fn(async () => {}))
 vi.mock('../../lib/schedule/postsStore', () => ({
@@ -136,5 +141,56 @@ describe('PostComposer: 保存しなかった画像の後始末', () => {
 
     unmount()
     expect(deletePostMedia).not.toHaveBeenCalled()
+  })
+})
+
+
+// 手直しを頼みたくなるのは本文を書き終えた瞬間。そこから画面上のAIパネルまで
+// 戻って指示を打ち込ませると、頼むより自分で直した方が早くなってしまう。
+describe('PostComposer: 本文の下からAIに手直しを頼む', () => {
+  it('本文が空のうちは手直しのボタンを出さない', () => {
+    render(<PostComposer onSaved={() => {}} onCancel={() => {}} />)
+    expect(screen.queryByRole('button', { name: '短く' })).not.toBeInTheDocument()
+  })
+
+  it('本文を書くと現れ、押すだけで指示なしに生成まで進む', async () => {
+    generatePosts.mockClear()
+    render(<PostComposer onSaved={() => {}} onCancel={() => {}} />)
+    fireEvent.change(textarea(), { target: { value: '会社の人からタンブラーはダメだと言われた' } })
+
+    fireEvent.click(screen.getByRole('button', { name: '短く' }))
+
+    await waitFor(() => expect(generatePosts).toHaveBeenCalled())
+    expect(generatePosts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('短く'),
+        currentText: '会社の人からタンブラーはダメだと言われた',
+      })
+    )
+    // 案は上のAIパネルに出る（本文欄の下で完結させず、選ばせる形は変えない）。
+    await waitFor(() => expect(screen.getByText('手直しされた投稿')).toBeInTheDocument())
+  })
+
+  it('同じ注文を続けて押しても、そのつど頼み直せる', async () => {
+    generatePosts.mockClear()
+    render(<PostComposer onSaved={() => {}} onCancel={() => {}} />)
+    fireEvent.change(textarea(), { target: { value: '書いた本文' } })
+
+    fireEvent.click(screen.getByRole('button', { name: '整える' }))
+    await waitFor(() => expect(generatePosts).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByRole('button', { name: '整える' }))
+    await waitFor(() => expect(generatePosts).toHaveBeenCalledTimes(2))
+  })
+
+  it('「自分で伝える」なら、生成せずに入力欄を開いて待つ', async () => {
+    generatePosts.mockClear()
+    render(<PostComposer onSaved={() => {}} onCancel={() => {}} />)
+    fireEvent.change(textarea(), { target: { value: '書いた本文' } })
+
+    fireEvent.click(screen.getByRole('button', { name: '自分で伝える' }))
+
+    const box = await screen.findByLabelText('AIに伝えたいこと')
+    expect(box).toHaveFocus()
+    expect(generatePosts).not.toHaveBeenCalled()
   })
 })
