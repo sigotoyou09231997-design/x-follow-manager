@@ -421,6 +421,19 @@ textarea {
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
+/* 日付・時刻の入力は、iOSのSafariだと指定した width を無視して自前の幅で描かれる。
+   カードより広くなると右へはみ出し、app-shell が overflow-x: clip なので横スクロール
+   すらできないまま右端が切れる（「投稿日時」で発生）。ネイティブの見た目を外すと
+   指定どおりの幅に収まる。max-width はその保険で、はみ出す幅を要求されても
+   親からは出さない。 */
+input[type='date'],
+input[type='time'],
+input[type='datetime-local'] {
+  -webkit-appearance: none;
+  appearance: none;
+  max-width: 100%;
+}
+
 input:focus,
 select:focus,
 textarea:focus {
@@ -2307,6 +2320,9 @@ input[type='checkbox'] {
 .composer__schedule {
   display: flex;
   flex-direction: column;
+  /* 中の入力が広い幅を要求しても、この区画は親（カード）より広くならない。
+     flexの既定（min-width:auto）のままだと要求どおり広がって右が切れる。 */
+  min-width: 0;
   gap: 12px;
   padding-top: 14px;
   border-top: 1px solid var(--border);
@@ -2315,6 +2331,7 @@ input[type='checkbox'] {
 .composer__field {
   display: flex;
   align-items: center;
+  min-width: 0;
   gap: 12px;
   font-size: 13px;
   font-weight: 600;
@@ -3249,7 +3266,7 @@ input[type='checkbox'] {
      右端が切れる（iPhoneで発生。app-shellが overflow-x: clip なので、
      横スクロールすらできず見えないまま切れる）。横幅の指定だけに従わせる。 */
   .composer__field input {
-    max-width: none;
+    max-width: 100%;
     min-width: 0;
     width: 100%;
   }
@@ -3258,7 +3275,7 @@ input[type='checkbox'] {
      残り幅いっぱいまで伸ばしつつ、足りなければ縮められるようにする。 */
   .repeat-editor__field input[type='date'] {
     flex: 1;
-    max-width: none;
+    max-width: 100%;
     min-width: 0;
   }
 
