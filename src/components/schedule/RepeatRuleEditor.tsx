@@ -1,4 +1,5 @@
 import type { RepeatFreq, RepeatRule } from '../../lib/schedule/types'
+import { Icon } from '../Icon'
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -9,7 +10,8 @@ interface Props {
 
 function defaultRule(): RepeatRule {
   return {
-    freq: 'weekly',
+    // 繰り返しを使う目的のほとんどが「毎日出す」ことなので、開いた時点でその形にしておく。
+    freq: 'daily',
     interval: 1,
     byWeekday: [new Date().getDay()],
     time: '09:00',
@@ -17,7 +19,13 @@ function defaultRule(): RepeatRule {
   }
 }
 
-/** 「毎週月曜9時」のような繰り返し予約の設定。ONにすると単発の日時指定は無効になる。 */
+/**
+ * 「毎日9時」のような繰り返し予約の設定。ONにすると単発の日時指定は無効になる。
+ *
+ * さらに「AIにおまかせ」をONにすると、毎回の本文をその都度AIが書く。
+ * これが無いと繰り返しは毎回まったく同じ文面を投稿するので、毎日続けると
+ * 同じ投稿が並ぶだけになる。
+ */
 export function RepeatRuleEditor({ value, onChange }: Props) {
   const rule = value
 
@@ -108,6 +116,37 @@ export function RepeatRuleEditor({ value, onChange }: Props) {
               />
               <span>日</span>
             </label>
+          )}
+
+          <label className="repeat-editor__toggle repeat-editor__toggle--ai">
+            <input
+              type="checkbox"
+              checked={!!rule.autoGenerate}
+              onChange={(e) => patch({ autoGenerate: e.target.checked })}
+            />
+            <span>
+              <Icon name="sparkles" size={14} />
+              毎回ちがう本文をAIに書いてもらう
+            </span>
+          </label>
+
+          {rule.autoGenerate && (
+            <div className="repeat-editor__ai">
+              <label className="repeat-editor__ai-field">
+                <span>何について書くか</span>
+                <textarea
+                  value={rule.aiTopic ?? ''}
+                  onChange={(e) => patch({ aiTopic: e.target.value })}
+                  placeholder="例: 個人開発で気づいたこと。宣伝っぽくならないように、その日考えたことを淡々と"
+                  rows={3}
+                />
+              </label>
+              <p className="repeat-editor__hint">
+                投稿の前にこのお題から1本ずつ書きます。これまでこの繰り返しで投稿した文章も
+                AIに渡すので、同じ話の繰り返しにはなりません。
+                書かれた本文は投稿されるまで一覧に並ぶので、そこで手直しできます。
+              </p>
+            </div>
           )}
 
           <label className="repeat-editor__field">

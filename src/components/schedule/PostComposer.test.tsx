@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PostComposer } from './PostComposer'
+import { createScheduledPost } from '../../lib/schedule/postsStore'
 import { buildPost } from '../../lib/schedule/testFixtures'
 
 const generatePosts = vi.hoisted(() =>
@@ -192,5 +193,78 @@ describe('PostComposer: 本文の下からAIに手直しを頼む', () => {
     const box = await screen.findByLabelText('AIに伝えたいこと')
     expect(box).toHaveFocus()
     expect(generatePosts).not.toHaveBeenCalled()
+  })
+})
+
+
+// 繰り返し予約は本文をそのまま複製するので、毎日使うと同じ文章が並ぶ。
+// 「AIにおまかせ」は、投稿のたびにサーバー側で本文を書くための設定で、
+// このときコンポーザーの本文欄は書いても使われない。
+describe('PostComposer: 毎日ちがう本文をAIにまかせる', () => {
+  // 保存のモックはファイル全体で共有しているため、前のテストの呼び出しが残る。
+  beforeEach(() => vi.mocked(createScheduledPost).mockClear())
+
+  function enableRepeat() {
+    fireEvent.click(screen.getByLabelText('繰り返し投稿にする'))
+  }
+  function enableAi() {
+    fireEvent.click(screen.getByLabelText(/毎回ちがう本文をAIに書いてもらう/))
+  }
+
+  it('繰り返しを開くと既定で「毎日」になっている', () => {
+    render(<PostComposer onSaved={() => {}} onCancel={() => {}} />)
+    enableRepeat()
+    expect((screen.getByLabelText('繰り返しの頻度') as HTMLSelectElement).value).toBe('daily')
+  })
+
+  // 書いても投稿には一切使われない欄を残すと、書いた文章が黙って捨てられる。
+  it('AIにまかせると、本文欄とAI下書きが消えてお題の欄になる', () => {
+    render(<PostComposer onSaved={() => {}} onCancel={() => {}} />)
+    enableRepeat()
+    expect(screen.getByPlaceholderText('いまどうしてる？')).toBeInTheDocument()
+
+    enableAi()
+    expect(screen.queryByPlaceholderText('いまどうしてる？')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /AIに書いてもらう/ })).not.toBeInTheDocument()
+    expect(screen.getByText('何について書くか')).toBeInTheDocument()
+    expect(screen.getByText(/本文は投稿のたびにAIが書きます/)).toBeInTheDocument()
+  })
+
+  // お題が空のまま保存できてしまうと、投稿の時刻が来てから初めて
+  // 「本文が作れない」と分かる（しかも本人が見ていない時間に）。
+  it('お題が空のままでは予約できない', async () => {
+    render(<PostComposer onSaved={() => {}} onCancel={() => {}} />)
+    enableRepeat()
+    enableAi()
+
+    fireEvent.click(screen.getByRole('button', { name: /AIにまかせて予約する/ }))
+    expect(
+      await screen.findByText('AIに何について書いてもらうかを入力してください')
+    ).toBeInTheDocument()
+    expect(createScheduledPost).not.toHaveBeenCalled()
+  })
+
+  it('お題を書けば、本文なしでも繰り返しとして保存できる', async () => {
+    const onSaved = vi.fn()
+    render(<PostComposer onSaved={onSaved} onCancel={() => {}} />)
+    enableRepeat()
+    enableAi()
+
+    fireEvent.change(screen.getByLabelText('何について書くか'), {
+      target: { value: '個人開発で気づいたこと' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /AIにまかせて予約する/ }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalled())
+    expect(createScheduledPost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'scheduled',
+        repeatRule: expect.objectContaining({
+          freq: 'daily',
+          autoGenerate: true,
+          aiTopic: '個人開発で気づいたこと',
+        }),
+      })
+    )
   })
 })

@@ -70,7 +70,11 @@ create table if not exists public.scheduled_posts (
   segments jsonb not null default '[]'::jsonb,
   -- 繰り返し予約のルール。null なら単発。
   -- { "freq":"daily"|"weekly"|"monthly", "interval":1, "byWeekday":[1,3],
-  --   "time":"09:00", "timeZone":"Asia/Tokyo", "until":"2026-12-31" }
+  --   "time":"09:00", "timeZone":"Asia/Tokyo", "until":"2026-12-31",
+  --   "autoGenerate":true, "aiTopic":"個人開発で気づいたこと" }
+  -- autoGenerate が true のとき、この行は本文を持たず(segments は空)、
+  -- 1回ぶんを作るたびに publishDue が aiTopic からAIに本文を書かせる。
+  -- 列は増やしていないので、既にこのSQLを流してあるプロジェクトで再実行する必要はない。
   repeat_rule jsonb,
   -- 繰り返しの「テンプレート行」から生成された実体行は、親のidをここに持つ
   repeat_parent_id uuid references public.scheduled_posts(id) on delete cascade,

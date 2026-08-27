@@ -131,12 +131,27 @@ export function ScheduledPostList({ posts, onChanged, onEdit }: Props) {
                     : formatDateTime(post.scheduledAt)}
                 </span>
                 <span className={`post-item__status post-item__status--${post.status}`}>
-                  {template ? '繰り返し' : STATUS_LABELS[post.status]}
+                  {template
+                    ? post.repeatRule?.autoGenerate
+                      ? 'AIおまかせ'
+                      : '繰り返し'
+                    : STATUS_LABELS[post.status]}
                 </span>
               </div>
 
               <div className="post-item__body">
-                {post.segments.map((segment, index) => (
+                {/* AIおまかせのテンプレートは本文を持たない（毎回サーバー側で書かれる）。
+                    そのまま本文欄を描くと空白の札になり、何の予約なのか分からなくなる。 */}
+                {template && post.repeatRule?.autoGenerate ? (
+                  <div className="post-item__segment post-item__segment--ai">
+                    <span className="post-item__ai-label">
+                      <Icon name="sparkles" size={13} />
+                      毎回この題材からAIが書きます
+                    </span>
+                    <p className="post-item__text">{post.repeatRule.aiTopic}</p>
+                  </div>
+                ) : (
+                  post.segments.map((segment, index) => (
                   <div key={index} className="post-item__segment">
                     {post.segments.length > 1 && (
                       <span className="post-item__segment-index">{index + 1}</span>
@@ -146,7 +161,8 @@ export function ScheduledPostList({ posts, onChanged, onEdit }: Props) {
                       <span className="post-item__media-count">画像{segment.media.length}枚</span>
                     )}
                   </div>
-                ))}
+                  ))
+                )}
               </div>
 
               {post.errorMessage && <p className="post-item__error">{post.errorMessage}</p>}

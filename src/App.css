@@ -2361,6 +2361,21 @@ input[type='checkbox'] {
   min-width: fit-content;
 }
 
+/* 本文欄を隠す代わりに、なぜ書く場所が無いのかをここで伝える。
+   何も出さないと「本文欄が消えた不具合」に見える。 */
+.composer__ai-writes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
 .composer__warning {
   font-size: 13px;
   padding: 10px 12px;
@@ -2668,6 +2683,45 @@ input[type='checkbox'] {
   font-size: 12px;
   color: var(--text-muted);
   line-height: 1.6;
+}
+
+/* AIおまかせの切り替え。繰り返しの中の一段深い設定なので、上に区切りを置く。 */
+.repeat-editor__toggle--ai {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+}
+
+.repeat-editor__toggle--ai > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.repeat-editor__ai {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.repeat-editor__ai-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* お題は1行では収まらない（文体の希望まで書ける欄なので）。 */
+.repeat-editor__ai-field textarea {
+  width: 100%;
+  min-height: 76px;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text);
+  line-height: 1.6;
+  resize: vertical;
 }
 
 /* --- AI下書き支援（コンポーザー内） --- */
@@ -3121,6 +3175,24 @@ input[type='checkbox'] {
   align-items: center;
   justify-content: center;
   margin-top: 3px;
+}
+
+.post-item__segment--ai {
+  flex-direction: column;
+  gap: 6px;
+}
+
+.post-item__ai-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.post-item--photo .post-item__ai-label {
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .post-item__text {

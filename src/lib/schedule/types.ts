@@ -41,6 +41,19 @@ export interface RepeatRule {
   timeZone: string
   /** "YYYY-MM-DD"。この日を過ぎたら生成を止める。未指定なら無期限。 */
   until?: string
+  /**
+   * 各回の本文をAIに書かせる。毎日投稿するために作った仕組みで、
+   * ONのときテンプレートは本文を持たず、1回ぶんを作るたびにAIが新しい文章を書く。
+   * OFF（既定）だと毎回まったく同じ文面が投稿される。
+   */
+  autoGenerate?: boolean
+  /**
+   * autoGenerate のときの「何について書くか」。
+   * ai_prompt 列ではなくルールの中に持たせているのは、繰り返しの設定を1つの
+   * オブジェクトとして読み書きしているため。分けて持つと、片方だけ更新されて
+   * 「AIおまかせなのにお題が空」という投稿できない状態が作れてしまう。
+   */
+  aiTopic?: string
 }
 
 export type ScheduledPostStatus =

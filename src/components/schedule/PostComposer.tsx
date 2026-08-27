@@ -230,20 +230,31 @@ export function PostComposer({
     )
   }
 
+  // AIおまかせの繰り返しでは、本文はサーバー側で毎回書かれる。
+  // ここに本文欄やAI下書きを残しておくと、書いても投稿には一切使われないものを
+  // 書かせることになるので、まとめて隠す。
+  const aiWrites = !!repeatRule?.autoGenerate
   const hasText = segments.some((s) => s.text.trim())
   const filled = segments.filter((s) => s.text.trim() || s.media.length > 0)
-  const overLimit = segments.some((s) => isOverLimit(s.text))
-  const hasUrl = segments.some((s) => containsUrl(s.text))
+  const overLimit = !aiWrites && segments.some((s) => isOverLimit(s.text))
+  const hasUrl = !aiWrites && segments.some((s) => containsUrl(s.text))
 
   async function save(mode: 'draft' | 'schedule') {
     setError(undefined)
-    if (filled.length === 0) {
-      setError('本文を入力してください')
-      return
-    }
-    if (overLimit) {
-      setError('文字数の上限を超えている投稿があります')
-      return
+    if (aiWrites) {
+      if (!repeatRule?.aiTopic?.trim()) {
+        setError('AIに何について書いてもらうかを入力してください')
+        return
+      }
+    } else {
+      if (filled.length === 0) {
+        setError('本文を入力してください')
+        return
+      }
+      if (overLimit) {
+        setError('文字数の上限を超えている投稿があります')
+        return
+      }
     }
 
     const iso = fromLocalInputValue(scheduledAt)
@@ -300,14 +311,23 @@ export function PostComposer({
         </div>
       )}
 
-      <AiAssistPanel
-        currentText={segments.map((s) => s.text).join('\n\n')}
-        editRequest={aiEditRequest}
-        onUse={applyGenerated}
-        onSavedDrafts={() => onDraftsAdded?.()}
-      />
+      {!aiWrites && (
+        <AiAssistPanel
+          currentText={segments.map((s) => s.text).join('\n\n')}
+          editRequest={aiEditRequest}
+          onUse={applyGenerated}
+          onSavedDrafts={() => onDraftsAdded?.()}
+        />
+      )}
 
-      {segments.map((segment, index) => {
+      {aiWrites && (
+        <p className="composer__ai-writes">
+          <Icon name="sparkles" size={16} />
+          本文は投稿のたびにAIが書きます。下の「何について書くか」だけ決めてください。
+        </p>
+      )}
+
+      {!aiWrites && segments.map((segment, index) => {
         const used = weightedLength(segment.text)
         const remaining = MAX_WEIGHTED_LENGTH - used
         const ratio = Math.min(used / MAX_WEIGHTED_LENGTH, 1)
@@ -396,7 +416,7 @@ export function PostComposer({
 
       {/* 本文が空のうちは出さない。手直しは書いたあとの操作で、
           何もない状態で並んでいても押しようがない。 */}
-      {hasText && (
+      {!aiWrites && hasText && (
         <div className="composer__ai-edit">
           <span className="composer__ai-edit-label">
             <Icon name="sparkles" size={14} />
@@ -424,10 +444,12 @@ export function PostComposer({
         </div>
       )}
 
-      <button type="button" className="btn btn--ghost btn--small composer__add-segment" onClick={addSegment}>
-        <Icon name="thread" size={16} />
-        スレッドに追加（連投）
-      </button>
+      {!aiWrites && (
+        <button type="button" className="btn btn--ghost btn--small composer__add-segment" onClick={addSegment}>
+          <Icon name="thread" size={16} />
+          スレッドに追加（連投）
+        </button>
+      )}
 
       <input
         ref={fileInputRef}
@@ -475,7 +497,7 @@ export function PostComposer({
           disabled={saving || overLimit}
         >
           <Icon name={repeatRule ? 'repeat' : 'send'} size={16} />
-          {saving ? '保存中…' : repeatRule ? '繰り返し予約する' : '予約する'}
+          {saving ? '保存中…' : aiWrites ? 'AIにまかせて予約する' : repeatRule ? '繰り返し予約する' : '予約する'}
         </button>
       </div>
     </div>
