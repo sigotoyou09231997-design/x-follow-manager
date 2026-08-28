@@ -19,6 +19,15 @@ describe('毎日投稿のシステムプロンプト', () => {
     expect(prompt).toContain('作り話が混ざると本人が嘘をついたことになる')
   })
 
+  // 毎朝のあいさつのような使い方では、「前と同じ書き出しを避ける」だけを言うと
+  // AIは毎日入れるべき「おはよう」まで外してしまう。
+  it('毎回入れるあいさつは繰り返してよいと伝える', () => {
+    const prompt = buildDailySystemPrompt()
+    expect(prompt).toContain('あいさつ・名乗り・決まり文句')
+    expect(prompt).toContain('「おはよう」は毎日書く')
+    expect(prompt).toContain('変えるのはそのあとに続く中身のほう')
+  })
+
   it('単発投稿1本だけを作らせる', () => {
     const prompt = buildDailySystemPrompt()
     expect(prompt).toContain('案を1つだけ入れる')

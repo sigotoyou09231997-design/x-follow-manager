@@ -244,6 +244,29 @@ describe('PostComposer: 毎日ちがう本文をAIにまかせる', () => {
     expect(createScheduledPost).not.toHaveBeenCalled()
   })
 
+  // 白紙のお題欄に何をどこまで書けばよいかは分かりにくい。押すだけで埋まる入口を残す。
+  it('お題のひな形を押すと、そのまま使える文がお題に入る', async () => {
+    const onSaved = vi.fn()
+    render(<PostComposer onSaved={onSaved} onCancel={() => {}} />)
+    enableRepeat()
+    enableAi()
+
+    fireEvent.click(screen.getByRole('button', { name: '毎朝のあいさつ' }))
+    const topic = screen.getByLabelText('何について書くか') as HTMLTextAreaElement
+    expect(topic.value).toContain('おはようございます')
+
+    // 押したあとは、書いた文章を消さないようにひな形を引っ込める。
+    expect(screen.queryByRole('button', { name: '毎朝のあいさつ' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /AIにまかせて予約する/ }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalled())
+    expect(createScheduledPost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repeatRule: expect.objectContaining({ autoGenerate: true, aiTopic: topic.value }),
+      })
+    )
+  })
+
   it('お題を書けば、本文なしでも繰り返しとして保存できる', async () => {
     const onSaved = vi.fn()
     render(<PostComposer onSaved={onSaved} onCancel={() => {}} />)

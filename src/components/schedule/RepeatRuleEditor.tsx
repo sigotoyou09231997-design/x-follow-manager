@@ -1,4 +1,5 @@
 import type { RepeatFreq, RepeatRule } from '../../lib/schedule/types'
+import { AI_TOPIC_PRESETS } from '../../lib/schedule/aiTopics'
 import { Icon } from '../Icon'
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
@@ -141,6 +142,24 @@ export function RepeatRuleEditor({ value, onChange }: Props) {
                   rows={3}
                 />
               </label>
+
+              {/* 書きかけがあるときは出さない。押すと入れ替わるので、
+                  自分で書いた文章を消してしまう。 */}
+              {!rule.aiTopic?.trim() && (
+                <div className="repeat-editor__topic-presets">
+                  <span className="repeat-editor__topic-presets-label">よく使うもの</span>
+                  {AI_TOPIC_PRESETS.map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      className="repeat-editor__topic-preset"
+                      onClick={() => patch({ aiTopic: preset.topic })}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <p className="repeat-editor__hint">
                 投稿の前にこのお題から1本ずつ書きます。これまでこの繰り返しで投稿した文章も
                 AIに渡すので、同じ話の繰り返しにはなりません。

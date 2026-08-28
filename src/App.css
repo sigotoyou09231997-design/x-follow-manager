@@ -2732,6 +2732,37 @@ input[type='checkbox'] {
   color: var(--text-muted);
 }
 
+/* お題のひな形。白紙から書き出すのが難しい欄なので、押すだけで埋まる入口を置く。 */
+.repeat-editor__topic-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.repeat-editor__topic-presets-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.repeat-editor__topic-preset {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.repeat-editor__topic-preset:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* お題は1行では収まらない（文体の希望まで書ける欄なので）。 */
 .repeat-editor__ai-field textarea {
   width: 100%;
