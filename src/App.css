@@ -432,6 +432,10 @@ input[type='datetime-local'] {
   -webkit-appearance: none;
   appearance: none;
   max-width: 100%;
+  /* Safariはこれらの入力に自前の下限幅を持たせる。flexの中に置くと、その幅が
+     そのまま親の「これ以上縮められない幅」として扱われ、親ごと画面の外へ広がる。
+     0 を明示して、入力の都合が親の幅を決めないようにする。 */
+  min-width: 0;
 }
 
 input:focus,
@@ -2490,6 +2494,13 @@ input[type='checkbox'] {
 .composer-sheet__panel {
   position: relative;
   width: 100%;
+  /* flexアイテムの min-width の既定は auto ＝「中身の最小幅までしか縮まない」。
+     Safariはこれを width:100% より優先して解くため、中の入力（日付・時刻）が
+     広い幅を要求すると、シートが画面より広くなる。
+     広がったシートの中で本文の折り返し位置が決まるので、右が切れるだけでなく
+     文章の途中が消える（「投稿されるたびに次回分が自動で追加されます」の
+     "自動で" が見えなくなる、という形で出た）。 */
+  min-width: 0;
   max-width: 560px;
   /* 82dvh は「上のカバー写真を見せたまま書ける」ための値。
      キーボードが出ると見えている範囲の方が狭くなるので、そちらに従う。 */
@@ -2527,6 +2538,8 @@ input[type='checkbox'] {
 
 /* シート版のコンポーザーは、カードの装飾を脱いで面いっぱいに広がる。 */
 .composer--sheet {
+  /* 上と同じ理由。中身の要求で横に広がる経路を、階層ごとに塞いでおく。 */
+  min-width: 0;
   background: none;
   border: none;
   border-radius: 0;
@@ -2615,6 +2628,8 @@ input[type='checkbox'] {
 .repeat-editor__interval {
   display: flex;
   align-items: center;
+  /* 中の入力が要求する幅で、この行が親より広くならないようにする。 */
+  min-width: 0;
   gap: 8px;
   font-size: 13px;
   font-weight: 600;
@@ -2651,9 +2666,13 @@ input[type='checkbox'] {
 
 .repeat-editor__interval input,
 .repeat-editor__field input[type='number'] {
-  width: 68px;
-  /* Chromeはスピナーぶん68pxに収まらない。足りない分は広げる。 */
-  min-width: fit-content;
+  /* スピナーぶん68pxでは数字が隠れるので少し広く取る。
+     以前は min-width: fit-content で足りない分を補っていたが、fit-content は
+     入力欄の既定の幅（20文字ぶん＝216px）に解決される。68px の指定を押しのけて
+     この欄だけで行の大半を占め、狭い画面ではシートごと右へはみ出す原因になっていた。 */
+  width: 84px;
+  min-width: 0;
+  flex: none;
 }
 
 .repeat-editor__weekdays {
@@ -3349,6 +3368,26 @@ input[type='checkbox'] {
     flex: 1;
     max-width: 100%;
     min-width: 0;
+  }
+
+  /* この行は狭い画面では折り返して1つずつ並ぶので、下限幅を残す意味がない。
+     残っていると、その幅が親の「縮められない幅」になり、シートごと広がる。 */
+  .repeat-editor__row select,
+  .repeat-editor__row input[type='time'] {
+    min-width: 0;
+  }
+
+  /* 終了日はラベル（7文字）と日付入力を1行に並べていたが、狭い画面では
+     入力に残る幅が半分以下になる。Safariの日付入力はそこまで縮まないので、
+     ラベルの幅ぶんだけ右へはみ出して切れる。投稿日時と同じく縦に積む。 */
+  .repeat-editor__field--stack {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .repeat-editor__field--stack input[type='date'] {
+    width: 100%;
   }
 
   .x-connect {

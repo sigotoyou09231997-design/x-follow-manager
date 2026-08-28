@@ -149,7 +149,7 @@ export function RepeatRuleEditor({ value, onChange }: Props) {
             </div>
           )}
 
-          <label className="repeat-editor__field">
+          <label className="repeat-editor__field repeat-editor__field--stack">
             <span>終了日（任意）</span>
             <input
               type="date"
