@@ -39,3 +39,21 @@ dist-ssr
 
 .env
 .env.local
+
+# ===== Cowork連携の生成物（state.tsv と waiting.txt は共有したいのでコミットする） =====
+.cowork/report.md
+.cowork/daemon.log
+.cowork/daemon.pid
+.cowork/sessions.tsv
+.cowork/headless-out.txt
+.cowork/headless-err.txt
+.cowork/headless-stream.jsonl
+.cowork/last_hash
+.cowork/last-run.hash
+.cowork/run-note.txt
+.cowork/run.lock/
+.cowork/run.exit
+.cowork/run.pid
+
+# 個人の許可リスト（共有しない）
+.claude/settings.local.json
