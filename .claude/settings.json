@@ -20,5 +20,14 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git fetch:*)",
+      "Bash(git pull --rebase:*)",
+      "Bash(git rev-list:*)",
+      "Bash(git status:*)",
+      "Bash(bash ../scripts/cowork-watch.sh:*)"
+    ]
   }
 }
