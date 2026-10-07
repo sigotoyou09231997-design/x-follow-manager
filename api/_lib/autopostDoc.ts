@@ -15,7 +15,8 @@ export const CHANNELS: Record<ChannelName, { maxMessages: number }> = {
 }
 
 export function isChannelName(value: unknown): value is ChannelName {
-  return typeof value === 'string' && Object.hasOwn(CHANNELS, value)
+  // Vercel が関数を組み立てるときの型の設定は ES2022 より古く、Object.hasOwn が通らない
+  return typeof value === 'string' && Object.keys(CHANNELS).includes(value)
 }
 
 export class DocError extends Error {}

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
-import { supabaseAutopostStore } from './_lib/autopostStore.js'
+import { supabaseAutopostStore } from './autopostStore.js'
 
 // Supabase（PostgREST）に実際に送る要求の形を確かめる。
 // 「版が見ていたものと同じときだけ書き換える」「状態の報告は文の列に触らない」は、

@@ -1,15 +1,15 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { UnauthorizedError } from './_lib/auth.js'
-import { hashPosterKey, type ChannelName, type PosterStatus } from './_lib/autopostDoc.js'
+import { UnauthorizedError } from './auth.js'
+import { hashPosterKey, type ChannelName, type PosterStatus } from './autopostDoc.js'
 import {
   createAutopostHandler,
   createPosterStatusHandler,
   createPosterTextHandler,
   type Deps,
-} from './_lib/autopostHandlers.js'
-import { emptyChannel, type AutopostStore, type ChannelRow } from './_lib/autopostStore.js'
+} from './autopostHandlers.js'
+import { emptyChannel, type AutopostStore, type ChannelRow } from './autopostStore.js'
 
 // 保存先を手元のメモリに差し替えて、画面と Mac の投稿役が使う3つの受け口を通す。
 // Supabase 側の「読んで→書く」の取り合い（版が違えば書かない）は、本番の SQL でしか確かめられないので、
