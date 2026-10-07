@@ -2,6 +2,12 @@
      Markdownへ書き起こしたもの。実装の判断根拠として置いている。
      以前の版 (REDESIGN_INSTRUCTIONS.md) は、この要件で置き換わっている。 -->
 
+> **この要件書の「写真＋ウォームアイボリー」の方針は、2026-10-07 に置き換わっている。**
+> いまは Apple 風（薄いグレーの地＋白いカード、システムブルー、写真・グラデーションなし、
+> 大きな見出し、iOS のグループ化リスト）。トークンは `src/index.css`、大きな見出しは
+> `src/components/PageHero.tsx`。写真素材（`src/assets/photos*`）と `PhotoHero` はなくした。
+> 画面を触るときはコードを正とし、この文書は当時の判断（機能の対応表など）を残すために置いてある。
+
 # Follow tidy UIリデザイン要件定義書
 
 PRODUCT / UI SPECIFICATION — Claude Code実装用 / デザイン変更のみ・既存機能維持

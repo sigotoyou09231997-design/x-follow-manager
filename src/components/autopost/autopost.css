@@ -33,8 +33,10 @@
 
 .autopost__title {
   margin: 2px 0 0;
-  font-size: 26px;
+  font-size: 28px;
+  font-weight: 700;
   line-height: 1.2;
+  letter-spacing: -0.02em;
   color: var(--text-h);
 }
 
@@ -49,14 +51,15 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
+  min-height: 38px;
   padding: 0 18px;
-  border: 1px solid var(--border);
+  border: none;
   border-radius: var(--radius-pill);
-  background: var(--surface);
-  color: var(--text-muted);
+  background: var(--neutral-bg);
+  color: var(--text);
   font: inherit;
   font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
   transition:
     background var(--dur) var(--ease),
@@ -70,14 +73,13 @@
 
 .autopost__tab.active {
   background: var(--accent);
-  border-color: var(--accent);
   color: var(--on-accent);
   font-weight: 600;
 }
 
 .autopost__dirty {
   font-size: 9px;
-  color: var(--gold);
+  color: var(--warning);
 }
 
 .autopost__info {
@@ -220,9 +222,8 @@
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
-  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background: var(--surface-2);
 }
 
 .autopost__history-text {

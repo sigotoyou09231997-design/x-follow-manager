@@ -131,6 +131,11 @@ async function gotoTab(page, label) {
     await page.locator('.side-nav').getByRole('button', { name: label, exact: true }).click()
     return
   }
+  // 下部バーに設定の項目は無い。狭い画面ではヘッダー右上の人型ボタンが入口。
+  if (label === '設定') {
+    await page.getByRole('button', { name: '設定を開く' }).click()
+    return
+  }
   await page.locator('.bottom-nav__item', { hasText: label }).click()
 }
 

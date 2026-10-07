@@ -1,9 +1,8 @@
 import { lazy, Suspense } from 'react'
-import { PHOTOS } from '../assets/photos'
 import { FileDropZone } from './FileDropZone'
 import { HistoryView } from './HistoryView'
 import { Icon } from './Icon'
-import { PhotoHero } from './PhotoHero'
+import { PageHero } from './PageHero'
 import { SummaryBar } from './SummaryBar'
 import type { Summary } from '../hooks/useAccounts'
 import type { ActivityTarget } from '../lib/home/activity'
@@ -65,25 +64,24 @@ export function HomeView({
 
   return (
     <div className="home-view">
-      {/* 先頭は、全サービスの「いまの動き」。X のフォロー整理（下の写真の面）は、そのうちの1つとして続ける。 */}
+      {/* 先頭は、全サービスの「いまの動き」。X のフォロー整理（下のカード）は、そのうちの1つとして続ける。 */}
       <Suspense fallback={null}>
         <HomeActivity tidy={{ hasData, pending: summary.pending }} onOpen={onOpenActivity} />
       </Suspense>
 
-      {/* Heroと直下のカードは重ねて置くので、gapを持つ .home-view から
-          切り離して1つの箱にまとめる。 */}
+      {/* 見出しと直下のカードは間隔を .home-view の gap と別に持たせたいので、
+          1つの箱にまとめる。 */}
       <div className="home-top">
-        <PhotoHero
-          photo={PHOTOS.homeHero}
+        <PageHero
           title="気になる人だけ、残そう。"
           subtitle="フォローを、もっと心地よく。"
         >
-          {/* 未読込のあいだは読み込みが唯一の入口なので、Heroの主役にする。
+          {/* 未読込のあいだは読み込みが唯一の入口なので、見出しの主ボタンにする。
               読み込み済みなら次の行動は「確認を進める」なので、そちらへ差し替える。
               読み込みに失敗したときは、原因の表示（App側のバナー）と一緒に
               もう一度選び直せるよう、読み込みボタンのまま残す。 */}
           {hasData && !importFailed ? (
-            <button type="button" className="btn btn--on-photo" onClick={onReview}>
+            <button type="button" className="btn btn--primary btn--large" onClick={onReview}>
               <Icon name="plus" size={18} />
               {remainingInBatch > 0 ? `続きから（残り${remainingInBatch}人）` : `次の${batchSize}人を確認`}
             </button>
@@ -96,17 +94,17 @@ export function HomeView({
             />
           )}
 
-          <p className="photo-hero__trust">
+          <p className="page-hero__trust">
             <span className="trust-label">
               <Icon name="lock" size={13} />
               端末内で解析
             </span>
             <span className="trust-label">外部送信なし</span>
-            <button type="button" className="photo-hero__trust-link" onClick={onGotoSettings}>
+            <button type="button" className="page-hero__trust-link" onClick={onGotoSettings}>
               くわしく
             </button>
           </p>
-        </PhotoHero>
+        </PageHero>
 
         {hasData ? (
           <section className="surface-card home-metrics">

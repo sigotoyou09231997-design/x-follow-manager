@@ -1,14 +1,14 @@
 import type { AccountRecord } from '../lib/types'
 
 // アーカイブにはアイコン画像が含まれないので、頭文字のモノグラムで代用する。
-// 画面全体がウォーム基調なので、灰色ではなく暖色〜ネイビーの濃淡でそろえる。
-// 彩度は上げない（一覧に並んだときに絵文字のように賑やかになるため）。
+// iOS の連絡先と同じく、縦にごく薄いグラデーションをかけた灰色系でそろえる。
+// 色味は微妙にずらすだけで、彩度は上げない（一覧に並んだときに賑やかになるため）。
 const GRADIENTS = [
-  'linear-gradient(135deg, #7a6450, #3c3028)',
-  'linear-gradient(135deg, #8a7360, #4a3a2c)',
-  'linear-gradient(135deg, #5c6b7a, #26313f)',
-  'linear-gradient(135deg, #6f6357, #322b24)',
-  'linear-gradient(135deg, #2f4260, #11213d)',
+  'linear-gradient(180deg, #a2a7b3, #7d838f)',
+  'linear-gradient(180deg, #a6a6a1, #81817c)',
+  'linear-gradient(180deg, #9aa7b8, #76869a)',
+  'linear-gradient(180deg, #aaa4b3, #868092)',
+  'linear-gradient(180deg, #9aaaa7, #758986)',
 ]
 
 function hash(value: string): number {

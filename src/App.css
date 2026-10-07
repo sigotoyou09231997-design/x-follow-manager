@@ -10,6 +10,8 @@
   padding-bottom: calc(96px + var(--safe-bottom));
 }
 
+/* 地を透かして、背後でスクロールする内容をぼかす（Apple のナビゲーションバーと同じ見え方）。
+   最初の background は color-mix に未対応の古いブラウザ向けの保険。 */
 .app-header {
   position: sticky;
   top: 0;
@@ -19,9 +21,9 @@
   gap: 10px;
   padding: calc(10px + var(--safe-top)) 20px 10px;
   background: var(--bg);
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  backdrop-filter: saturate(180%) blur(14px);
-  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid var(--border);
 }
 
@@ -32,8 +34,8 @@
   background: none;
   color: var(--text-h);
   font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   white-space: nowrap;
 }
 
@@ -45,15 +47,15 @@
   margin: 0 auto;
   align-items: center;
   gap: 8px;
-  padding: 0 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
+  padding: 0 12px;
+  border: none;
+  border-radius: 10px;
+  background: var(--fill);
   color: var(--text-muted);
 }
 
 .app-header__search input[type='search'] {
-  min-height: 38px;
+  min-height: 36px;
   padding: 0;
   border: none;
   background: none;
@@ -72,23 +74,23 @@
   gap: 6px;
   padding: 6px 12px;
   border-radius: var(--radius-pill);
-  background: var(--neutral-bg);
+  background: var(--fill);
   color: var(--text-muted);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
 }
 
 .app-header__avatar {
   flex: none;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--neutral-bg);
-  color: var(--text);
+  border: none;
+  background: var(--fill);
+  color: var(--text-muted);
 }
 
 .app-body {
@@ -103,7 +105,7 @@
 .side-nav {
   display: none;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   width: 220px;
   flex: none;
   position: sticky;
@@ -111,30 +113,40 @@
   padding: 20px 12px;
 }
 
+/* macOS のサイドバーと同じく、選択中は面を薄い青で敷き、文字と記号を青にする。 */
 .side-nav__item {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 44px;
-  padding: 0 14px;
+  min-height: 40px;
+  padding: 0 12px;
   border: none;
-  border-radius: var(--radius-pill);
+  border-radius: 10px;
   background: none;
-  color: var(--text-muted);
+  color: var(--text);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 500;
   text-align: left;
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.side-nav__item svg {
+  color: var(--text-muted);
+  transition: color var(--dur) var(--ease);
 }
 
 .side-nav__item:hover {
-  background: var(--surface-2);
-  color: var(--text-h);
+  background: var(--fill);
 }
 
 .side-nav__item.active {
-  background: var(--neutral-bg);
-  color: var(--text-h);
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.side-nav__item.active svg {
+  color: var(--accent);
 }
 
 .side-nav__cta {
@@ -165,6 +177,8 @@
    下部バー（狭い画面）
    ============================================================ */
 
+/* iOS のタブバーと同じ作り。地を透かしてぼかし、選択中は色だけで示す。
+   最初の background は color-mix に未対応の古いブラウザ向けの保険。 */
 .bottom-nav {
   position: fixed;
   left: 0;
@@ -175,12 +189,12 @@
   align-items: center;
   justify-content: space-around;
   gap: 2px;
-  min-height: calc(72px + var(--safe-bottom));
-  padding: 8px 8px calc(8px + var(--safe-bottom));
+  min-height: calc(64px + var(--safe-bottom));
+  padding: 6px 8px calc(6px + var(--safe-bottom));
   background: var(--bg);
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  backdrop-filter: saturate(180%) blur(14px);
-  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-top: 1px solid var(--border);
 }
 
@@ -190,44 +204,47 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  min-height: 56px;
-  padding: 6px 2px;
+  gap: 2px;
+  min-height: 52px;
+  padding: 4px 2px;
   border: none;
   border-radius: var(--radius-sm);
   background: none;
   color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: background 0.15s, color 0.15s;
+  transition: color var(--dur) var(--ease);
 }
 
-/* 選択中は色だけでなく背景のピルでも示す。色覚や明るい屋外では、
-   色の違いだけだと現在地が分からなくなる。 */
+/* 選択中は青にするだけ。太さや面は変えない（タブバーの中で文字が動いて見えるため）。
+   色だけに頼らず、記号の塗りと文字の太さの差は付けないが、
+   現在地は上のヘッダーと画面の見出しでも分かる。 */
 .bottom-nav__item.active {
   color: var(--accent);
-  background: var(--accent-bg);
-  font-weight: 800;
 }
 
 /* 中央の＋。ナビ項目ではなく「次の◯人を確認する」の操作なので、
-   一回り大きく浮かせて区別する。 */
+   タブの記号より一回り大きい青い丸にして区別する。 */
 .bottom-nav__fab {
   flex: none;
-  width: 56px;
-  height: 56px;
-  margin: -12px 6px 0;
+  width: 48px;
+  height: 48px;
+  margin: 0 6px;
   display: grid;
   place-items: center;
   border: none;
   border-radius: 50%;
   background: var(--accent);
   color: var(--on-accent);
-  box-shadow: var(--shadow-md), 0 0 0 4px var(--bg);
-  transition: transform 0.1s, opacity 0.15s;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 35%, transparent);
+  transition: transform 0.1s, opacity 0.15s, background var(--dur) var(--ease);
+}
+
+.bottom-nav__fab:hover {
+  background: var(--accent-hover);
 }
 
 .bottom-nav__fab:active {
@@ -248,17 +265,21 @@
   justify-content: center;
   gap: 6px;
   min-height: 44px;
-  padding: 0 20px;
-  border-radius: var(--radius-sm);
+  padding: 0 22px;
+  border-radius: var(--radius-pill);
   border: 1px solid transparent;
-  background: var(--surface-2);
+  background: var(--neutral-bg);
   color: var(--text-h);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
   transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease),
     opacity var(--dur) var(--ease), transform 0.08s var(--ease);
+}
+
+.btn:hover {
+  text-decoration: none;
 }
 
 .btn:active {
@@ -286,7 +307,7 @@
 }
 
 .btn--icon:hover:not(:disabled) {
-  background: var(--surface-2);
+  background: var(--fill);
   color: var(--text-h);
 }
 
@@ -295,9 +316,8 @@
   transform: none;
 }
 
-/* 主役はインクネイビー。1画面にいくつも置かない。 */
+/* 主役はシステムブルー。1画面にいくつも置かない。 */
 .btn--primary {
-  box-shadow: var(--shadow-sm);
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
@@ -308,7 +328,7 @@
   border-color: var(--accent-hover);
 }
 
-/* 「残す」専用。状態色（セージ）をそのまま操作に使う数少ない場所で、
+/* 「残す」専用。状態色（グリーン）をそのまま操作に使う数少ない場所で、
    一覧のバッジと同じ色にして「押した結果どう表示されるか」を一致させる。 */
 .btn--sage {
   background: var(--success-strong);
@@ -323,80 +343,71 @@
 
 /* 反転ボタンが「オン」の状態。押し戻せることを控えめに示す。 */
 .btn--on {
-  background: var(--neutral-bg);
-  border-color: var(--border-strong);
-  color: var(--text-h);
+  background: var(--accent-bg);
+  border-color: transparent;
+  color: var(--accent);
 }
 
 .btn--on:hover:not(:disabled) {
-  background: var(--surface-2);
-  border-color: var(--border-strong);
+  background: var(--accent-bg);
+  border-color: var(--accent);
 }
 
 .btn--secondary {
-  background: var(--surface-2);
-  border-color: var(--border-strong);
+  background: var(--neutral-bg);
 }
 
+.btn--secondary:hover:not(:disabled) {
+  background: var(--border);
+}
+
+/* 面も枠も持たず、青い文字だけ（iOS の「編集」「完了」と同じ）。
+   一覧の中に何個も並ぶ補助操作が、主ボタンより前に出ないようにする。 */
 .btn--ghost {
   background: transparent;
-  border-color: var(--border-strong);
-  color: var(--text-h);
+  border-color: transparent;
+  color: var(--accent);
   font-weight: 600;
 }
 
 .btn--ghost:hover:not(:disabled) {
-  background: var(--surface-2);
+  background: var(--accent-bg);
 }
 
 .btn--danger {
-  background: var(--danger);
-  border-color: var(--danger);
+  background: var(--danger-strong);
+  border-color: var(--danger-strong);
   color: #fff;
 }
 
-/* 一覧に並ぶ破壊的操作は、押し間違いを防ぎつつ主張しすぎないよう輪郭だけ赤にする。 */
+/* 一覧に並ぶ破壊的操作は、押し間違いを防ぎつつ主張しすぎないよう文字だけ赤にする。 */
 .btn--ghost.btn--danger {
   background: transparent;
-  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  border-color: transparent;
   color: var(--danger);
 }
 
 .btn--ghost.btn--danger:hover:not(:disabled) {
   background: var(--danger-bg);
-  border-color: var(--danger);
+  border-color: transparent;
 }
 
 .btn--small {
   min-height: 36px;
-  padding: 0 14px;
+  padding: 0 16px;
   font-size: 13px;
+}
+
+.btn--large {
+  min-height: 50px;
+  padding: 0 28px;
+  font-size: 16px;
 }
 
 .btn--block {
   width: 100%;
-  min-height: 54px;
-  font-size: 15px;
-}
-
-/* 写真の上に置く白いボタン。写真が明るくても輪郭が消えないよう、
-   面は不透明の白にして影を落とす。
-   色をトークンで取らないのは、乗っているのが「写真」であってページの面では
-   ないため。ダークテーマで面と文字を反転させると、写真の上で沈んで消える。 */
-.btn--on-photo {
-  min-height: 54px;
-  padding: 0 26px;
-  background: #ffffff;
-  border-color: transparent;
-  color: #11213d;
-  font-size: 15px;
-  box-shadow: var(--shadow-lg);
-}
-
-.btn--on-photo:hover:not(:disabled) {
-  background: #ffffff;
-  border-color: transparent;
-  color: #11213d;
+  min-height: 50px;
+  font-size: 16px;
 }
 
 /* ============================================================
@@ -413,12 +424,20 @@ select,
 textarea {
   width: 100%;
   min-height: 44px;
-  padding: 10px 16px;
-  border: 1px solid var(--border);
+  padding: 10px 14px;
+  /* 枠は引かず、カードの中では一段沈んだ面で入力欄だと示す。
+     透明の枠を残しているのは、フォーカスで青い枠を足しても寸法が動かないようにするため。 */
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   color: var(--text);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.8;
 }
 
 /* 日付・時刻の入力は、iOSのSafariだと指定した width を無視して自前の幅で描かれる。
@@ -442,8 +461,8 @@ input:focus,
 select:focus,
 textarea:focus {
   outline: none;
-  border-color: var(--border-strong);
-  box-shadow: 0 0 0 3px var(--accent-bg);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-bg);
 }
 
 textarea {
@@ -462,6 +481,9 @@ input[type='checkbox'] {
    カード・共通パーツ
    ============================================================ */
 
+/* 枠は引かず、地(--bg)との明るさの差でカードを立ち上げる。
+   透明の枠を残しているのは、状態で枠色だけ変える箇所（連携中・失敗・危険な操作）が、
+   寸法を変えずに色だけ足せるようにするため。 */
 .card,
 .surface-card,
 .settings-section,
@@ -470,164 +492,132 @@ input[type='checkbox'] {
 .post-item,
 .schedule-view--notice {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
 }
 
 /* ============================================================
-   写真の面（PhotoHero）
-   写真は差し替えられる前提なので、明るい写真が来ても白文字が読めるよう
-   scrim（暗いグラデーション）を必ず挟む。scrimを外すと、素材次第で
-   見出しが背景に溶けて読めなくなる。
+   画面の見出し（PageHero）
+   写真や面は敷かず、地の上に大きな文字だけを置く。色を持つのは主ボタンだけ。
    ============================================================ */
 
-.photo-hero {
-  position: relative;
-  isolation: isolate;
-  display: flex;
-  align-items: flex-end;
-  min-height: 300px;
-  max-height: 360px;
-  padding: 0;
-  border-radius: var(--radius-hero);
-  overflow: hidden;
-  background: var(--neutral-bg);
-  box-shadow: var(--shadow-md);
-}
-
-.photo-hero--compact {
-  min-height: 148px;
-  max-height: 200px;
-}
-
-.photo-hero--compact .photo-hero__title {
-  font-size: clamp(20px, 5.4vw, 24px);
-}
-
-.photo-hero--compact .photo-hero__body {
-  padding: 18px 20px;
-}
-
-.photo-hero__image {
-  position: absolute;
-  inset: 0;
-  z-index: -2;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.photo-hero__scrim {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: var(--photo-scrim);
-}
-
-.photo-hero__body {
+.page-hero {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  width: 100%;
-  padding: 24px 20px;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 0 4px;
 }
 
-.photo-hero__overline {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.78);
+.page-hero--compact {
+  padding: 4px 0 0;
 }
 
-.photo-hero__title {
-  color: #ffffff;
+.page-hero__overline {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.page-hero__title {
   /* 狭い画面で「残そ / う。」のように語の途中で折れるのを避けるため、
      幅に応じて縮める。 */
-  font-size: clamp(22px, 6.6vw, 28px);
-  font-weight: 800;
-  line-height: 1.32;
+  font-size: clamp(26px, 7.4vw, 40px);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 
-.photo-hero__subtitle {
-  color: rgba(255, 255, 255, 0.86);
-  font-size: 14px;
+.page-hero--compact .page-hero__title {
+  font-size: clamp(24px, 6.4vw, 30px);
 }
 
-.photo-hero__actions {
+.page-hero__subtitle {
+  color: var(--text-muted);
+  font-size: 16px;
+}
+
+.page-hero__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 8px;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 14px;
 }
 
-.photo-hero__trust {
-  /* CTAと同じ行に並ぶと、広い画面で「ボタンの付属物」に見えてしまう。
-     必ず改行させて、写真の下端に置くラベルとして読ませる。 */
+.page-hero__trust {
+  /* 主ボタンと同じ行に並ぶと「ボタンの付属物」に見えてしまう。
+     必ず改行させて、見出しの下に置く注記として読ませる。 */
   flex-basis: 100%;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 0 14px;
 }
 
 .trust-label {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 11px;
-  border-radius: var(--radius-pill);
-  background: rgba(251, 249, 245, 0.18);
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 700;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
-.photo-hero__trust-link {
+.page-hero__trust-link {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
-  padding: 0 6px;
+  padding: 0;
   border: none;
   background: none;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 700;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.page-hero__trust-link:hover {
   text-decoration: underline;
-  text-underline-offset: 3px;
+  text-underline-offset: 2px;
 }
 
 /* ============================================================
    一覧の行としてのリンク（カードの中に積む）
    ============================================================ */
 
+/* iOS の「グループ化リスト」。行は1枚のカードにまとめ、区切りは細い線だけにする。
+   行ごとに角丸を持たせると、区切り線が丸い角に沿って曲がって見えるため、
+   角丸はカード側に持たせて中身を切り抜く。 */
 .link-list {
   display: flex;
   flex-direction: column;
-  padding: 6px;
+  padding: 0;
+  overflow: hidden;
 }
 
 .link-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
   min-height: 60px;
-  padding: 12px 12px;
+  padding: 12px 16px;
   border: none;
-  border-radius: var(--radius-sm);
   background: none;
   color: var(--text);
   text-align: left;
   transition: background var(--dur) var(--ease);
 }
 
-.link-row + .link-row {
-  border-top: 1px solid var(--border);
+/* 区切り線はアイコンの右から始める（iOS の設定と同じ）。 */
+.link-row + .link-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 62px;
+  right: 0;
+  height: 1px;
+  background: var(--border);
 }
 
 .link-row:hover {
@@ -636,11 +626,11 @@ input[type='checkbox'] {
 
 .link-row__icon {
   flex: none;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
-  border-radius: 12px;
+  border-radius: 9px;
   background: var(--accent-bg);
   color: var(--accent);
 }
@@ -654,7 +644,7 @@ input[type='checkbox'] {
 }
 
 .link-row__label {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-h);
 }
 
@@ -665,14 +655,13 @@ input[type='checkbox'] {
 
 .link-row__chevron {
   flex: none;
-  color: var(--text-muted);
+  color: var(--border-strong);
 }
 
+/* 英字の小見出し（NOW / RECENT など）。字間を広げず、控えめな灰色の一行にする。 */
 .overline {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -683,8 +672,9 @@ input[type='checkbox'] {
 }
 
 .view-head__title {
-  font-size: 26px;
-  font-weight: 800;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .loading-indicator {
@@ -703,9 +693,9 @@ input[type='checkbox'] {
   text-align: center;
   color: var(--text-muted);
   padding: 36px 20px;
-  border: 1px dashed var(--border-strong);
   border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .empty-state__hint {
@@ -720,7 +710,7 @@ input[type='checkbox'] {
   flex: none;
   border-radius: 50%;
   color: #fff;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1;
   overflow: hidden;
 }
@@ -741,7 +731,7 @@ input[type='checkbox'] {
 }
 
 .banner--error {
-  border-color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
   background: var(--danger-bg);
 }
 
@@ -751,7 +741,7 @@ input[type='checkbox'] {
 }
 
 .banner__title {
-  font-weight: 700;
+  font-weight: 600;
   margin-bottom: 4px;
   color: var(--text-h);
 }
@@ -795,7 +785,7 @@ input[type='checkbox'] {
 
 .onboarding__title {
   font-size: 20px;
-  font-weight: 800;
+  font-weight: 700;
   text-align: center;
 }
 
@@ -825,26 +815,24 @@ input[type='checkbox'] {
   background: var(--accent-bg);
 }
 
-/* 写真の上に置く白ボタン。見た目はボタンでも、ZIPをここへ落とせるのは
+/* 見た目は青い主ボタンでも、ZIPをここへ落とせるのは
    これまでと同じ（ドラッグで読み込む使い方を残すため）。 */
 .file-drop--button {
   width: auto;
   max-width: none;
-  min-height: 54px;
-  padding: 0 24px;
+  min-height: 50px;
+  padding: 0 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  /* 写真の上に置くので、テーマに関係なく白い面のままにする（.btn--on-photo と同じ理由）。 */
-  background: #ffffff;
-  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-pill);
+  background: var(--accent);
 }
 
 .file-drop--button:hover,
 .file-drop--button.file-drop--active {
-  background: #ffffff;
+  background: var(--accent-hover);
   border-color: transparent;
 }
 
@@ -852,9 +840,9 @@ input[type='checkbox'] {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #11213d;
-  font-size: 15px;
-  font-weight: 800;
+  color: var(--on-accent);
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .file-drop--disabled {
@@ -863,7 +851,7 @@ input[type='checkbox'] {
 }
 
 .file-drop__title {
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text-h);
   margin-bottom: 4px;
 }
@@ -880,33 +868,21 @@ input[type='checkbox'] {
 .home-view {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 28px;
 }
 
-/* Heroと、その下に重ねるカードのひとまとまり。
-   gapを持つ .home-view の直下で負のマージンを使うと、gapを変えるたびに
-   重なり量がずれるので、重なる2枚だけを gap の無い箱に入れている。 */
+/* 見出しと、その下のカード。見出しの下は .home-view の gap より詰める。 */
 .home-top {
   display: flex;
   flex-direction: column;
-}
-
-/* Heroの文字がカードに隠れないよう、重なるぶんだけ下を空けておく。 */
-.home-top .photo-hero__body {
-  padding-bottom: 46px;
-}
-
-.home-top > .surface-card {
-  position: relative;
-  z-index: 1;
-  margin: -34px 10px 0;
+  gap: 20px;
 }
 
 .home-metrics {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
+  gap: 8px;
+  padding: 18px 16px 12px;
 }
 
 .home-metrics__head {
@@ -914,6 +890,7 @@ input[type='checkbox'] {
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
+  padding: 0 4px;
 }
 
 .home-metrics__stamp {
@@ -935,34 +912,32 @@ input[type='checkbox'] {
   color: var(--text-muted);
 }
 
+/* iOS の検索欄。地の上に直接置くので、枠ではなく半透明の灰で面を作る。 */
 .home-search {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  min-height: 52px;
-  padding: 0 20px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--surface);
+  min-height: 44px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--fill);
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: 15px;
   text-align: left;
-}
-
-.home-search:hover {
-  border-color: var(--border-strong);
 }
 
 .home-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .home-section__title {
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .home-cards {
@@ -977,32 +952,34 @@ input[type='checkbox'] {
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  padding: 20px;
-  border: 1px solid var(--border);
+  padding: 18px 20px;
+  border: 1px solid transparent;
   border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
   color: var(--text);
   text-align: left;
-  transition: border-color 0.15s, transform 0.1s;
+  transition: background var(--dur) var(--ease), transform 0.1s;
 }
 
 .entry-card:hover {
-  border-color: var(--border-strong);
+  background: var(--surface-2);
 }
 
 .entry-card:active {
-  transform: scale(0.99);
+  transform: scale(0.98);
 }
 
 .entry-card__value {
-  font-size: 32px;
-  font-weight: 800;
-  letter-spacing: -0.04em;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
   color: var(--text-h);
 }
 
 .entry-card__label {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-h);
 }
 
@@ -1015,27 +992,39 @@ input[type='checkbox'] {
   position: absolute;
   top: 20px;
   right: 16px;
-  color: var(--text-muted);
+  color: var(--border-strong);
 }
 
-/* 今日のタスク: 保存しない疑似チェックリスト（開いた時点の状態から作る） */
+/* 今日のタスク: 保存しない疑似チェックリスト（開いた時点の状態から作る）。
+   リンクの行と同じ「グループ化リスト」にして、区切りは細い線だけにする。 */
 .task-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .task-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+}
+
+.task-item + .task-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50px;
+  right: 0;
+  height: 1px;
+  background: var(--border);
 }
 
 .task-item__check {
@@ -1062,7 +1051,7 @@ input[type='checkbox'] {
 }
 
 .task-item__label {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-h);
 }
 
@@ -1080,25 +1069,15 @@ input[type='checkbox'] {
    サマリ（6項目）
    ============================================================ */
 
+/* 数字だけを並べる。仕切り線は引かず、余白で区切る（カードの中に入る前提）。 */
 .summary-bar {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: 1px;
-  background: var(--border);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
-/* カードの中に入れるときは、二重の枠に見えないよう外枠を消す。 */
-.home-metrics .summary-bar {
-  border: none;
-  border-radius: var(--radius-sm);
+  gap: 4px 0;
 }
 
 .summary-stat {
-  background: var(--surface);
-  padding: 14px 8px;
+  padding: 10px 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1106,14 +1085,15 @@ input[type='checkbox'] {
 }
 
 .summary-stat__value {
-  font-size: 20px;
-  font-weight: 800;
+  font-size: 22px;
+  font-weight: 700;
   color: var(--text-h);
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
 }
 
+/* 強調は色で付ける。大きさを変えると、1行の中でこの欄だけ数字の高さがずれて見える。 */
 .summary-stat--accent .summary-stat__value {
-  font-size: 22px;
+  color: var(--accent);
 }
 
 .summary-stat__value--small {
@@ -1168,42 +1148,46 @@ input[type='checkbox'] {
   display: none;
 }
 
+/* 選択肢は1つずつ分けた灰色の丸。選択中だけ青で塗る。 */
 .filter-tab {
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: none;
+  background: var(--neutral-bg);
   border-radius: var(--radius-pill);
-  min-height: 38px;
+  min-height: 36px;
   padding: 0 16px;
-  color: var(--text-muted);
+  color: var(--text);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
   white-space: nowrap;
-  transition: background var(--dur) var(--ease), color var(--dur) var(--ease),
-    border-color var(--dur) var(--ease);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 
 .filter-tab:hover:not(.filter-tab--active) {
-  color: var(--text-h);
+  background: var(--border);
 }
 
 .filter-tab--active {
   background: var(--accent);
-  border-color: var(--accent);
   color: var(--on-accent);
+  font-weight: 600;
 }
 
 /* バッチサイズのような補助的な選択肢は、フィルタより弱く見せる。 */
 .filter-tab--quiet {
   background: transparent;
-  min-height: 34px;
+  min-height: 32px;
   padding: 0 12px;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
-/* --quiet が背景を透明にするので、選択中は反転をもう一度指定する。 */
+.filter-tab--quiet:hover:not(.filter-tab--active) {
+  background: var(--fill);
+}
+
+/* --quiet が背景を透明にするので、選択中は塗りをもう一度指定する。 */
 .filter-tab--quiet.filter-tab--active {
   background: var(--accent);
-  border-color: var(--accent);
   color: var(--on-accent);
 }
 
@@ -1224,7 +1208,7 @@ input[type='checkbox'] {
 .batch-progress__bar {
   flex: 1;
   max-width: 260px;
-  height: 6px;
+  height: 4px;
   background: var(--neutral-bg);
   border-radius: var(--radius-pill);
   overflow: hidden;
@@ -1256,42 +1240,57 @@ input[type='checkbox'] {
   display: none;
 }
 
+/* iOS の「グループ化リスト」。行は1枚のカードにまとめ、区切りは細い線だけにする。
+   行ごとに角丸を持たせると区切り線が丸い角に沿って曲がるので、
+   角丸はカード側に持たせて中身を切り抜く。 */
 .account-table {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .account-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
   min-height: 68px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
   color: var(--text);
   text-align: left;
-  box-shadow: var(--shadow-sm);
-  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease),
-    box-shadow var(--dur) var(--ease);
+  transition: background var(--dur) var(--ease);
+}
+
+/* 区切り線はアバターの右から始める（左の余白16px＋アバター44px＋間隔12px）。 */
+.account-row + .account-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 72px;
+  right: 0;
+  height: 1px;
+  background: var(--border);
 }
 
 .account-row:hover {
-  border-color: var(--border-strong);
+  background: var(--surface-2);
 }
 
-/* いま確認している1件。枠だけで示すと一覧の中で埋もれるので、
-   面の色も少し変えて「開いているのはこれ」と分かるようにする。 */
-.account-row--selected {
-  border-color: var(--accent);
+/* いま確認している1件。色だけだと一覧の中で埋もれるので、
+   面を青く敷いて「開いているのはこれ」と分かるようにする。 */
+.account-row--selected,
+.account-row--selected:hover {
   background: var(--accent-bg);
 }
 
 .account-row--focused {
-  box-shadow: inset 3px 0 0 var(--accent), var(--shadow-sm);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .account-row__identity {
@@ -1302,7 +1301,7 @@ input[type='checkbox'] {
 }
 
 .account-row__name {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-h);
   white-space: nowrap;
   overflow: hidden;
@@ -1322,13 +1321,13 @@ input[type='checkbox'] {
 
 .account-row__chevron {
   flex: none;
-  color: var(--text-muted);
+  color: var(--border-strong);
 }
 
 .status-badge {
   flex: none;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   padding: 4px 10px;
   border-radius: var(--radius-pill);
   white-space: nowrap;
@@ -1362,12 +1361,12 @@ input[type='checkbox'] {
 }
 
 .pagination button {
-  border: 1px solid var(--border-strong);
-  background: transparent;
+  border: none;
+  background: var(--neutral-bg);
   color: var(--text);
   border-radius: var(--radius-pill);
   min-height: 34px;
-  padding: 0 14px;
+  padding: 0 16px;
 }
 
 .pagination button:disabled {
@@ -1384,7 +1383,7 @@ input[type='checkbox'] {
   flex-direction: column;
   gap: 16px;
   padding: 22px;
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
@@ -1405,7 +1404,7 @@ input[type='checkbox'] {
 
 .review-panel__progress {
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text-muted);
 }
 
@@ -1420,7 +1419,7 @@ input[type='checkbox'] {
 
 .review-panel__name {
   font-size: 20px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .review-panel__handle {
@@ -1482,7 +1481,7 @@ input[type='checkbox'] {
 
 .date-strip__num {
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text);
 }
 
@@ -1533,7 +1532,7 @@ input[type='checkbox'] {
 
 .timeline__when {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -1542,9 +1541,9 @@ input[type='checkbox'] {
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .timeline__identity {
@@ -1555,7 +1554,7 @@ input[type='checkbox'] {
 }
 
 .timeline__name {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-h);
   white-space: nowrap;
   overflow: hidden;
@@ -1584,8 +1583,8 @@ input[type='checkbox'] {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 19px;
-  font-weight: 800;
+  font-size: 17px;
+  font-weight: 600;
 }
 
 .settings-section__icon {
@@ -1610,9 +1609,9 @@ input[type='checkbox'] {
   display: inline-flex;
   align-items: center;
   min-height: 36px;
-  color: var(--text-h);
+  color: var(--accent);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -1621,7 +1620,7 @@ input[type='checkbox'] {
 }
 
 .settings-section--danger {
-  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  border-color: color-mix(in srgb, var(--danger) 22%, transparent);
 }
 
 /* 縦積みのセクション内でボタンが全幅に伸びると、破壊的操作が必要以上に
@@ -1649,7 +1648,7 @@ input[type='checkbox'] {
 
 .confirm-box {
   background: var(--danger-bg);
-  border: 1px solid var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
   border-radius: var(--radius-sm);
   padding: 16px;
   display: flex;
@@ -1752,8 +1751,9 @@ input[type='checkbox'] {
     align-items: center;
     gap: 10px;
     padding: 44px 24px;
-    border: 1px dashed var(--border-strong);
     border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
     color: var(--text-muted);
     text-align: center;
     font-size: 13px;
@@ -1861,15 +1861,6 @@ input[type='checkbox'] {
   padding: 14px 16px;
 }
 
-.x-connect--linked {
-  border-color: color-mix(in srgb, var(--success) 40%, var(--border));
-  background: linear-gradient(
-    180deg,
-    var(--success-bg) 0%,
-    color-mix(in srgb, var(--success-bg) 30%, var(--surface)) 100%
-  );
-}
-
 .x-connect__body {
   display: flex;
   flex-direction: column;
@@ -1878,7 +1869,7 @@ input[type='checkbox'] {
 }
 
 .x-connect__title {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-h);
   display: flex;
   align-items: center;
@@ -1915,6 +1906,7 @@ input[type='checkbox'] {
   gap: 10px;
 }
 
+/* 予約中の件数と次の投稿。面は他のカードと同じ白で、数字の大きさだけで主役にする。 */
 .stat-hero {
   display: flex;
   align-items: center;
@@ -1922,15 +1914,8 @@ input[type='checkbox'] {
   gap: 16px;
   padding: 20px;
   border-radius: var(--radius);
-  background: linear-gradient(135deg, var(--card-navy-2) 0%, var(--card-navy) 100%);
-  color: var(--on-card-navy);
-  box-shadow: var(--shadow-md);
-}
-
-/* 濃紺の面の上では、区切りは線ではなく余白と明度差で作る。 */
-.stat-hero__main {
-  padding-right: 16px;
-  border-right: 1px solid rgba(251, 249, 245, 0.16);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .stat-hero__main {
@@ -1938,20 +1923,23 @@ input[type='checkbox'] {
   align-items: baseline;
   gap: 10px;
   min-width: 0;
+  padding-right: 16px;
+  border-right: 1px solid var(--border);
 }
 
 .stat-hero__value {
-  font-size: 40px;
-  font-weight: 800;
+  font-size: 44px;
+  font-weight: 700;
   line-height: 1;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
+  color: var(--text-h);
 }
 
 .stat-hero__label {
   font-size: 14px;
-  font-weight: 700;
-  color: var(--on-card-navy-muted);
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 .stat-hero__next {
@@ -1965,31 +1953,30 @@ input[type='checkbox'] {
 
 .stat-hero__next-label {
   font-size: 11px;
-  color: var(--on-card-navy-muted);
+  color: var(--text-muted);
 }
 
 .stat-hero__next-value {
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
+  color: var(--text-h);
 }
 
+/* グリッドだと項目数(5)が列数で割り切れないとき空セルが穴に見えるため、
+   常に1行に収まるフレックスにする。狭い画面では各マスが縮む。 */
 .stat-grid {
-  /* グリッドだと項目数(5)が列数で割り切れないとき空セルが穴に見えるため、
-     常に1行に収まるフレックスにする。狭い画面では各マスが縮む。 */
   display: flex;
-  gap: 1px;
-  background: var(--border);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
   overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .stat {
   flex: 1 1 0;
   min-width: 0;
-  background: var(--surface);
-  padding: 12px 4px;
+  padding: 14px 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1998,7 +1985,7 @@ input[type='checkbox'] {
 
 .stat__value {
   font-size: 18px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text-h);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
@@ -2065,7 +2052,7 @@ input[type='checkbox'] {
   background: transparent;
   color: inherit;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -2075,7 +2062,7 @@ input[type='checkbox'] {
 
 .update-banner__title {
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .update-banner__meta {
@@ -2125,7 +2112,7 @@ input[type='checkbox'] {
 
 .composer__header h3 {
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .composer__segment {
@@ -2133,7 +2120,6 @@ input[type='checkbox'] {
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
@@ -2146,7 +2132,7 @@ input[type='checkbox'] {
 
 .composer__segment-index {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -2242,7 +2228,7 @@ input[type='checkbox'] {
 
 .composer__schedule-readable {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-h);
 }
 
@@ -2287,7 +2273,7 @@ input[type='checkbox'] {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -2301,22 +2287,23 @@ input[type='checkbox'] {
 .composer__ai-edit-chip {
   min-height: 36px;
   padding: 0 14px;
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--radius-pill);
-  background: var(--surface-2);
+  background: var(--neutral-bg);
   color: var(--text);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
 }
 
 .composer__ai-edit-chip:hover {
-  border-color: var(--accent);
+  background: var(--accent-bg);
   color: var(--accent);
 }
 
 .composer__ai-edit-chip--own {
   background: none;
+  border-color: var(--border-strong);
   border-style: dashed;
   color: var(--text-muted);
 }
@@ -2376,7 +2363,6 @@ input[type='checkbox'] {
   padding: 12px 14px;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
-  border: 1px solid var(--border);
   color: var(--text-muted);
 }
 
@@ -2418,68 +2404,8 @@ input[type='checkbox'] {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  background: rgba(10, 18, 32, 0.5);
-  backdrop-filter: blur(2px);
+  background: rgba(0, 0, 0, 0.4);
   animation: composer-sheet-fade 0.18s ease both;
-}
-
-/* シートの背後に敷くカバー写真。シートが上に載るので、見えるのは上側だけ。 */
-.composer-sheet__cover {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 42%;
-  overflow: hidden;
-  background: var(--neutral-bg);
-}
-
-.composer-sheet__cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.composer-sheet__cover::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, rgba(10, 18, 32, 0.5), rgba(10, 18, 32, 0.15));
-}
-
-.composer-sheet__cover-bar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: calc(10px + var(--safe-top)) 12px 10px;
-  color: #ffffff;
-}
-
-.composer-sheet__cover-title {
-  font-size: 16px;
-  font-weight: 800;
-  /* ×の幅ぶんを引いて中央に見せる。 */
-  margin-right: 44px;
-  flex: 1;
-  text-align: center;
-}
-
-.composer-sheet__cover-close {
-  flex: none;
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: 50%;
-  background: rgba(251, 249, 245, 0.2);
-  color: #ffffff;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
 }
 
 @keyframes composer-sheet-fade {
@@ -2502,17 +2428,15 @@ input[type='checkbox'] {
      "自動で" が見えなくなる、という形で出た）。 */
   min-width: 0;
   max-width: 560px;
-  /* 82dvh は「上のカバー写真を見せたまま書ける」ための値。
+  /* 上に後ろの画面を少し覗かせる（iOS のシートと同じ）。
      キーボードが出ると見えている範囲の方が狭くなるので、そちらに従う。 */
-  max-height: min(82dvh, 100%);
+  max-height: min(92dvh, 100%);
   display: flex;
   flex-direction: column;
   background: var(--surface);
   /* 下から出る面なので、角丸は上だけ。カードより一段強くして「別の層」に見せる。 */
   border-radius: var(--radius-modal) var(--radius-modal) 0 0;
-  border: 1px solid var(--border);
-  border-bottom: none;
-  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.2);
   overflow: hidden;
   animation: composer-sheet-rise 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
@@ -2529,11 +2453,44 @@ input[type='checkbox'] {
 /* 下から引き上げた面であることを示す摘み。装飾なので操作はしない。 */
 .composer-sheet__grip {
   flex: none;
-  width: 40px;
-  height: 4px;
-  margin: 10px auto 0;
+  width: 36px;
+  height: 5px;
+  margin: 8px auto 0;
   border-radius: var(--radius-pill);
   background: var(--border-strong);
+}
+
+/* 見出しと×。シートの一部なので、シートごと動き、キーボードが出ても見失わない。 */
+.composer-sheet__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px 4px 20px;
+}
+
+.composer-sheet__title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.composer-sheet__close {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--text-muted);
+  transition: background var(--dur) var(--ease);
+}
+
+.composer-sheet__close:hover {
+  background: var(--border);
 }
 
 /* シート版のコンポーザーは、カードの装飾を脱いで面いっぱいに広がる。 */
@@ -2594,9 +2551,12 @@ input[type='checkbox'] {
 
   .composer-sheet__panel {
     max-height: min(86vh, 100%);
-    border-radius: var(--radius);
-    border-bottom: 1px solid var(--border);
+    border-radius: var(--radius-modal);
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  }
+
+  .composer-sheet__bar {
+    padding: 16px 18px 6px 22px;
   }
 
   .composer-sheet__grip {
@@ -2646,7 +2606,6 @@ input[type='checkbox'] {
   flex-direction: column;
   gap: 12px;
   padding: 14px;
-  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
@@ -2684,10 +2643,10 @@ input[type='checkbox'] {
   flex: 1;
   height: 40px;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--border-strong);
+  border: 1px solid transparent;
   background: var(--surface);
   color: var(--text-muted);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 13px;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
@@ -2742,19 +2701,19 @@ input[type='checkbox'] {
 
 .repeat-editor__topic-presets-label {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
 .repeat-editor__topic-preset {
   min-height: 32px;
   padding: 0 12px;
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--radius-pill);
   background: var(--surface);
   color: var(--text);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -2778,14 +2737,14 @@ input[type='checkbox'] {
 
 /* 本文欄と同じカードの中に入るので、面を重ねずに一段くぼんだ区画として見せる。 */
 .ai-assist {
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   overflow: hidden;
 }
 
 .ai-assist--open {
-  border-color: var(--border-strong);
+  border-color: var(--border);
 }
 
 /* 折りたたみの見出し。閉じているときは1行のボタンにしか見えないようにして、
@@ -2800,7 +2759,7 @@ input[type='checkbox'] {
   border: none;
   color: var(--text);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   text-align: left;
   cursor: pointer;
 }
@@ -2897,7 +2856,7 @@ input[type='checkbox'] {
   flex-direction: column;
   gap: 10px;
   padding: 14px;
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: var(--surface);
   transition: border-color 0.15s, background 0.15s;
@@ -2917,7 +2876,7 @@ input[type='checkbox'] {
 
 .ai-result__note {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -2941,7 +2900,7 @@ input[type='checkbox'] {
   background: var(--neutral-bg);
   color: var(--text-muted);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2988,10 +2947,10 @@ input[type='checkbox'] {
   gap: 6px;
   min-height: 34px;
   padding: 0 14px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid transparent;
   border-radius: var(--radius-pill);
-  background: var(--surface);
-  color: var(--text-muted);
+  background: var(--neutral-bg);
+  color: var(--text);
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
@@ -3035,99 +2994,15 @@ input[type='checkbox'] {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px 16px 14px 18px;
-  overflow: hidden;
-}
-
-/* 左端の色帯で状態を一目で区別する */
-.post-item::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  background: var(--border-strong);
-}
-
-.post-item--scheduled::before,
-.post-item--publishing::before {
-  background: var(--accent);
-}
-
-.post-item--posted::before {
-  background: var(--success);
-}
-
-.post-item--failed::before {
-  background: var(--danger);
+  padding: 16px;
 }
 
 .post-item--posted {
   opacity: 0.8;
 }
 
-/* これから投稿するものだけ、写真の下敷き（＝仮素材のウォームグラデーション）を
-   敷いて前に出す。一覧すべてを写真にすると本文が読みにくくなるうえ、
-   「次に何が出るか」が埋もれる。 */
-.post-item--photo {
-  border-color: transparent;
-  color: #ffffff;
-  /* カードはHeroより文字量が多いので、下だけ暗くするグラデーションではなく
-     全面を一様に落とす。下半分だけ暗いと、上に置いた日時が読みづらくなる。 */
-  background-image: linear-gradient(rgba(10, 18, 32, 0.52), rgba(10, 18, 32, 0.68)),
-    linear-gradient(var(--post-tint, transparent), var(--post-tint, transparent)),
-    url('./assets/photos/text-card-fallback.svg');
-  background-size: cover;
-  background-position: center;
-  padding: 18px;
-}
-
-/* 同じ絵が続くと一覧が単調になるので、色味だけ3種で回す。 */
-.post-item--tone-0 {
-  --post-tint: rgba(120, 82, 42, 0.34);
-}
-
-.post-item--tone-1 {
-  --post-tint: rgba(38, 58, 92, 0.4);
-}
-
-.post-item--tone-2 {
-  --post-tint: rgba(92, 72, 58, 0.3);
-}
-
-.post-item--photo::before {
-  display: none;
-}
-
-.post-item--photo .post-item__when,
-.post-item--photo .post-item__text,
-.post-item--photo .post-item__segment-index {
-  color: #ffffff;
-}
-
-.post-item--photo .post-item__media-count {
-  background: rgba(251, 249, 245, 0.2);
-  color: #ffffff;
-}
-
-/* 写真の上では白い輪郭にする。既定の枠色は暗い面に埋もれる。 */
-.post-item--photo .btn--ghost {
-  border-color: rgba(251, 249, 245, 0.45);
-  color: #ffffff;
-}
-
-.post-item--photo .btn--ghost:hover:not(:disabled) {
-  background: rgba(251, 249, 245, 0.16);
-}
-
-.post-item--photo .btn--ghost.btn--danger {
-  border-color: rgba(255, 173, 173, 0.6);
-  color: #ffd7d7;
-}
-
 .post-item--failed {
-  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
 }
 
 .post-item__head {
@@ -3138,7 +3013,7 @@ input[type='checkbox'] {
 }
 
 .post-item__when {
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text-h);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
@@ -3149,7 +3024,7 @@ input[type='checkbox'] {
   align-items: center;
   gap: 5px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   padding: 4px 10px;
   border-radius: var(--radius-pill);
   background: var(--neutral-bg);
@@ -3181,25 +3056,6 @@ input[type='checkbox'] {
   color: var(--danger);
 }
 
-/* 写真の面に載る状態ピルは、白い半透明にして写真から浮かせる。
-   本文と同じ色にすると、明るい写真では両方まとめて読めなくなる。 */
-.post-item--photo .post-item__status {
-  background: rgba(251, 249, 245, 0.22);
-  color: #ffffff;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-}
-
-.post-item--photo .post-item__status--scheduled,
-.post-item--photo .post-item__status--publishing {
-  background: var(--success-bg);
-  color: var(--success-strong);
-}
-
-.post-item--photo .post-item__segment-index {
-  background: rgba(251, 249, 245, 0.24);
-}
-
 .post-item__body {
   display: flex;
   flex-direction: column;
@@ -3220,7 +3076,7 @@ input[type='checkbox'] {
   background: var(--neutral-bg);
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3237,12 +3093,8 @@ input[type='checkbox'] {
   align-items: center;
   gap: 5px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-muted);
-}
-
-.post-item--photo .post-item__ai-label {
-  color: rgba(255, 255, 255, 0.85);
 }
 
 .post-item__text {
@@ -3451,21 +3303,15 @@ input[type='checkbox'] {
    質感と動き
    ============================================================ */
 
-/* 面にごく薄いハイライトを乗せると、平坦な塗りより奥行きが出る。 */
+/* 面の変化は枠や影ではなく、ゆっくりした色の遷移だけにする。 */
 .settings-section,
 .composer,
 .x-connect,
 .post-item {
-  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.03);
-  transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+  transition: border-color 0.18s, background 0.18s;
 }
 
-.post-item:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-/* 一覧は上から順に立ち上がる。読み込み直後の視線誘導になる。 */
+/* 一覧は読み込み直後にふわっと現れる。順番にずらすと賑やかなので、全部同時にする。 */
 @keyframes rise {
   from {
     opacity: 0;
@@ -3482,50 +3328,8 @@ input[type='checkbox'] {
   animation: rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-.post-item:nth-child(2),
-.ai-result:nth-child(2) {
-  animation-delay: 0.04s;
-}
-.post-item:nth-child(3),
-.ai-result:nth-child(3) {
-  animation-delay: 0.08s;
-}
-.post-item:nth-child(4),
-.ai-result:nth-child(4) {
-  animation-delay: 0.12s;
-}
-.post-item:nth-child(n + 5),
-.ai-result:nth-child(n + 5) {
-  animation-delay: 0.16s;
-}
-
 .composer {
   animation: rise 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-/* ヒーロー: 単色より奥行きが出るよう、紺に光を1つ落とす */
-.stat-hero {
-  position: relative;
-  overflow: hidden;
-  background: linear-gradient(135deg, var(--card-navy-2) 0%, var(--card-navy) 62%, #0c1626 100%);
-  box-shadow: var(--shadow-md);
-}
-
-.stat-hero::after {
-  content: '';
-  position: absolute;
-  top: -60%;
-  right: -10%;
-  width: 240px;
-  height: 240px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.22), transparent 68%);
-  pointer-events: none;
-}
-
-.stat-hero__main,
-.stat-hero__next {
-  position: relative;
 }
 
 /* 見出しにアイコンを並べる */

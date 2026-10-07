@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type RefObject } from 'react'
-import { PHOTOS } from '../assets/photos'
-import { PhotoHero } from '../components/PhotoHero'
+import { PageHero } from '../components/PageHero'
 import { AccountRow } from './AccountRow'
 import { AccountReviewPanel } from './AccountReviewPanel'
 import { Icon } from './Icon'
@@ -177,11 +176,9 @@ export function FollowTidyView({
 
   return (
     <div className={`tidy-view${selected ? ' tidy-view--detail-open' : ''}`}>
-      {/* 見出しは写真の帯に重ねる。一覧が延々と続く画面なので、
-          「いまどの一覧を見ているか」を上端で言い切っておく。 */}
-      <PhotoHero
+      {/* 一覧が延々と続く画面なので、「いまどの一覧を見ているか」を上端で言い切っておく。 */}
+      <PageHero
         compact
-        photo={PHOTOS.tidyBand}
         overline={overline}
         title={heading}
         subtitle={showFilters ? `未確認 ${pendingTotal.toLocaleString()}人` : undefined}

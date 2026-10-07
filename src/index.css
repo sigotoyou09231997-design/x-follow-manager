@@ -1,82 +1,67 @@
 /* ============================================================
    デザイントークン
-   Warm editorial。主役はインクネイビー、状態はセージ／赤／ゴールド。
-   ライトを基準に設計し、ダークはそこからウォーム寄りに逆算している。
-   （ダークは要件定義書に指定が無いが、既存機能なので落とさない）
-
-   背景は白。要件定義書は「純白にしない（ウォームアイボリー）」だが、
-   依頼で白に変更している。ただし温度感まで失うと写真とネイビーが浮くので、
-   枠線・沈んだ面・文字のグレーには暖色を残してある（純グレーにしない）。
+   Apple 風。薄いグレーの地(#f5f5f7)に白いカードを置き、主役はシステムブルー。
+   写真・グラデーション・暖色は使わない。階層は枠線ではなく面の明るさの差で作る。
+   ライトを基準に設計し、ダークは iOS のダーク（黒地＋一段明るい面）に揃えている。
    ============================================================ */
 
 :root {
-  /* 面。背景が白なので、カード(--surface)も白のまま枠線と影で立ち上げる。
-     沈んだ面(--surface-2 / --neutral-bg)だけを暖色寄りにして層を作る。 */
-  --bg: #ffffff;
+  /* 面。地(--bg)よりカード(--surface)を明るくして層を作る。
+     --surface-2 はカードの中の入力欄や沈んだ区画、--neutral-bg は副ボタン・バッジの面。 */
+  --bg: #f5f5f7;
   --bg-elevated: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f6f4f0;
-  --neutral-bg: #efece6;
-  --border: #e4dfd7;
-  --border-strong: #cdc5b9;
+  --surface-2: #f5f5f7;
+  --neutral-bg: #ebebf0;
+  /* 検索欄のような「地の上に直接置く入力」の面。地と同じ色にすると消えるので半透明の灰を重ねる。 */
+  --fill: rgba(120, 120, 128, 0.09);
+  --border: #e5e5ea;
+  --border-strong: #d2d2d7;
 
   /* 文字 */
-  --text: #1b1a18;
-  --text-h: #11213d;
-  --text-muted: #6f6b66;
+  --text: #1d1d1f;
+  --text-h: #1d1d1f;
+  --text-muted: #6e6e73;
 
-  /* アクセント: インクネイビー */
-  --accent: #11213d;
-  --accent-hover: #1d2e4f;
-  --accent-bg: rgba(17, 33, 61, 0.07);
+  /* アクセント: システムブルー。主ボタン・選択状態・リンクに使う。 */
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --accent-bg: rgba(0, 113, 227, 0.1);
   --on-accent: #ffffff;
-  /* 限定使用の差し色。多用すると安く見えるので、区切り線や小さな印だけに使う。 */
-  --gold: #a77c45;
 
-  /* 濃紺の面（予約サマリーなど）。ダークでも紺のまま残したいので、
-     面と文字を専用トークンにしている。 */
-  --card-navy: #11213d;
-  --card-navy-2: #1d2e4f;
-  --on-card-navy: #ffffff;
-  --on-card-navy-muted: rgba(255, 255, 255, 0.74);
+  /* 状態。白文字を載せる塗りボタン用に *-strong を別に持つ
+     （hoverで明るくすると白文字のコントラストが足りなくなるので、hoverは暗い側へ振る）。 */
+  --danger: #d70015;
+  --danger-strong: #d70015;
+  --danger-bg: rgba(255, 59, 48, 0.1);
+  --success: #248a3d;
+  --success-strong: #248a3d;
+  --success-hover: #1e7a35;
+  --success-bg: rgba(52, 199, 89, 0.14);
+  --warning: #b25b00;
+  --warning-bg: rgba(255, 149, 0, 0.12);
+  --warning-border: rgba(255, 149, 0, 0.4);
 
-  /* 状態 */
-  --danger: #b44c4c;
-  --danger-bg: rgba(180, 76, 76, 0.08);
-  --success: #4d8a70;
-  /* 白文字を載せるボタン用。#4d8a70 のままだと白文字のコントラストが足りない。
-     hoverで明るくすると同じ理由で読めなくなるので、hoverは暗い側へ振る。 */
-  --success-strong: #3d7259;
-  --success-hover: #345f4b;
-  --success-bg: #e5f0eb;
-  --warning: #a77c45;
-  --warning-bg: rgba(167, 124, 69, 0.12);
-  --warning-border: rgba(167, 124, 69, 0.38);
-
-  /* 陰影・形 */
-  --shadow-sm: 0 1px 2px rgba(17, 33, 61, 0.04), 0 1px 3px rgba(17, 33, 61, 0.05);
-  --shadow-md: 0 8px 24px rgba(17, 33, 61, 0.08);
-  --shadow-lg: 0 10px 28px rgba(17, 33, 61, 0.18);
-  --radius-hero: 24px;
-  --radius: 20px;
-  --radius-sm: 16px;
-  --radius-modal: 28px;
+  /* 陰影・形。影はほぼ使わず、カードの縁を 0.5px の線で締める程度にする。 */
+  --shadow-sm: 0 0 0 0.5px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.18);
+  --radius: 18px;
+  --radius-sm: 12px;
+  --radius-modal: 20px;
   --radius-pill: 999px;
 
   /* 動き。派手なバウンスは使わず、150〜220msのease-outで揃える。 */
   --dur: 180ms;
   --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
 
-  /* 写真に文字を重ねるときの目隠し。これが無いと明るい写真の上で白文字が
-     読めなくなるので、写真＋文字の組み合わせでは必ず敷く。 */
-  --photo-scrim: linear-gradient(to top, rgba(10, 18, 32, 0.78) 0%, rgba(10, 18, 32, 0.45) 38%, rgba(10, 18, 32, 0.05) 72%, rgba(10, 18, 32, 0) 100%);
-
   /* 端末の安全領域（iPhoneのノッチ・ホームバー） */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 
-  font: 15px/1.5 -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP',
-    'Yu Gothic', 'Segoe UI', Roboto, system-ui, sans-serif;
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+    'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', 'Segoe UI',
+    Roboto, system-ui, sans-serif;
   color-scheme: light;
   color: var(--text);
   background: var(--bg);
@@ -89,42 +74,38 @@
 /* ダーク。@media と data-theme の2箇所は同じ内容に揃える。 */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #14120f;
-    --bg-elevated: #1c1915;
-    --surface: #1c1915;
-    --surface-2: #232019;
-    --neutral-bg: #2c2820;
-    --border: #322d25;
-    --border-strong: #453f35;
+    --bg: #000000;
+    --bg-elevated: #1c1c1e;
+    --surface: #1c1c1e;
+    --surface-2: #2c2c2e;
+    --neutral-bg: #2c2c2e;
+    --fill: rgba(120, 120, 128, 0.24);
+    --border: #38383a;
+    --border-strong: #48484a;
 
-    --text: #f0eae0;
+    --text: #f5f5f7;
     --text-h: #ffffff;
-    --text-muted: #a79e92;
+    --text-muted: #98989d;
 
-    /* 暗い面の上では紺は沈んで主役に見えないので、明暗を反転させて
-       「明るいアイボリーの面＋濃い文字」を主役にする。 */
-    --accent: #efe9de;
-    --accent-hover: #ffffff;
-    --accent-bg: rgba(239, 233, 222, 0.1);
-    --on-accent: #14120f;
-    --gold: #d8ac72;
+    --accent: #0a84ff;
+    --accent-hover: #409cff;
+    --accent-bg: rgba(10, 132, 255, 0.16);
+    --on-accent: #ffffff;
 
-    --card-navy: #1b2a44;
-    --card-navy-2: #24365a;
-    --on-card-navy: #f4f0ea;
-    --on-card-navy-muted: rgba(244, 240, 234, 0.72);
+    --danger: #ff453a;
+    --danger-strong: #d92d20;
+    --danger-bg: rgba(255, 69, 58, 0.16);
+    --success: #30d158;
+    --success-strong: #248a3d;
+    --success-hover: #2d9a47;
+    --success-bg: rgba(48, 209, 88, 0.16);
+    --warning: #ff9f0a;
+    --warning-bg: rgba(255, 159, 10, 0.16);
+    --warning-border: rgba(255, 159, 10, 0.4);
 
-    --danger: #e58b8b;
-    --danger-bg: rgba(229, 139, 139, 0.14);
-    --success: #7fc5a6;
-    --success-strong: #2f6b52;
-    --success-hover: #3a7f61;
-    --success-bg: rgba(127, 197, 166, 0.14);
-    --warning: #d8ac72;
-    --warning-bg: rgba(216, 172, 114, 0.12);
-    --warning-border: rgba(216, 172, 114, 0.34);
-
-    --shadow-sm: none;
+    /* 黒地では影が見えないので、none ではなく透明の影にしておく
+       （none だと `box-shadow: inset ..., var(--shadow-sm)` のような並びが丸ごと無効になる）。 */
+    --shadow-sm: 0 0 0 0 transparent;
     --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
     --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
     color-scheme: dark;
@@ -132,40 +113,36 @@
 }
 
 :root[data-theme='dark'] {
-  --bg: #14120f;
-  --bg-elevated: #1c1915;
-  --surface: #1c1915;
-  --surface-2: #232019;
-  --neutral-bg: #2c2820;
-  --border: #322d25;
-  --border-strong: #453f35;
+  --bg: #000000;
+  --bg-elevated: #1c1c1e;
+  --surface: #1c1c1e;
+  --surface-2: #2c2c2e;
+  --neutral-bg: #2c2c2e;
+  --fill: rgba(120, 120, 128, 0.24);
+  --border: #38383a;
+  --border-strong: #48484a;
 
-  --text: #f0eae0;
+  --text: #f5f5f7;
   --text-h: #ffffff;
-  --text-muted: #a79e92;
+  --text-muted: #98989d;
 
-  --accent: #efe9de;
-  --accent-hover: #ffffff;
-  --accent-bg: rgba(239, 233, 222, 0.1);
-  --on-accent: #14120f;
-  --gold: #d8ac72;
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-bg: rgba(10, 132, 255, 0.16);
+  --on-accent: #ffffff;
 
-  --card-navy: #1b2a44;
-  --card-navy-2: #24365a;
-  --on-card-navy: #f4f0ea;
-  --on-card-navy-muted: rgba(244, 240, 234, 0.72);
+  --danger: #ff453a;
+  --danger-strong: #d92d20;
+  --danger-bg: rgba(255, 69, 58, 0.16);
+  --success: #30d158;
+  --success-strong: #248a3d;
+  --success-hover: #2d9a47;
+  --success-bg: rgba(48, 209, 88, 0.16);
+  --warning: #ff9f0a;
+  --warning-bg: rgba(255, 159, 10, 0.16);
+  --warning-border: rgba(255, 159, 10, 0.4);
 
-  --danger: #e58b8b;
-  --danger-bg: rgba(229, 139, 139, 0.14);
-  --success: #7fc5a6;
-  --success-strong: #2f6b52;
-  --success-hover: #3a7f61;
-  --success-bg: rgba(127, 197, 166, 0.14);
-  --warning: #d8ac72;
-  --warning-bg: rgba(216, 172, 114, 0.12);
-  --warning-border: rgba(216, 172, 114, 0.34);
-
-  --shadow-sm: none;
+  --shadow-sm: 0 0 0 0 transparent;
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
   color-scheme: dark;
@@ -201,7 +178,7 @@ h2,
 h3 {
   margin: 0;
   color: var(--text-h);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   line-height: 1.2;
 }
 
@@ -228,20 +205,22 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* キーボード操作時だけリングを出す。マウス操作では邪魔にならない。 */
+/* キーボード操作時だけリングを出す。マウス操作では邪魔にならない。
+   角丸は触らない（ここで固定すると、丸いボタンがフォーカスの瞬間だけ四角くなる）。 */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 4px;
 }
 
-/* 本文中のリンクは色を変えず下線で示す。ネイビーは主要CTAの色なので、
-   文中のリンクにまで使うと「押すべきもの」が増えて主役がぼやける。 */
+/* リンクはシステムブルーで示し、下線は触れたときだけ出す。 */
 a {
-  color: var(--text-h);
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
-  text-decoration-color: var(--border-strong);
 }
 
 /* 数値は桁が揃わないと一覧で目が滑るため等幅にする。 */

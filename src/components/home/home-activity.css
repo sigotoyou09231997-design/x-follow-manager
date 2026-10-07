@@ -18,8 +18,10 @@
 
 .home-activity__title {
   margin: 0;
-  font-size: 24px;
+  font-size: 22px;
+  font-weight: 700;
   line-height: 1.25;
+  letter-spacing: -0.01em;
   color: var(--text-h);
 }
 
@@ -57,7 +59,7 @@
   transform: scale(0.95);
 }
 
-/* 輪の色が「動いているか」を表す: 緑 = 動いている / 赤 = 応答なし / 金 = 失敗あり / 灰 = 報告なし */
+/* 輪の色が「動いているか」を表す: 緑 = 動いている / 赤 = 応答なし / オレンジ = 失敗あり / 灰 = 報告なし */
 .story__ring {
   width: 70px;
   height: 70px;
@@ -76,7 +78,7 @@
 }
 
 .story__ring--warn {
-  background: var(--gold);
+  background: var(--warning);
 }
 
 .story__avatar {
@@ -93,7 +95,7 @@
 .story__label {
   max-width: 100%;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-h);
   white-space: nowrap;
 }
@@ -115,54 +117,62 @@
 }
 
 .story__meta--warn {
-  color: var(--gold);
+  color: var(--warning);
 }
 
 /* --- 一覧 --- */
 
+/* 行は1枚のカードにまとめ、区切りは細い線だけにする。
+   行ごとに角丸を持たせると区切り線が丸い角に沿って曲がるので、角丸はカード側に持たせる。 */
 .feed {
   display: flex;
   flex-direction: column;
-  gap: 10px;
   margin: 0;
   padding: 0;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
   list-style: none;
 }
 
 .feed-card {
+  position: relative;
   display: flex;
   gap: 12px;
   width: 100%;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  padding: 14px 16px;
+  border: none;
+  background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition:
-    background var(--dur) var(--ease),
-    transform var(--dur) var(--ease);
+  transition: background var(--dur) var(--ease);
+}
+
+/* 区切り線はアイコンの右から始める（左の余白16px＋アイコン38px＋間隔12px）。 */
+.feed > li + li > .feed-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 66px;
+  right: 0;
+  height: 1px;
+  background: var(--border);
 }
 
 .feed-card:hover {
-  background: var(--accent-bg);
+  background: var(--surface-2);
 }
 
-.feed-card:active {
-  transform: scale(0.99);
+/* これから投稿されるものは本文を灰色にして、済んだものと見分ける。失敗は赤い面にして目に入るようにする */
+.feed-card--scheduled .feed-card__body {
+  color: var(--text-muted);
 }
 
-/* これから投稿されるものは破線で、済んだものと見分ける。失敗は赤い面にして目に入るようにする */
-.feed-card--scheduled {
-  border-style: dashed;
-  border-color: var(--border-strong);
-}
-
-.feed-card--failed {
-  border-color: var(--danger);
+.feed-card--failed,
+.feed-card--failed:hover {
   background: var(--danger-bg);
 }
 
@@ -173,12 +183,12 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: var(--card-navy);
-  color: var(--on-card-navy);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .feed-card__avatar--yay {
-  background: var(--gold);
+  background: var(--warning);
   color: #fff;
 }
 
@@ -204,7 +214,7 @@
 
 .feed-card__service {
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-h);
 }
 
@@ -215,7 +225,7 @@
 
 .feed-card--failed .feed-card__kind {
   color: var(--danger);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .feed-card__time {
@@ -248,7 +258,7 @@
 .feed-card__chevron {
   flex: none;
   align-self: center;
-  color: var(--text-muted);
+  color: var(--border-strong);
 }
 
 /* --- ログイン前・空 --- */
