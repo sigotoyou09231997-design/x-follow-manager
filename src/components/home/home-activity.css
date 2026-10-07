@@ -1,0 +1,281 @@
+/* ============================================================
+   ホームの「いまの動き」
+   丸いアイコン（stories）＋ タイムラインのような一覧（feed）。
+   色・余白・角丸・影は src/index.css のトークンをそのまま使う。
+   ============================================================ */
+
+.home-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.home-activity__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.home-activity__title {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+  color: var(--text-h);
+}
+
+/* --- 丸いアイコン --- */
+
+.stories {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 2px 2px 4px;
+  list-style: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.stories::-webkit-scrollbar {
+  display: none;
+}
+
+.story {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 78px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.story:active .story__ring {
+  transform: scale(0.95);
+}
+
+/* 輪の色が「動いているか」を表す: 緑 = 動いている / 赤 = 応答なし / 金 = 失敗あり / 灰 = 報告なし */
+.story__ring {
+  width: 70px;
+  height: 70px;
+  padding: 3px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  transition: transform var(--dur) var(--ease);
+}
+
+.story__ring--ok {
+  background: var(--success);
+}
+
+.story__ring--off {
+  background: var(--danger);
+}
+
+.story__ring--warn {
+  background: var(--gold);
+}
+
+.story__avatar {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border: 3px solid var(--bg);
+  border-radius: 50%;
+  background: var(--neutral-bg);
+  color: var(--text-h);
+}
+
+.story__label {
+  max-width: 100%;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-h);
+  white-space: nowrap;
+}
+
+.story__meta {
+  max-width: 100%;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.story__meta--ok {
+  color: var(--success-strong);
+}
+
+.story__meta--off {
+  color: var(--danger);
+}
+
+.story__meta--warn {
+  color: var(--gold);
+}
+
+/* --- 一覧 --- */
+
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feed-card {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--dur) var(--ease),
+    transform var(--dur) var(--ease);
+}
+
+.feed-card:hover {
+  background: var(--accent-bg);
+}
+
+.feed-card:active {
+  transform: scale(0.99);
+}
+
+/* これから投稿されるものは破線で、済んだものと見分ける。失敗は赤い面にして目に入るようにする */
+.feed-card--scheduled {
+  border-style: dashed;
+  border-color: var(--border-strong);
+}
+
+.feed-card--failed {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.feed-card__avatar {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--card-navy);
+  color: var(--on-card-navy);
+}
+
+.feed-card__avatar--yay {
+  background: var(--gold);
+  color: #fff;
+}
+
+.feed-card__avatar--x {
+  background: var(--text-h);
+  color: var(--bg);
+}
+
+.feed-card__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.feed-card__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.feed-card__service {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.feed-card__kind {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.feed-card--failed .feed-card__kind {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.feed-card__time {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.feed-card__body {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.feed-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.feed-card__chevron {
+  flex: none;
+  align-self: center;
+  color: var(--text-muted);
+}
+
+/* --- ログイン前・空 --- */
+
+.home-activity__login {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.home-activity__login p {
+  margin: 0;
+}
+
+.home-activity__empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 480px) {
+  .home-activity__login {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

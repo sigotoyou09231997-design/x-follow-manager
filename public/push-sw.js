@@ -11,7 +11,7 @@ self.addEventListener('push', (event) => {
   } catch {
     data = {}
   }
-  const title = data.title || 'X フォロー整理ツール'
+  const title = data.title || 'SNSアプリ'
   const options = {
     body: data.body || '',
     icon: '/favicon.svg',

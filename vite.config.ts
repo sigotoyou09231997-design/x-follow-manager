@@ -45,9 +45,9 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
       },
       manifest: {
-        name: 'X フォロー整理ツール',
-        short_name: 'Follow tidy',
-        description: '非相互フォローの整理と、Xの予約投稿',
+        name: 'SNSアプリ',
+        short_name: 'SNSアプリ',
+        description: 'Xのフォロー整理・予約投稿と、掲示板・Yayの自動投稿',
         lang: 'ja',
         theme_color: '#11213d',
         background_color: '#ffffff',
@@ -68,6 +68,7 @@ export default defineConfig({
       '#schedule-view': path.resolve(import.meta.dirname, 'src/components/schedule/ScheduleView.tsx'),
       '#push-settings': path.resolve(import.meta.dirname, 'src/components/PushSettings.tsx'),
       '#autopost-view': path.resolve(import.meta.dirname, 'src/components/autopost/AutoPostView.tsx'),
+      '#home-activity': path.resolve(import.meta.dirname, 'src/components/home/HomeActivity.tsx'),
     },
   },
   test: {

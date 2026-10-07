@@ -10,7 +10,7 @@ test.describe('X非相互フォロー整理ツール', () => {
   test('アーカイブ読み込みから解除・残す・リロード復元・CSV出力までの一連の流れ', async ({ page }) => {
     // 1. アプリ起動
     await page.goto('/')
-    await expect(page.getByRole('button', { name: 'Follow tidy' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'SNSアプリ' })).toBeVisible()
 
     // 2. テストZIPを投入
     await page.locator('input[type="file"]').setInputFiles(ARCHIVE_PATH)

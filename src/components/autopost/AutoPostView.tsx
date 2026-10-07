@@ -20,25 +20,14 @@ import {
   notYetPosted,
   withArchived,
 } from '../../lib/autopost/draft'
+import { readAutopostTab, rememberAutopostTab } from '../../lib/autopost/tab'
 import { Icon } from '../Icon'
 
 const CHANNEL_LABELS: Record<ChannelName, string> = { discord: 'ディスコード', yay: 'Yay' }
 
 const CHANNEL_INFO: Record<ChannelName, string> = {
   discord: 'discord-ch.site の募集掲示板に、約10分おきに投稿される文です。',
-  yay: 'Yay のタイムラインと、選んだサークルに、5分ごとに投稿される文です（前の投稿は消されます）。',
-}
-
-const TAB_KEY = 'autopost_tab'
-
-function readStoredTab(): ChannelName {
-  try {
-    const stored = localStorage.getItem(TAB_KEY)
-    if (stored === 'discord' || stored === 'yay') return stored
-  } catch {
-    // 保存できない環境（プライベートウィンドウなど）では、いつもの先頭に戻るだけ。
-  }
-  return 'discord'
+  yay: 'Yay のタイムラインと、参加中のサークル全部に、5分ごとに投稿される文です（前の投稿は消されます）。',
 }
 
 /** 書きかけ。見ていた版を覚えておき、サーバー側が進んで中身も同じになったら、書きかけを手放して追従する。 */
@@ -80,7 +69,7 @@ export function AutoPostView() {
   const { snapshots, loading, error, reload, applySnapshot } = useAutopost(loggedIn)
   const now = useNow(30_000)
 
-  const [current, setCurrent] = useState<ChannelName>(readStoredTab)
+  const [current, setCurrent] = useState<ChannelName>(readAutopostTab)
   const [edits, setEdits] = useState<Partial<Record<ChannelName, Edit>>>({})
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ text: string; kind: 'ok' | 'err' }>()
@@ -129,11 +118,7 @@ export function AutoPostView() {
   function selectChannel(name: ChannelName) {
     setCurrent(name)
     setMessage(undefined)
-    try {
-      localStorage.setItem(TAB_KEY, name)
-    } catch {
-      // 覚えておけないだけ。
-    }
+    rememberAutopostTab(name)
   }
 
   async function save() {

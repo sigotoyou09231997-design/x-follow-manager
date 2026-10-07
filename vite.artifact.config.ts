@@ -19,6 +19,8 @@ export default defineConfig({
       '#push-settings': path.resolve(import.meta.dirname, 'src/artifact/PushSettingsStub.tsx'),
       // 自動投稿も、Macで動く投稿役とサーバーが前提なので、案内だけのスタブにする。
       '#autopost-view': path.resolve(import.meta.dirname, 'src/artifact/AutoPostViewStub.tsx'),
+      // ホームの「いまの動き」もサーバー前提なので、何も出さない部品にする。
+      '#home-activity': path.resolve(import.meta.dirname, 'src/artifact/HomeActivityStub.tsx'),
     },
   },
   build: {

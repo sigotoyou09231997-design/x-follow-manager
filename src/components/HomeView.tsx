@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { PHOTOS } from '../assets/photos'
 import { FileDropZone } from './FileDropZone'
 import { HistoryView } from './HistoryView'
@@ -5,7 +6,14 @@ import { Icon } from './Icon'
 import { PhotoHero } from './PhotoHero'
 import { SummaryBar } from './SummaryBar'
 import type { Summary } from '../hooks/useAccounts'
+import type { ActivityTarget } from '../lib/home/activity'
 import type { AccountRecord } from '../lib/types'
+
+// 「いまの動き」はSupabaseなど重い依存を持つサーバー前提の部分なので、ホームを開いたあとに読み込む
+// （非相互フォローの整理だけを使うときは不要。Artifact版では空のスタブに差し替わる）。
+const HomeActivity = lazy(() =>
+  import('#home-activity').then((module) => ({ default: module.HomeActivity }))
+)
 
 interface Props {
   summary: Summary
@@ -29,6 +37,8 @@ interface Props {
   onCompose: () => void
   /** 未確認の確認作業を始める / 途中のバッチを再開する。 */
   onReview: () => void
+  /** 「いまの動き」の丸いアイコン・カードを押したとき。開く場所は呼び出し側が決める。 */
+  onOpenActivity: (target: ActivityTarget) => void
 }
 
 export function HomeView({
@@ -48,12 +58,18 @@ export function HomeView({
   onGotoSettings,
   onCompose,
   onReview,
+  onOpenActivity,
 }: Props) {
   const doneInBatch = batchAccounts.filter((a) => a.status !== 'pending').length
   const remainingInBatch = batchAccounts.length - doneInBatch
 
   return (
     <div className="home-view">
+      {/* 先頭は、全サービスの「いまの動き」。X のフォロー整理（下の写真の面）は、そのうちの1つとして続ける。 */}
+      <Suspense fallback={null}>
+        <HomeActivity tidy={{ hasData, pending: summary.pending }} onOpen={onOpenActivity} />
+      </Suspense>
+
       {/* Heroと直下のカードは重ねて置くので、gapを持つ .home-view から
           切り離して1つの箱にまとめる。 */}
       <div className="home-top">

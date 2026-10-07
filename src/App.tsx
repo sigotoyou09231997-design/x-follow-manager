@@ -9,6 +9,8 @@ import { SettingsView } from './components/SettingsView'
 import { UpdateBanner } from './components/UpdateBanner'
 import { Icon, type IconName } from './components/Icon'
 import { X_CALLBACK_PATH } from './lib/schedule/constants'
+import { rememberAutopostTab } from './lib/autopost/tab'
+import type { ActivityTarget } from './lib/home/activity'
 import { useAccounts, useCurrentBatchKeys, useSummary } from '#accounts-hook'
 import { parseArchiveFile } from './lib/archiveParser'
 import { computeNonMutual } from './lib/nonMutual'
@@ -192,6 +194,12 @@ function App() {
     if (nextFilter) setFilter(nextFilter)
   }
 
+  // ホームの「いまの動き」から開く。自動投稿は、押した投稿先（ディスコード / Yay）を開いた状態にしてから切り替える。
+  function openActivity(target: ActivityTarget) {
+    if (target.tab === 'autopost') rememberAutopostTab(target.channel)
+    goto(target.tab)
+  }
+
   // 画面幅によってヘッダー側かリスト側のどちらかしか出ていないので、見えている方に合わせる。
   function focusSearch() {
     setTab('tidy')
@@ -213,7 +221,7 @@ function App() {
 
       <header className="app-header">
         <button type="button" className="app-header__logo" onClick={() => goto('home')}>
-          Follow tidy
+          SNSアプリ
         </button>
 
         <div className="app-header__search">
@@ -344,6 +352,7 @@ function App() {
               onGotoSettings={() => goto('settings')}
               onCompose={openCompose}
               onReview={openNextReview}
+              onOpenActivity={openActivity}
             />
           )}
 

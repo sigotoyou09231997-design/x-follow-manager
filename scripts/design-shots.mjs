@@ -122,7 +122,7 @@ function sideNavVisible(page) {
 // ホームはサイドバーにも下部バーにも無い経路がある（PCはロゴだけが入口）。
 // ロゴはどの幅でも出ているので、こちらに寄せる。
 async function goHome(page) {
-  await page.getByRole('button', { name: 'Follow tidy' }).click()
+  await page.getByRole('button', { name: 'SNSアプリ' }).click()
 }
 
 // PCは左サイドバー、狭い画面は下部バー。同じラベルでも出ている方を押す。
