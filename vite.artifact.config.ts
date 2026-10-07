@@ -17,6 +17,8 @@ export default defineConfig({
       '#schedule-view': path.resolve(import.meta.dirname, 'src/artifact/ScheduleViewStub.tsx'),
       // 通知もサーバー(とデプロイ)前提なので、Supabaseごと連れてこないよう空に差し替える。
       '#push-settings': path.resolve(import.meta.dirname, 'src/artifact/PushSettingsStub.tsx'),
+      // 自動投稿も、Macで動く投稿役とサーバーが前提なので、案内だけのスタブにする。
+      '#autopost-view': path.resolve(import.meta.dirname, 'src/artifact/AutoPostViewStub.tsx'),
     },
   },
   build: {

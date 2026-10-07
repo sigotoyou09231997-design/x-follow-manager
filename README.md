@@ -8,9 +8,32 @@
 | 予約投稿（AI下書き・自動投稿） | サーバー（Vercel + Supabase） | Supabase / Anthropic / X API |
 | 毎日投稿（AIが毎回書く繰り返し） | サーバー（Vercel + Supabase） | Supabase / Anthropic / X API |
 | アップデート通知 | ブラウザ + サーバー | Supabase / Web Push |
+| 自動投稿（掲示板・Yay） | 文と状態の置き場はサーバー、投稿そのものはMac | Supabase |
 
 非相互フォロー整理は今まで通り、アーカイブZIPをブラウザ内だけで解析します。
 予約投稿は「ブラウザを閉じていても時間になったら投稿される」必要があるため、サーバー側で動きます。
+
+## 自動投稿（掲示板・Yay）
+
+「自動投稿」タブは、Mac で動いている投稿役（掲示板 discord-ch.site と Yay の自動投稿）が使う
+**文を変える画面**と、「Macは動いています・最後の投稿・今日の件数」の表示です。
+投稿そのものは Chrome を操作する必要があるため Mac で動き続け、Vercel の中では動きません。
+
+```
+画面（このアプリの「自動投稿」タブ）          Mac の投稿役
+   │ Supabase のログインで本人確認              │ 合鍵（Bearer）で本人確認
+   ▼                                           ▼
+ api/autopost.ts ── autopost_channels ◀── api/poster-text.ts   … 投稿の直前に文を読む
+                    （文・履歴・版・状態）  ◀── api/poster-status.ts … 数分おきに「動いています」を報告
+```
+
+- 保存先は Supabase の `autopost_channels`（文・履歴・状態）と `autopost_poster_keys`（Mac の合鍵の sha256）。
+  作るのは `supabase/sql/005_autopost.sql`。**これを実行するまで、タブは「保存先がまだ用意されていません」と出す**（他の機能には影響しない）
+- 文は保存のたびに版が進む。別の端末で先に保存されていたら、上書きせず知らせる（画面の書きかけは残る）
+- 外れた古い文は「これまでの文」に残り、押すと書きかけに戻せる
+- `api/poster-text.ts` / `api/poster-status.ts` は、以前の編集画面（ch-post-editor）と同じ URL・同じ返し方。
+  Mac 側は `config.json` の `cloud.url` と合鍵を差し替えるだけでつなぎ替えられる
+- 合鍵でできるのは「文を読む」「状態を報告する」だけ。文の書き換えはできない
 
 ## 開発
 

@@ -28,14 +28,20 @@ const ScheduleView = lazy(() =>
   import('#schedule-view').then((module) => ({ default: module.ScheduleView }))
 )
 
-type Tab = 'home' | 'tidy' | 'protected' | 'history' | 'schedule' | 'settings'
+// 掲示板・Yay の自動投稿（Macで動く投稿役の文と状態）。サーバー前提なので、これも開いたときに読み込む。
+const AutoPostView = lazy(() =>
+  import('#autopost-view').then((module) => ({ default: module.AutoPostView }))
+)
+
+type Tab = 'home' | 'tidy' | 'protected' | 'history' | 'schedule' | 'autopost' | 'settings'
 
 // モバイル下部バー。中央の＋（FAB）はナビ項目ではなく操作なので、この配列には含めない。
+// 設定はヘッダー右上の人型ボタンから開ける（自動投稿を足すと、5項目では文字が収まらないため）。
 const BOTTOM_NAV: { id: Tab; label: string; icon: IconName }[] = [
   { id: 'home', label: 'ホーム', icon: 'home' },
   { id: 'tidy', label: 'フォロー整理', icon: 'tasks' },
   { id: 'schedule', label: '予約投稿', icon: 'calendar' },
-  { id: 'settings', label: '設定', icon: 'settings' },
+  { id: 'autopost', label: '自動投稿', icon: 'send' },
 ]
 
 // PC左サイドバー。
@@ -44,6 +50,7 @@ const SIDE_NAV: { id: Tab; label: string; icon: IconName }[] = [
   { id: 'protected', label: '残すリスト', icon: 'bookmark' },
   { id: 'history', label: '履歴', icon: 'history' },
   { id: 'schedule', label: '予約投稿', icon: 'calendar' },
+  { id: 'autopost', label: '自動投稿', icon: 'send' },
   { id: 'settings', label: '設定', icon: 'settings' },
 ]
 
@@ -286,6 +293,12 @@ function App() {
           {tab === 'schedule' && (
             <Suspense fallback={<p className="loading-indicator">読み込み中…</p>}>
               <ScheduleView composeRequest={composeRequest} />
+            </Suspense>
+          )}
+
+          {tab === 'autopost' && (
+            <Suspense fallback={<p className="loading-indicator">読み込み中…</p>}>
+              <AutoPostView />
             </Suspense>
           )}
 

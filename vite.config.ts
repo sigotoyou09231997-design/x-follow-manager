@@ -67,6 +67,7 @@ export default defineConfig({
       '#csv': path.resolve(import.meta.dirname, 'src/lib/csv.ts'),
       '#schedule-view': path.resolve(import.meta.dirname, 'src/components/schedule/ScheduleView.tsx'),
       '#push-settings': path.resolve(import.meta.dirname, 'src/components/PushSettings.tsx'),
+      '#autopost-view': path.resolve(import.meta.dirname, 'src/components/autopost/AutoPostView.tsx'),
     },
   },
   test: {
