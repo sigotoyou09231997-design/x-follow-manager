@@ -20,6 +20,18 @@ dist-ssr
 # デザイン確認用のスクリーンショット（scripts/design-shots.mjs の出力）
 .design-shots/
 
+# Mac で動く投稿役（poster/）の、手元だけのもの。ログイン情報・合鍵・記録・手元の設定は絶対にコミットしない
+# （chrome-profile/ には Discord・Yay のログインが入っていて、数GBある）
+/poster/*/chrome-profile/
+/poster/*/logs/
+/poster/*/config.json
+/poster/*/.hub-token
+/poster/*/.cloud-token
+/poster/*/.env*
+/poster/*/STOP
+/poster/*/*.tmp
+/poster/*/node_modules/
+
 # Playwright
 /test-results/
 /playwright-report/

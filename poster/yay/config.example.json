@@ -1,0 +1,12 @@
+{
+  "text": "ここに投稿する文",
+  "targets": "auto",
+  "excludeGroups": [],
+  "excludeNameWords": [],
+  "maxGroups": 20,
+  "intervalSeconds": 300,
+  "cloud": {
+    "url": "https://x-follow-manager-wine.vercel.app",
+    "tokenFile": ".hub-token"
+  }
+}

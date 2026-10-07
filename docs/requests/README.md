@@ -43,5 +43,5 @@ Cowork（要件整理担当）がここに Markdown を1件1ファイルで書�
 ## いまの状況を見る
 
 ```
-bash ../scripts/cowork-watch.sh --app "Xフォロー整理ツール"
+bash ../scripts/cowork-watch.sh --app "SNSアプリ"
 ```

@@ -1,0 +1,16 @@
+{
+  "url": "https://discord-ch.site/create",
+  "messages": [
+    "ここに投稿する文"
+  ],
+  "messagesArchive": [],
+  "rewatchSeconds": 300,
+  "tokenMaxAgeSeconds": 240,
+  "minGapSeconds": 60,
+  "dailyCap": null,
+  "debugPort": 9333,
+  "cloud": {
+    "url": "https://x-follow-manager-wine.vercel.app",
+    "tokenFile": ".hub-token"
+  }
+}
