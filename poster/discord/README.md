@@ -14,7 +14,8 @@ bash launchd.sh status | restart | uninstall
 node post.mjs                        # 手で直接起動（launchd と二重にはならない。2つ目は「すでに動いています」で終わる）
 node post.mjs --max 1                # 1回だけ
 node post.mjs --dry                  # 合図を待って文を入れるだけ（送信しない）
-touch STOP                           # 止める（作ったままなら、次のログインでも止まったまま。再開は bash launchd.sh restart）
+touch STOP                           # 止める（プロセスごと終わる。作ったままなら、次のログインでも止まったまま。再開は bash launchd.sh restart）
+                                     # ※ アプリの「自動投稿」タブの「投稿を止める」なら、動いたまま投稿だけ見合わせる（再開もアプリから。poster/README.md）
 ```
 
 `config.json`（手元だけ・コミットしない）は `config.example.json` をコピーして作る。

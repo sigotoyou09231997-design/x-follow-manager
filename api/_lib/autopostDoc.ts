@@ -58,13 +58,18 @@ export function applySave(
 export interface PosterStatus {
   lastPost: { t: string; text: string } | null
   today: number
+  /**
+   * 投稿役が「いま止まっている」と受け止めているか。画面で止めたあと、本当に止まったかを確かめる印。
+   * 止める機能より前の投稿役は送ってこない（無いときは「まだ受け取っていない」と扱う）。
+   */
+  paused?: boolean
   /** サーバーが受け取った時刻。Mac の時計には頼らない。 */
   at: string
 }
 
 /** Mac の投稿役からの報告を検める。形が違えば DocError。 */
 export function readPosterReport(body: unknown): Omit<PosterStatus, 'at'> {
-  const { lastPost, today } = (body ?? {}) as { lastPost?: unknown; today?: unknown }
+  const { lastPost, today, paused } = (body ?? {}) as { lastPost?: unknown; today?: unknown; paused?: unknown }
   const last = lastPost as { t?: unknown; text?: unknown } | null | undefined
   const okLast =
     last === null ||
@@ -75,9 +80,12 @@ export function readPosterReport(body: unknown): Omit<PosterStatus, 'at'> {
   if (!okLast || typeof today !== 'number' || !Number.isInteger(today) || today < 0) {
     throw new DocError('形が違います')
   }
+  // paused は無くてもよいが、あるなら真偽値。文字列の "false" などを真と読み違えて止まったことにしない。
+  if (paused !== undefined && typeof paused !== 'boolean') throw new DocError('形が違います')
   return {
     lastPost: last ? { t: last.t as string, text: last.text as string } : null,
     today,
+    ...(paused === undefined ? {} : { paused }),
   }
 }
 

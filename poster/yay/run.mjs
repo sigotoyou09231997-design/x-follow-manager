@@ -3,6 +3,8 @@
 //   caffeinate -i node run.mjs          … 連続運転（Mac をスリープさせない）
 //   node run.mjs --cycles 2 --targets timeline --interval 60 --cleanup   … 動作確認用（有限回で終わる）
 // 止めるとき: Ctrl-C、またはこのフォルダに STOP という名前のファイルを作る（いまの周回が終わってから止まる）。
+//   アプリの「自動投稿」タブの「投稿を止める」なら、プロセスは動いたまま投稿だけを見合わせる（再開もそこから）。
+//   周回の途中で止められたら、そこで打ち切る（いま出ている投稿は、消さずにそのまま残す）。
 //
 // 安全のため:
 //   ・消すのは、この道具が投稿して logs/posted.jsonl に番号を残した投稿だけ（手で投稿した分は触らない）
@@ -15,7 +17,8 @@ import { dirname, join } from "node:path";
 import { connect, createPost, deletePost, listJoinedGroups, openTarget, postState, selfId, waitForCard } from "./yay.mjs";
 import { append, pending, stats } from "./ledger.mjs";
 import { pickTargets } from "./targets.mjs";
-import { loadCloud, pullText, pushStatus } from "./cloud.mjs";
+import { loadCloud, pullState, pushStatus } from "./cloud.mjs";
+import { createPauseTracker } from "../pause-state.mjs";
 import { acquireLock, keepAwake } from "./single-instance.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -85,6 +88,18 @@ const CLOUD = loadCloud(config());
 let currentText = config().text;
 let cloudOk = true; // 直前の取得が成功したか。切り替わったときだけ記録する（毎回だと run.log が埋まる）
 
+// アプリの「投稿を止める」。止められているあいだは、プロセスは動いたまま、投稿だけを見合わせる。
+//   画面の状態が読めなかったときは、最後に分かっていた状態のまま（止めたはずが、通信の失敗で再開しない）。
+//   その状態は logs/paused.json に控えるので、Mac を再起動した直後に通信がつながっていなくても、止めたまま始まる。
+const PAUSE_POLL_MS = 15 * 1000;
+const pause = createPauseTracker({
+  file: CLOUD ? join(LOGS, "paused.json") : null,
+  onChange: (paused) => {
+    log(paused ? "画面で止められました。投稿を見合わせます" : "画面で再開されました。投稿を再開します");
+    reportStatus(); // 画面が「Mac が受け取った」と分かるように、すぐ知らせる
+  },
+});
+
 function saveLocalText(text) {
   const file = join(HERE, "config.json");
   const next = { ...config(), text };
@@ -95,15 +110,18 @@ function saveLocalText(text) {
 async function refreshText() {
   if (CLOUD) {
     try {
-      const fresh = await pullText(CLOUD);
+      const fresh = await pullState(CLOUD);
+      pause.observe(fresh.paused);
+      // 止められていないのに文が使えないときだけ、失敗として手元の文で続ける
+      if (fresh.problem && !fresh.paused) throw new Error(fresh.problem);
       if (!cloudOk) {
         cloudOk = true;
         log("クラウドから文を読めるようになりました");
       }
-      if (fresh !== currentText) {
-        saveLocalText(fresh); // 手元にも控える
-        currentText = fresh;
-        log(`文が差し替わりました（クラウド）: ${fresh.replace(/\n/g, " / ")}`);
+      if (fresh.text && fresh.text !== currentText) {
+        saveLocalText(fresh.text); // 手元にも控える
+        currentText = fresh.text;
+        log(`文が差し替わりました（クラウド）: ${fresh.text.replace(/\n/g, " / ")}`);
       }
       return;
     } catch (e) {
@@ -122,7 +140,17 @@ async function refreshText() {
 
 // 画面に「Mac は動いている・最後の投稿はこれ」を出すための報告。届かなくても投稿には影響しない
 function reportStatus() {
-  if (CLOUD) pushStatus(CLOUD, stats(LEDGER)).catch(() => {});
+  if (CLOUD) pushStatus(CLOUD, { ...stats(LEDGER), paused: pause.paused }).catch(() => {});
+}
+
+// 画面で止められた（再開された）ことを、周回の途中や待ち時間にも早く知るため、一定の間隔で印だけ読み直す。
+// 文は読み直さない（文の切り替えは、これまでどおり周回の頭だけ）。
+if (CLOUD) {
+  setInterval(() => {
+    pullState(CLOUD)
+      .then((state) => pause.observe(state.paused))
+      .catch(() => {}); // 読めなければ、最後に分かっていた状態のまま
+  }, PAUSE_POLL_MS).unref();
 }
 
 // 周回の頭で、投稿先（タイムライン＋参加中のサークル）を読み直す。
@@ -238,10 +266,26 @@ try {
   while (cycles < CYCLES) {
     const started = Date.now();
     await refreshText();
+    // 画面で止められているあいだは、ブラウザにも触れずに待つ（周回には数えない）。
+    // STOP を見逃さないよう、1秒ずつ区切って待つ。
+    if (pause.paused) {
+      if (existsSync(STOP)) {
+        log("STOP ファイルがあるので止めます");
+        break;
+      }
+      reportStatus();
+      for (let i = 0; i < PAUSE_POLL_MS / 1000 && !existsSync(STOP); i++) await sleep(1000);
+      continue;
+    }
     await refreshTargets();
     reportStatus();
     for (const target of TARGETS) {
       if (existsSync(STOP)) break;
+      // 周回の途中で止められたら、そこで打ち切る。いま出ている投稿は消さず、そのまま残す
+      if (pause.paused) {
+        log("画面で止められたので、この周回を途中で打ち切ります");
+        break;
+      }
       if ((skipUntil.get(target) ?? 0) > cycles) continue;
       try {
         try {
@@ -275,7 +319,7 @@ try {
     }
     // 次の周回まで。1秒ごとに STOP を見る
     while (cycles < CYCLES && Date.now() - started < INTERVAL * 1000) {
-      if (existsSync(STOP)) break;
+      if (existsSync(STOP) || pause.paused) break; // 待っているあいだに止められたら、すぐ次の周回の頭（止めて待つところ）へ
       await sleep(1000);
     }
   }

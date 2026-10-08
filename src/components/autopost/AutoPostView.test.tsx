@@ -16,11 +16,13 @@ vi.mock('../../hooks/useSupabaseAuth', () => ({
 const api = vi.hoisted(() => ({
   fetchSnapshots: vi.fn(),
   saveMessages: vi.fn(),
+  setPaused: vi.fn(),
 }))
 vi.mock('../../lib/autopost/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/autopost/api')>()),
   fetchSnapshots: api.fetchSnapshots,
   saveMessages: api.saveMessages,
+  setPaused: api.setPaused,
 }))
 
 // SaveConflictError は本物を使う（画面が instanceof で見分けているため）。
@@ -33,6 +35,9 @@ function channel(patch: Partial<ChannelSnapshot> & Pick<ChannelSnapshot, 'channe
     version: 0,
     savedAt: null,
     status: null,
+    paused: false,
+    pausedAt: null,
+    pauseReady: true,
     limits: { maxLength: 1000, maxMessages: patch.channel === 'yay' ? 1 : 10 },
     ...patch,
   }
@@ -57,6 +62,7 @@ beforeEach(() => {
   auth.state = { session: {}, loading: false, configured: true }
   api.fetchSnapshots.mockReset().mockResolvedValue(snapshots())
   api.saveMessages.mockReset()
+  api.setPaused.mockReset()
   resetEditingGuardsForTest()
   localStorage.clear()
   window.scrollTo = vi.fn() // jsdom には無い。履歴の文を選んだとき、画面の上へ戻すのに使う
@@ -166,5 +172,113 @@ describe('AutoPostView', () => {
     fireEvent.click(screen.getByRole('button', { name: '変更を取り消す' }))
     expect(isEditing()).toBe(false)
     expect(box().value).toBe('保存してある文')
+  })
+
+  describe('投稿を止める／再開する', () => {
+    const iso = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60000).toISOString()
+    const alive = (paused?: boolean) => ({
+      lastPost: null,
+      today: 1,
+      at: iso(1),
+      ...(paused === undefined ? {} : { paused }),
+    })
+
+    it('動いているときは「投稿を止める」を出し、押すと止める依頼を送る', async () => {
+      api.setPaused.mockResolvedValue({ ...snapshots().discord, paused: true, pausedAt: iso(0) })
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      expect(screen.getByText('自動で投稿しています')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: '投稿を止める' }))
+      await waitFor(() => expect(api.setPaused).toHaveBeenCalledWith('discord', true))
+      // Mac がまだ受け取っていないので、「停止中」とは言わない
+      expect(await screen.findByText('停止を依頼しました')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '停止を取り消す' })).toBeEnabled()
+    })
+
+    it('Mac が「止まっています」と報告したら「停止中」になり、再開できる', async () => {
+      api.fetchSnapshots.mockResolvedValue({
+        ...snapshots(),
+        discord: channel({ channel: 'discord', messages: ['保存してある文'], version: 3, paused: true, pausedAt: iso(30), status: alive(true) }),
+      })
+      api.setPaused.mockResolvedValue({ ...snapshots().discord, paused: false, status: alive(true) })
+      render(<AutoPostView />)
+
+      expect(await screen.findByText(/^停止中（/)).toBeInTheDocument()
+      expect(screen.getByText(/いまは停止中です。再開すると/)).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: '投稿を再開する' }))
+      await waitFor(() => expect(api.setPaused).toHaveBeenCalledWith('discord', false))
+      expect(await screen.findByText('再開を依頼しました')).toBeInTheDocument()
+    })
+
+    it('止めている投稿先は、別のタブからでも分かる印が付く', async () => {
+      api.fetchSnapshots.mockResolvedValue({
+        ...snapshots(),
+        yay: channel({ channel: 'yay', messages: ['やっほー'], version: 1, paused: true, pausedAt: iso(5), status: alive(true) }),
+      })
+      render(<AutoPostView />)
+      const yayTab = await screen.findByRole('tab', { name: /Yay/ })
+      expect(yayTab).toHaveTextContent('停止中')
+      expect(screen.getByRole('tab', { name: /ディスコード/ })).not.toHaveTextContent('停止中')
+    })
+
+    it('止めている間に文を直しても、「再開したあとの投稿から」と案内する', async () => {
+      api.fetchSnapshots.mockResolvedValue({
+        ...snapshots(),
+        discord: channel({ channel: 'discord', messages: ['保存してある文'], version: 3, paused: true, pausedAt: iso(30), status: alive(true) }),
+      })
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      fireEvent.change(box(), { target: { value: '直した文' } })
+      expect(screen.getByText(/再開したあとの投稿から/)).toBeInTheDocument()
+    })
+
+    it('Mac から応答が無いまま依頼中なら、止まったと思わせず、その旨を伝える', async () => {
+      api.fetchSnapshots.mockResolvedValue({
+        ...snapshots(),
+        discord: channel({
+          channel: 'discord',
+          messages: ['保存してある文'],
+          version: 3,
+          paused: true,
+          pausedAt: iso(30),
+          status: { lastPost: null, today: 1, at: iso(60) },
+        }),
+      })
+      render(<AutoPostView />)
+      expect(await screen.findByText('停止を依頼しました')).toBeInTheDocument()
+      expect(screen.getByText(/Macから応答がありません。投稿役が止まっている/)).toBeInTheDocument()
+    })
+
+    it('止める操作が失敗したら、理由を出して、状態は変えない', async () => {
+      api.setPaused.mockRejectedValue(new Error('止める機能の準備がまだです。Supabase の SQL Editor で supabase/sql/006_autopost_pause.sql を実行すると使えるようになります'))
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      fireEvent.click(screen.getByRole('button', { name: '投稿を止める' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('006_autopost_pause.sql')
+      expect(screen.getByText('自動で投稿しています')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '投稿を止める' })).toBeEnabled() // もう一度押せる
+    })
+
+    it('表（SQL 006）がまだ無ければ、止めるボタンの代わりに案内を出す', async () => {
+      api.fetchSnapshots.mockResolvedValue({
+        discord: channel({ channel: 'discord', messages: ['保存してある文'], version: 3, pauseReady: false }),
+        yay: channel({ channel: 'yay', messages: ['やっほー'], version: 1, pauseReady: false }),
+      })
+      render(<AutoPostView />)
+      expect(await screen.findByText('止める機能は準備中です')).toBeInTheDocument()
+      expect(screen.getByText(/006_autopost_pause\.sql/)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '投稿を止める' })).not.toBeInTheDocument()
+      // 文の編集と保存は、これまでどおり使える
+      expect(box().value).toBe('保存してある文')
+    })
+
+    it('Yay は、いま出ている投稿が残ることも伝える', async () => {
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      fireEvent.click(screen.getByRole('tab', { name: /Yay/ }))
+      expect(await screen.findByText(/いま出ている投稿は消えずに残ります/)).toBeInTheDocument()
+    })
   })
 })

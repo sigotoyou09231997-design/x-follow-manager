@@ -1,5 +1,5 @@
 import type { ChannelName, Snapshots } from '../autopost/api'
-import { livenessOf, minutesAgo } from '../autopost/draft'
+import { livenessOf, minutesAgo, pauseStateOf } from '../autopost/draft'
 import type { ScheduledPost } from '../schedule/types'
 
 // ホームの「いまの動き」に出す内容を、データから組み立てる。画面の部品から切り離してあるので、そのまま単体で確かめられる。
@@ -53,14 +53,26 @@ const firstText = (post: ScheduledPost) => preview(post.segments[0]?.text ?? '')
 
 export function buildStories({ autopost, posts, tidy }: ActivityInput, now: number): Story[] {
   const stories: Story[] = (['discord', 'yay'] as const).map((channel) => {
-    const status = autopost?.[channel]?.status ?? null
+    const snapshot = autopost?.[channel]
+    const status = snapshot?.status ?? null
     const liveness = livenessOf(status, now)
-    return {
+    const base = {
       id: channel,
       label: CHANNEL_LABELS[channel],
       meta: liveness === 'alive' ? `今日${status?.today ?? 0}件` : liveness === 'silent' ? '応答なし' : '報告なし',
-      tone: liveness === 'alive' ? 'ok' : liveness === 'silent' ? 'off' : 'idle',
-      target: { tab: 'autopost', channel },
+      tone: (liveness === 'alive' ? 'ok' : liveness === 'silent' ? 'off' : 'idle') as StoryTone,
+      target: { tab: 'autopost', channel } as ActivityTarget,
+    }
+    // 止めているときは、動いているかより「止めていること」を先に見せる（ホームを見ただけで、止め忘れに気づけるように）。
+    switch (snapshot ? pauseStateOf(snapshot) : 'running') {
+      case 'paused':
+        return { ...base, meta: '停止中', tone: 'warn' }
+      case 'pausing':
+        return { ...base, meta: '停止を依頼中', tone: 'warn' }
+      case 'resuming':
+        return { ...base, meta: '再開待ち', tone: 'idle' }
+      default:
+        return base
     }
   })
 

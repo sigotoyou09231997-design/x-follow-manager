@@ -10,6 +10,11 @@ export const CHANNEL_NAMES: ChannelName[] = ['discord', 'yay']
 export interface PosterStatus {
   lastPost: { t: string; text: string } | null
   today: number
+  /**
+   * 投稿役が「いま止まっている」と受け止めているか。画面で止めたあと、本当に止まったかを確かめる印。
+   * 止める機能より前の投稿役は送ってこないので、無いことがある。
+   */
+  paused?: boolean
   /** サーバーが報告を受け取った時刻。 */
   at: string
 }
@@ -23,6 +28,12 @@ export interface ChannelSnapshot {
   version: number
   savedAt: string | null
   status: PosterStatus | null
+  /** 画面で「止める」にしているか（投稿役が受け取ったかどうかは status.paused）。 */
+  paused: boolean
+  /** 止めた時刻。止めていなければ null。 */
+  pausedAt: string | null
+  /** 止める機能の準備（SQL 006）ができているか。 */
+  pauseReady: boolean
   limits: { maxLength: number; maxMessages: number }
 }
 
@@ -85,6 +96,16 @@ export async function saveMessages(
     baseVersion,
   })
   if (status === 409) throw new SaveConflictError(failureMessage(status, data), data.snapshot)
+  if (status < 200 || status >= 300) throw new Error(failureMessage(status, data))
+  return data.snapshot
+}
+
+/**
+ * 投稿を止める／再開する。投稿役は動いたまま、次の投稿から見合わせる（再開もこの画面からできる）。
+ * 文の保存とは別の操作なので、文の版は動かない。
+ */
+export async function setPaused(channel: ChannelName, paused: boolean): Promise<ChannelSnapshot> {
+  const { status, data } = await call<{ snapshot: ChannelSnapshot; error?: string }>('POST', { channel, paused })
   if (status < 200 || status >= 300) throw new Error(failureMessage(status, data))
   return data.snapshot
 }

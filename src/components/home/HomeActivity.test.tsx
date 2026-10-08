@@ -33,6 +33,9 @@ function channel(name: 'discord' | 'yay', today: number, text: string): ChannelS
     version: 1,
     savedAt: null,
     status: { lastPost: { t: minutesAgo(4), text }, today, at: minutesAgo(1) },
+    paused: false,
+    pausedAt: null,
+    pauseReady: true,
     limits: { maxLength: 1000, maxMessages: name === 'yay' ? 1 : 10 },
   }
 }

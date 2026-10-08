@@ -46,6 +46,25 @@ export function livenessOf(status: PosterStatus | null, now: number): Liveness {
 }
 
 /**
+ * 止める／再開するの状態。画面で押したこと（snapshot.paused）と、投稿役が受け取ったこと（status.paused）を
+ * 突き合わせる。押しただけでは、Mac が次に確かめに来るまで投稿が続くことがあるので、
+ * 「停止中」と言い切れるのは投稿役が「止まっています」と報告してから。
+ *   running  … 動いている
+ *   pausing  … 止めると押した。Mac はまだ受け取っていない
+ *   paused   … 止まっている（Mac も受け取った）
+ *   resuming … 再開すると押した。Mac はまだ止まったまま
+ * 止める機能より前の投稿役は paused を報告しない。そういう投稿役は止まらないので、
+ * pausing のまま変わらない（＝止まったと誤解させない）。
+ */
+export type PauseState = 'running' | 'pausing' | 'paused' | 'resuming'
+
+export function pauseStateOf(snapshot: ChannelSnapshot): PauseState {
+  const acknowledged = snapshot.status?.paused === true
+  if (snapshot.paused) return acknowledged ? 'paused' : 'pausing'
+  return acknowledged ? 'resuming' : 'running'
+}
+
+/**
  * 保存した文が、まだ1度も投稿に使われていないか。
  * 最後に投稿された文が、いま保存してある文のどれでもなければ「次の投稿から」になる。
  * 投稿側は改行を「 / 」に直した形で報告してくることがあるので、どちらの形でも照らす。

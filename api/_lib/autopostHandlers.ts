@@ -10,13 +10,14 @@ import {
   readPosterReport,
   type ChannelName,
 } from './autopostDoc.js'
-import { supabaseAutopostStore, type AutopostStore, type ChannelRow } from './autopostStore.js'
+import { PauseNotReadyError, supabaseAutopostStore, type AutopostStore, type ChannelRow } from './autopostStore.js'
 
 // 掲示板・Yay の自動投稿の受け口。
 //   画面（X のアプリ。Supabase のログインが要る）…… api/autopost.ts
-//     GET  = 全投稿先の文・履歴・状態   POST = 文の保存
+//     GET  = 全投稿先の文・履歴・状態   POST = 文の保存、または止める／再開する（{ channel, paused }）
 //   投稿側（Mac。合鍵が要る）…………………………… api/poster-text.ts / api/poster-status.ts
-//     GET  = 投稿する文を読む           POST = 「動いている・最後の投稿」を報告する
+//     GET  = 投稿する文と、止められているかを読む
+//     POST = 「動いている・最後の投稿・いま止まっているか」を報告する
 //
 // 投稿側の2つは、以前の編集画面（ch-post-editor）と同じ URL・同じ返し方にしてある。
 // そのため Mac 側は config.json の cloud.url を差し替えるだけでつなぎ替えられる。
@@ -48,9 +49,15 @@ function snapshot(row: ChannelRow) {
     version: row.version,
     savedAt: row.savedAt,
     status: row.status,
+    paused: row.paused,
+    pausedAt: row.pausedAt,
+    pauseReady: row.pauseReady,
     limits: { maxLength: MAX_LENGTH, maxMessages: CHANNELS[row.channel].maxMessages },
   }
 }
+
+const PAUSE_SETUP_MESSAGE =
+  '止める機能の準備がまだです。Supabase の SQL Editor で supabase/sql/006_autopost_pause.sql を実行すると使えるようになります'
 
 function channelOf(req: VercelRequest, body: Record<string, unknown> | null): ChannelName | null {
   const q = req.query?.ch
@@ -92,6 +99,21 @@ export function createAutopostHandler(deps?: Deps) {
       if (!body) return res.status(400).json({ error: 'リクエストの形式が不正です' })
       const channel = channelOf(req, body)
       if (!channel) return res.status(400).json({ error: '投稿先が正しくありません' })
+
+      if (body.paused !== undefined) {
+        // 止める／再開するは、文の保存とは別の操作。1回の送信に文を混ぜない
+        // （どちらをしたかったのか分からなくなり、止めたつもりで文だけ変わる、が起きうる）。
+        if (typeof body.paused !== 'boolean' || body.messages !== undefined) {
+          return res.status(400).json({ error: 'リクエストの形式が不正です' })
+        }
+        try {
+          return res.status(200).json({ snapshot: snapshot(await store.setPaused(userId, channel, body.paused)) })
+        } catch (error) {
+          if (error instanceof PauseNotReadyError) return res.status(503).json({ error: PAUSE_SETUP_MESSAGE })
+          throw error
+        }
+      }
+
       const baseVersion = body.baseVersion
       if (typeof baseVersion !== 'number' || !Number.isInteger(baseVersion) || baseVersion < 0) {
         return res.status(400).json({ error: '画面が見ていた版が分かりません。読み直してください' })
@@ -141,8 +163,16 @@ export function createPosterTextHandler(deps?: Pick<Deps, 'store'>) {
       if (!channel) return res.status(400).json({ error: '投稿先が正しくありません' })
 
       const row = await store.getChannel(userId, channel)
-      if (row.messages.length === 0) return res.status(404).json({ error: '文がまだ保存されていません' })
-      return res.status(200).json({ messages: row.messages, updatedAt: row.savedAt })
+      // 止めているあいだは、文が無くても答える（投稿役が知りたいのは「止められているか」のほう）。
+      if (row.messages.length === 0 && !row.paused) return res.status(404).json({ error: '文がまだ保存されていません' })
+      // paused は、止める機能より前の投稿役は読まない。そういう投稿役は止まらないので、
+      // 画面は投稿役の報告（status.paused）が返るまで「停止中」と言い切らない。
+      return res.status(200).json({
+        messages: row.messages,
+        updatedAt: row.savedAt,
+        paused: row.paused,
+        pausedAt: row.pausedAt,
+      })
     } catch (error) {
       return failure(res, error)
     }

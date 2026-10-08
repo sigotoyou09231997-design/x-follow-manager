@@ -4,7 +4,8 @@
 //   node post.mjs --dry     … 文を入れるだけで送信しない（動作確認用）
 //   node post.mjs --max 1   … 1回だけ投稿して終わる
 //   node post.mjs           … 「今すぐ投稿できます」が出るたびに投稿し続ける
-// 止めるとき: Ctrl-C、またはこのフォルダに STOP という名前のファイルを作る。
+// 止めるとき: Ctrl-C、またはこのフォルダに STOP という名前のファイルを作る（プロセスごと終わる）。
+//   アプリの「自動投稿」タブの「投稿を止める」なら、プロセスは動いたまま投稿だけを見合わせる（再開もそこから）。
 // Mac をスリープさせないために `caffeinate -i node post.mjs` で走らせる。
 //
 // 動かし方: 専用プロファイル(chrome-profile/)の Chrome へ DevTools で接続して操作する。
@@ -17,7 +18,8 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { readConfig, readMessages, saveMessages } from "./config.mjs";
-import { loadCloud, pullMessages, pushStatus } from "./cloud-client.mjs";
+import { loadCloud, pullState, pushStatus } from "./cloud-client.mjs";
+import { createPauseTracker } from "../pause-state.mjs";
 import { acquireLock, keepAwake } from "./single-instance.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -66,18 +68,33 @@ const CLOUD = loadCloud(CONFIG);
 let messages = CONFIG.messages;
 let cloudOk = true; // 直前の取得が成功したか。切り替わったときだけ記録する（毎回だと run.log が埋まる）
 
+// アプリの「投稿を止める」。止められているあいだは、プロセスは動いたまま、投稿だけを見合わせる。
+//   画面の状態が読めなかったときは、最後に分かっていた状態のまま（止めたはずが、通信の失敗で再開しない）。
+//   その状態は logs/paused.json に控えるので、Mac を再起動した直後に通信がつながっていなくても、止めたまま始まる。
+const PAUSE_POLL_MS = 15 * 1000;
+const pause = createPauseTracker({
+  file: CLOUD ? join(LOGS, "paused.json") : null,
+  onChange: (paused) => {
+    log(paused ? "画面で止められました。投稿を見合わせます" : "画面で再開されました。投稿を再開します");
+    reportStatus(true); // 画面が「Mac が受け取った」と分かるように、すぐ知らせる
+  },
+});
+
 async function currentMessages() {
   if (CLOUD) {
     try {
-      const fresh = await pullMessages(CLOUD);
+      const fresh = await pullState(CLOUD);
+      pause.observe(fresh.paused);
+      // 止められていないのに文が使えないときだけ、失敗として手元の文で続ける
+      if (fresh.problem && !fresh.paused) throw new Error(fresh.problem);
       if (!cloudOk) {
         cloudOk = true;
         log("クラウドから文を読めるようになりました");
       }
-      if (JSON.stringify(fresh) !== JSON.stringify(messages)) {
-        saveMessages(fresh); // 手元にも控える（届かないときの代わり）
-        messages = fresh;
-        log(`文が差し替わりました（クラウド・${fresh.length}個）`);
+      if (fresh.messages && JSON.stringify(fresh.messages) !== JSON.stringify(messages)) {
+        saveMessages(fresh.messages); // 手元にも控える（届かないときの代わり）
+        messages = fresh.messages;
+        log(`文が差し替わりました（クラウド・${fresh.messages.length}個）`);
       }
       return messages;
     } catch (e) {
@@ -105,8 +122,16 @@ function reportStatus(force = false) {
   if (!CLOUD || (!force && Date.now() - lastReportAt < 2 * 60 * 1000)) return;
   lastReportAt = Date.now();
   const last = postedLines().at(-1);
-  pushStatus(CLOUD, { lastPost: last ? { t: last.t, text: last.text } : null, today: todayCount() }).catch(() => {});
+  pushStatus(CLOUD, {
+    lastPost: last ? { t: last.t, text: last.text } : null,
+    today: todayCount(),
+    paused: pause.paused,
+  }).catch(() => {});
 }
+
+// 画面で止められた（再開された）ことを、投稿の合間を待たずに知るため、一定の間隔で読み直す。
+// 「今すぐ投稿できます」を待つ長い見張りの最中でも、「止まっています」の報告が遅れない。
+if (CLOUD && !DRY) setInterval(() => currentMessages().catch(() => {}), PAUSE_POLL_MS).unref();
 
 function loadIndex() {
   try {
@@ -170,6 +195,8 @@ async function run(browser) {
   let index = loadIndex();
   let done = 0;
   let failures = 0;
+  // 前回止められたままなら、画面の今の状態を確かめてから始める（再開されていれば、すぐ追いつく）
+  if (CLOUD) await currentMessages();
   log(`開始 (${DRY ? "dry-run" : MAX === Infinity ? "連続" : `最大${MAX}回`}) 次の文: ${(index % messages.length) + 1}番`);
 
   while (true) {
@@ -178,6 +205,13 @@ async function run(browser) {
       break;
     }
     if (done >= MAX) break;
+
+    // 画面で止められているあいだは、ページも開かず待つ。STOP を見逃さないよう、短く区切って待つ
+    if (pause.paused && !DRY) {
+      reportStatus();
+      await sleep(5000);
+      continue;
+    }
 
     if (CONFIG.dailyCap && todayCount() >= CONFIG.dailyCap) {
       log(`今日の上限 ${CONFIG.dailyCap} 件に達したので待ちます`);
@@ -256,7 +290,12 @@ async function run(browser) {
 
     await page.waitForTimeout(1500); // 認証の表示が「成功」に変わるのを待つ
 
+    // 投稿の直前に、画面の状態を読み直す。見張りの途中で止められていたら、ここで見送る
     const current = await currentMessages();
+    if (pause.paused && !DRY) {
+      log("画面で止められているので、この投稿は見送ります");
+      continue;
+    }
     const text = current[index % current.length];
     await page.locator("#message").fill(text);
 

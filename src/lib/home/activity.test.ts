@@ -15,6 +15,9 @@ function channel(name: 'discord' | 'yay', patch: Partial<ChannelSnapshot> = {}):
     version: 1,
     savedAt: null,
     status: null,
+    paused: false,
+    pausedAt: null,
+    pauseReady: true,
     limits: { maxLength: 1000, maxMessages: name === 'yay' ? 1 : 10 },
     ...patch,
   }
@@ -54,6 +57,29 @@ describe('丸いアイコン（stories）', () => {
 
     const [none] = buildStories(base(), NOW)
     expect(none).toMatchObject({ tone: 'idle', meta: '報告なし' })
+  })
+
+  it('止めているときは、動いているかより「止めていること」を先に見せる（橙）', () => {
+    const alive = { lastPost: null, today: 134, at: ago(1) }
+    const paused = { ...alive, paused: true }
+    const stories = (patch: Partial<ChannelSnapshot>) =>
+      buildStories(base({ autopost: autopost({ discord: channel('discord', patch) }) }), NOW)[0]
+
+    // Mac も止まっている
+    expect(stories({ paused: true, status: paused })).toMatchObject({ meta: '停止中', tone: 'warn' })
+    // 止めると押したが、Mac はまだ受け取っていない
+    expect(stories({ paused: true, status: alive })).toMatchObject({ meta: '停止を依頼中', tone: 'warn' })
+    // 再開すると押したが、Mac はまだ止まっている
+    expect(stories({ paused: false, status: paused })).toMatchObject({ meta: '再開待ち', tone: 'idle' })
+  })
+
+  it('止めているのは、その投稿先だけ', () => {
+    const [discord, yay] = buildStories(
+      base({ autopost: autopost({ yay: channel('yay', { paused: true }) }) }),
+      NOW
+    )
+    expect(discord.meta).toBe('報告なし')
+    expect(yay).toMatchObject({ id: 'yay', meta: '停止を依頼中' })
   })
 
   it('X予約は、失敗があれば注意、予約があれば件数、なければ「予約なし」。繰り返しのテンプレートは数えない', () => {

@@ -6,6 +6,7 @@ import {
   isValid,
   livenessOf,
   notYetPosted,
+  pauseStateOf,
   withArchived,
 } from './draft'
 
@@ -20,6 +21,9 @@ function snapshot(patch: Partial<ChannelSnapshot> = {}): ChannelSnapshot {
     version: 1,
     savedAt: null,
     status: null,
+    paused: false,
+    pausedAt: null,
+    pauseReady: true,
     limits: { maxLength: 1000, maxMessages: 10 },
     ...patch,
   }
@@ -85,5 +89,37 @@ describe('Mac の様子', () => {
     expect(notYetPosted(snapshot({ messages: ['一行目\n24'], status: status('一行目 / 24') }))).toBe(false)
     expect(notYetPosted(snapshot({ status: null }))).toBe(false)
     expect(notYetPosted(snapshot({ messages: [], status: status('古い文') }))).toBe(false)
+  })
+})
+
+describe('止める／再開するの状態（押したことと、Mac が受け取ったことの突き合わせ）', () => {
+  const report = (paused?: boolean) => ({
+    lastPost: null,
+    today: 3,
+    at: minutesBefore(1),
+    ...(paused === undefined ? {} : { paused }),
+  })
+
+  it('止めていなくて、Mac も止まっていなければ「動いている」', () => {
+    expect(pauseStateOf(snapshot({ status: report(false) }))).toBe('running')
+    expect(pauseStateOf(snapshot())).toBe('running') // まだ報告が無くても
+  })
+
+  it('止めると押しても、Mac が「止まっています」と報告するまでは「依頼中」', () => {
+    expect(pauseStateOf(snapshot({ paused: true, status: report(false) }))).toBe('pausing')
+    expect(pauseStateOf(snapshot({ paused: true, status: null }))).toBe('pausing')
+  })
+
+  it('Mac が「止まっています」と報告したら「停止中」', () => {
+    expect(pauseStateOf(snapshot({ paused: true, status: report(true) }))).toBe('paused')
+  })
+
+  it('再開すると押しても、Mac が止まっていると報告しているあいだは「再開待ち」', () => {
+    expect(pauseStateOf(snapshot({ paused: false, status: report(true) }))).toBe('resuming')
+  })
+
+  it('止める機能より前の投稿役（paused を報告しない）は、止まったと言い切らない', () => {
+    // そういう投稿役は止まらない。ずっと「依頼中」のままで、止まっていると誤解させない。
+    expect(pauseStateOf(snapshot({ paused: true, status: report() }))).toBe('pausing')
   })
 })

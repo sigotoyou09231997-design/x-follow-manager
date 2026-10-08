@@ -9,7 +9,8 @@ yay.space（Yay!）の **サークル** と **タイムライン** へ、決め�
 ```
 bash launchd.sh install                                      # 連続運転を始める（参加中のサークル＋タイムラインへ intervalSeconds ごとに。自動起動つき）
 node run.mjs --cycles 2 --targets timeline --interval 60 --cleanup   # 動作確認（有限回・最後に自分の投稿を消して終わる）
-touch STOP                                                   # 止める（いまの周回が終わってから止まる）
+touch STOP                                                   # 止める（いまの周回が終わってから、プロセスごと終わる）
+                                                             # ※ アプリの「自動投稿」タブの「投稿を止める」なら、動いたまま投稿だけ見合わせる（再開もアプリから。poster/README.md）
 
 node trial.mjs --dry                     # 文を入れて「投稿」ボタンが押せる状態か見るだけ（送信しない）
 node trial.mjs --target group:408344     # 1回投稿 → 30秒見せる → その投稿だけ消す

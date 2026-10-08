@@ -7,6 +7,7 @@ import {
   CHANNEL_NAMES,
   SaveConflictError,
   saveMessages,
+  setPaused,
   type ChannelName,
   type ChannelSnapshot,
 } from '../../lib/autopost/api'
@@ -18,6 +19,7 @@ import {
   livenessOf,
   normalize,
   notYetPosted,
+  pauseStateOf,
   withArchived,
 } from '../../lib/autopost/draft'
 import { readAutopostTab, rememberAutopostTab } from '../../lib/autopost/tab'
@@ -73,6 +75,8 @@ export function AutoPostView() {
   const [edits, setEdits] = useState<Partial<Record<ChannelName, Edit>>>({})
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ text: string; kind: 'ok' | 'err' }>()
+  const [pauseBusy, setPauseBusy] = useState(false)
+  const [pauseError, setPauseError] = useState<string>()
 
   // 書きかけ（＝その投稿先の文が、保存済みと違う状態）かどうかを、投稿先ごとに出す。
   const draftOf = (channel: ChannelName): string[] => {
@@ -118,7 +122,22 @@ export function AutoPostView() {
   function selectChannel(name: ChannelName) {
     setCurrent(name)
     setMessage(undefined)
+    setPauseError(undefined)
     rememberAutopostTab(name)
+  }
+
+  // 止める／再開する。押したあとの表示は、サーバーの返事（と、のちの Mac の報告）に合わせる。
+  async function changePaused(next: boolean) {
+    if (!snap || pauseBusy) return
+    setPauseBusy(true)
+    setPauseError(undefined)
+    try {
+      applySnapshot(await setPaused(current, next))
+    } catch (err) {
+      setPauseError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setPauseBusy(false)
+    }
   }
 
   async function save() {
@@ -232,6 +251,7 @@ export function AutoPostView() {
             onClick={() => selectChannel(name)}
           >
             {CHANNEL_LABELS[name]}
+            {snapshots?.[name]?.paused && <span className="autopost__tab-flag">停止中</span>}
             {dirtyOf(name) && <span className="autopost__dirty" aria-label="未保存の変更あり">●</span>}
           </button>
         ))}
@@ -239,6 +259,13 @@ export function AutoPostView() {
 
       <p className="autopost__info">{CHANNEL_INFO[current]}</p>
       <PosterStatusLine snapshot={snap} now={now} />
+      <PauseControl
+        snapshot={snap}
+        now={now}
+        busy={pauseBusy}
+        error={pauseError}
+        onChange={(next) => void changePaused(next)}
+      />
 
       <section className="surface-card autopost__card">
         {draft.length === 0 ? (
@@ -290,7 +317,13 @@ export function AutoPostView() {
         </div>
 
         <p className="autopost__note">
-          {dirty ? (
+          {snap.paused ? (
+            dirty ? (
+              <>保存すると、<strong>再開したあとの投稿から</strong>この文になります（いまは停止中です）。</>
+            ) : (
+              <>いまは停止中です。再開すると、保存済みの文が<strong>次の投稿から</strong>使われます。</>
+            )
+          ) : dirty ? (
             <>保存すると、<strong>次の投稿から</strong>この文になります。</>
           ) : notYetPosted(snap) ? (
             <>保存済みの文は、<strong>次の投稿から</strong>使われます（まだ投稿されていません）。</>
@@ -389,3 +422,81 @@ function PosterStatusLine({ snapshot, now }: { snapshot: ChannelSnapshot; now: n
   )
 }
 
+const PAUSE_DETAIL: Record<ChannelName, string> = {
+  discord: '止めても Mac の投稿役は動いたままで、投稿だけを見合わせます。',
+  yay: '止めても Mac の投稿役は動いたままで、投稿だけを見合わせます。いま出ている投稿は消えずに残ります。',
+}
+
+interface PauseControlProps {
+  snapshot: ChannelSnapshot
+  now: number
+  busy: boolean
+  error?: string
+  onChange: (paused: boolean) => void
+}
+
+/**
+ * 投稿を止める／再開するスイッチ。押しただけでは Mac はまだ知らないので、
+ * 投稿役が「止まっています」と報告するまでは「停止を依頼しました」と出し、本当に止まったかを見分けられるようにする。
+ */
+function PauseControl({ snapshot, now, busy, error, onChange }: PauseControlProps) {
+  if (!snapshot.pauseReady) {
+    return (
+      <section className="surface-card autopost__pause" aria-label="投稿の停止">
+        <div className="autopost__pause-text">
+          <strong>止める機能は準備中です</strong>
+          <span>Supabase の SQL Editor で supabase/sql/006_autopost_pause.sql を実行すると使えます。</span>
+        </div>
+      </section>
+    )
+  }
+
+  const state = pauseStateOf(snapshot)
+  const macSilent = livenessOf(snapshot.status, now) !== 'alive'
+  const since = snapshot.pausedAt
+    ? new Date(snapshot.pausedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : null
+
+  const text: Record<typeof state, { title: string; detail: string }> = {
+    running: { title: '自動で投稿しています', detail: PAUSE_DETAIL[snapshot.channel] },
+    pausing: {
+      title: '停止を依頼しました',
+      detail: macSilent
+        ? 'Macから応答がありません。投稿役が止まっているか、止める機能に対応していない古い版かもしれません。'
+        : 'Macが受け取るまで、投稿が続くことがあります（数十秒ほど）。',
+    },
+    paused: {
+      title: since ? `停止中（${since}から）` : '停止中',
+      detail:
+        snapshot.channel === 'yay'
+          ? '新しい投稿は見合わせています。いま出ている投稿は、そのまま残っています。'
+          : '新しい投稿は見合わせています。',
+    },
+    resuming: { title: '再開を依頼しました', detail: 'Macが受け取ると、投稿が再開されます。' },
+  }
+
+  const stopping = state === 'running' || state === 'resuming'
+  const label = state === 'pausing' ? '停止を取り消す' : state === 'paused' ? '投稿を再開する' : '投稿を止める'
+
+  return (
+    <section className={`surface-card autopost__pause autopost__pause--${state}`} aria-label="投稿の停止">
+      <div className="autopost__pause-text">
+        <strong>{text[state].title}</strong>
+        <span>{text[state].detail}</span>
+        {error && (
+          <span className="autopost__pause-error" role="alert">
+            {error}
+          </span>
+        )}
+      </div>
+      <button
+        type="button"
+        className={`btn ${stopping ? 'autopost__pause-stop' : state === 'paused' ? 'btn--primary' : 'btn--secondary'}`}
+        onClick={() => onChange(stopping)}
+        disabled={busy}
+      >
+        {busy ? '送っています…' : label}
+      </button>
+    </section>
+  )
+}

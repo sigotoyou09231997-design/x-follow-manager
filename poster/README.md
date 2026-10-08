@@ -24,6 +24,24 @@ touch STOP               # 止める（作ったままなら次のログイン�
 ```
 
 - 各フォルダの `config.json`（手元だけ）は `config.example.json` をコピーして作る
+
+## 止める（2通り）
+
+| やり方 | 何が起きるか | 再開 |
+| --- | --- | --- |
+| アプリの「自動投稿」タブの **投稿を止める** | 投稿役は**動いたまま**、投稿だけを見合わせる（投稿先ごと。外出先のスマホからも押せる） | 同じ画面の「投稿を再開する」 |
+| `touch STOP` | 投稿役のプロセスごと終わる | Mac で `bash launchd.sh restart` |
+
+- アプリから止めると、画面は「停止を依頼しました」→（投稿役が受け取ると）「停止中」と変わる。**「停止中」と出るまでは、止まったと思わない**
+  （数十秒かかる。古い版の投稿役は止められないので、ずっと「依頼しました」のまま）
+- 画面の状態が読めないとき（通信の失敗）は、最後に分かっていた状態のまま。止めたはずが、通信の失敗ひとつで再開しない。
+  その状態は各フォルダの `logs/paused.json` に控えるので、Mac を再起動した直後に通信がつながっていなくても止めたまま始まる
+- Yay は、止めても**いま出ている投稿は消えずに残る**（再開すると、最初の周回で前の投稿を消してから投稿する）。周回の途中で止めたら、そこで打ち切る
+- 使うには、Supabase の SQL Editor で `supabase/sql/006_autopost_pause.sql` を実行する（表が無いあいだは、止めるボタンだけが「準備中」になる）。
+  投稿役は、このコードの版へ**入れ替えて**（各フォルダの README にある入れ替えの手順）初めて止まるようになる
+- 投稿役の入れ替えは、投稿の最中に殺さない。`touch STOP` → 止まるのを待つ → `bash launchd.sh restart`（詳しくは各 README）
+
+テスト: `node --test poster/pause-state.test.mjs poster/discord/cloud-client.test.mjs poster/yay/cloud.test.mjs poster/yay/targets.test.mjs`
 - 合鍵は `discord/.hub-token`（Yay も同じものを探す）。Supabase の `autopost_poster_keys` に sha256 の値を入れてある
 - `chrome-profile/`（Discord・Yay のログイン情報）・`logs/`・合鍵・`config.json` は、コミットしない（ルートの `.gitignore`）
 - playwright は、このアプリの `node_modules` を使う（`npm install` 済みであること）
