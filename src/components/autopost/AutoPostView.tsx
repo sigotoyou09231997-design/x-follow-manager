@@ -22,8 +22,9 @@ import {
   pauseStateOf,
   withArchived,
 } from '../../lib/autopost/draft'
-import { readAutopostTab, rememberAutopostTab } from '../../lib/autopost/tab'
+import { readAutopostTab, rememberAutopostTab, type AutopostTab } from '../../lib/autopost/tab'
 import { Icon } from '../Icon'
+import { XAutopilotPanel } from './XAutopilotPanel'
 
 const CHANNEL_LABELS: Record<ChannelName, string> = { discord: 'ディスコード', yay: 'Yay' }
 
@@ -71,7 +72,10 @@ export function AutoPostView() {
   const { snapshots, loading, error, reload, applySnapshot } = useAutopost(loggedIn)
   const now = useNow(30_000)
 
-  const [current, setCurrent] = useState<ChannelName>(readAutopostTab)
+  const [tab, setTab] = useState<AutopostTab>(readAutopostTab)
+  // X のタブを開いているあいだも、ディスコード・Yay の書きかけや状態は持ち続ける。
+  // その土台になる「ディスコード・Yay のうち、いま見ている投稿先」（X のときは直前の続きとして先頭を使う）。
+  const current: ChannelName = tab === 'x' ? 'discord' : tab
   const [edits, setEdits] = useState<Partial<Record<ChannelName, Edit>>>({})
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ text: string; kind: 'ok' | 'err' }>()
@@ -119,8 +123,8 @@ export function AutoPostView() {
     setEdits((prev) => ({ ...prev, [current]: { list, base: snap.version } }))
   }
 
-  function selectChannel(name: ChannelName) {
-    setCurrent(name)
+  function selectChannel(name: AutopostTab) {
+    setTab(name)
     setMessage(undefined)
     setPauseError(undefined)
     rememberAutopostTab(name)
@@ -141,6 +145,8 @@ export function AutoPostView() {
   }
 
   async function save() {
+    // X のタブを見ているときの Cmd+S で、見えていないディスコードの書きかけを保存してしまわない。
+    if (tab === 'x') return
     if (!snap || !dirty || !valid || saving) return
     const channel = current
     const sent = JSON.stringify(normalize(draft))
@@ -186,6 +192,46 @@ export function AutoPostView() {
 
   const archive = useMemo(() => snap?.archive ?? [], [snap])
 
+  // 見出しとタブは、ディスコード・Yay・X のどれを見ているときも同じ。
+  const head = (
+    <header className="autopost__head">
+      <div>
+        <p className="overline">AUTO POST</p>
+        <h1 className="autopost__title">{tab === 'x' ? 'Xの自動運転' : '投稿する文'}</h1>
+      </div>
+      <button type="button" className="btn btn--ghost btn--small" onClick={() => void signOut()} aria-label="ログアウト">
+        <Icon name="logout" size={16} />
+      </button>
+    </header>
+  )
+  const tabs = (
+    <div className="autopost__tabs" role="tablist" aria-label="投稿先">
+      {CHANNEL_NAMES.map((name) => (
+        <button
+          key={name}
+          type="button"
+          role="tab"
+          aria-selected={tab === name}
+          className={`autopost__tab${tab === name ? ' active' : ''}`}
+          onClick={() => selectChannel(name)}
+        >
+          {CHANNEL_LABELS[name]}
+          {snapshots?.[name]?.paused && <span className="autopost__tab-flag">停止中</span>}
+          {dirtyOf(name) && <span className="autopost__dirty" aria-label="未保存の変更あり">●</span>}
+        </button>
+      ))}
+      <button
+        type="button"
+        role="tab"
+        aria-selected={tab === 'x'}
+        className={`autopost__tab${tab === 'x' ? ' active' : ''}`}
+        onClick={() => selectChannel('x')}
+      >
+        X
+      </button>
+    </div>
+  )
+
   if (authLoading) return <p className="loading-indicator">読み込み中…</p>
 
   if (!configured) {
@@ -207,21 +253,37 @@ export function AutoPostView() {
     )
   }
 
+  // X の自動運転は、ディスコード・Yay の保存先（SQL 005）とは別。そちらが読めなくても使えるよう、先に分ける。
+  if (tab === 'x') {
+    return (
+      <div className="autopost">
+        {head}
+        {tabs}
+        <XAutopilotPanel />
+      </div>
+    )
+  }
+
   if (error && !snapshots) {
     // 保存先の表（SQL 005）をまだ作っていないと、読み込みはここで必ず失敗する。
     const needsSetup = error.includes('autopost_')
     return (
-      <div className="autopost autopost--notice">
-        <p>{needsSetup ? '自動投稿の保存先がまだ用意されていません。' : '自動投稿の読み込みに失敗しました。'}</p>
-        <p className="autopost__hint">
-          {needsSetup
-            ? 'Supabase の SQL Editor で supabase/sql/005_autopost.sql を実行すると使えるようになります。'
-            : error}
-        </p>
-        <button type="button" className="btn btn--ghost" onClick={() => void reload()}>
-          <Icon name="refresh" size={16} />
-          もう一度ためす
-        </button>
+      // タブは出しておく（X の自動運転は、ここで読めなかった保存先とは別なので、そちらへは行ける）。
+      <div className="autopost">
+        {head}
+        {tabs}
+        <div className="surface-card autopost--notice">
+          <p>{needsSetup ? '自動投稿の保存先がまだ用意されていません。' : '自動投稿の読み込みに失敗しました。'}</p>
+          <p className="autopost__hint">
+            {needsSetup
+              ? 'Supabase の SQL Editor で supabase/sql/005_autopost.sql を実行すると使えるようになります。'
+              : error}
+          </p>
+          <button type="button" className="btn btn--ghost" onClick={() => void reload()}>
+            <Icon name="refresh" size={16} />
+            もう一度ためす
+          </button>
+        </div>
       </div>
     )
   }
@@ -230,32 +292,8 @@ export function AutoPostView() {
 
   return (
     <div className="autopost">
-      <header className="autopost__head">
-        <div>
-          <p className="overline">AUTO POST</p>
-          <h1 className="autopost__title">投稿する文</h1>
-        </div>
-        <button type="button" className="btn btn--ghost btn--small" onClick={() => void signOut()} aria-label="ログアウト">
-          <Icon name="logout" size={16} />
-        </button>
-      </header>
-
-      <div className="autopost__tabs" role="tablist" aria-label="投稿先">
-        {CHANNEL_NAMES.map((name) => (
-          <button
-            key={name}
-            type="button"
-            role="tab"
-            aria-selected={current === name}
-            className={`autopost__tab${current === name ? ' active' : ''}`}
-            onClick={() => selectChannel(name)}
-          >
-            {CHANNEL_LABELS[name]}
-            {snapshots?.[name]?.paused && <span className="autopost__tab-flag">停止中</span>}
-            {dirtyOf(name) && <span className="autopost__dirty" aria-label="未保存の変更あり">●</span>}
-          </button>
-        ))}
-      </div>
+      {head}
+      {tabs}
 
       <p className="autopost__info">{CHANNEL_INFO[current]}</p>
       <PosterStatusLine snapshot={snap} now={now} />

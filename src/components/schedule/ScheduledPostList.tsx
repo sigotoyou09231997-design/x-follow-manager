@@ -3,6 +3,7 @@ import { deleteScheduledPost, updateScheduledPost } from '../../lib/schedule/pos
 import { describeRepeatRule } from '../../lib/schedule/repeat'
 import { Icon } from '../Icon'
 import type { ScheduledPost } from '../../lib/schedule/types'
+import { isAutopilotPost } from '../../lib/xAutopilot/types'
 
 type Filter = 'all' | 'scheduled' | 'draft' | 'repeating' | 'posted' | 'failed'
 
@@ -135,6 +136,13 @@ export function ScheduledPostList({ posts, onChanged, onEdit }: Props) {
               </div>
 
               <div className="post-item__body">
+                {/* 自動運転が作った予約。どれがAIの作ったものか分かるように印を付ける（直す・消すは普通の予約と同じ）。 */}
+                {isAutopilotPost(post.aiPrompt) && (
+                  <span className="post-item__ai-label">
+                    <Icon name="sparkles" size={13} />
+                    自動運転でAIが作りました
+                  </span>
+                )}
                 {/* AIおまかせのテンプレートは本文を持たない（毎回サーバー側で書かれる）。
                     そのまま本文欄を描くと空白の札になり、何の予約なのか分からなくなる。 */}
                 {template && post.repeatRule?.autoGenerate ? (

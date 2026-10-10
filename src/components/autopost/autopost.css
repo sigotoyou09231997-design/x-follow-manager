@@ -304,3 +304,261 @@
     -webkit-box-orient: vertical;
   }
 }
+
+/* --- X の自動運転 --- */
+
+.xap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.xap__card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+}
+
+.xap__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.xap__muted {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.xap__line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.xap__warn {
+  color: var(--warning);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* AI がまとめた「この人らしさ」。本人が読んで確かめるので、定義リストで項目ごとに分ける。 */
+.xap__profile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.xap__profile-summary {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-h);
+}
+
+.xap__profile dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.xap__profile dt {
+  color: var(--text-muted);
+}
+
+.xap__profile dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.xap__theme {
+  display: block;
+}
+
+.xap__preview {
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.xap__preview-text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.xap__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.xap__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.xap__field--inline {
+  max-width: 260px;
+}
+
+.xap__quality {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.xap__quality legend {
+  margin-bottom: 6px;
+  padding: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.xap__option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease);
+}
+
+.xap__option--on {
+  background: var(--accent-bg);
+}
+
+.xap__option-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.xap__option-body strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.xap__estimate,
+.xap__usage {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.xap__usage {
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* 自動運転の ON / OFF。動いているあいだは緑の縁取りの代わりに、薄い面の色で状態を示す。 */
+.xap__run {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.xap__run--on {
+  background: var(--success-bg);
+}
+
+.xap__run-text {
+  flex: 1 1 240px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.xap__run-text strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+/* 予約の1行は「時刻＋取り消し」の上段と、本文だけの下段に分ける。
+   本文を時刻とボタンの間に挟むと、狭い画面で数文字ごとに折り返して読めない。 */
+.xap__upcoming li {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.xap__upcoming .xap__when {
+  order: 1;
+  flex: 1 1 auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.xap__upcoming li > button {
+  order: 2;
+}
+
+.xap__upcoming .xap__upcoming-text {
+  order: 3;
+  flex: 1 1 100%;
+  display: block;
+  overflow: visible;
+  white-space: normal;
+  -webkit-line-clamp: unset;
+}
+
+/* 費用の目安を添えた長いボタンが、狭い画面でカードからはみ出さないよう、折り返せるようにする。 */
+.xap .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.4;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+@media (max-width: 480px) {
+  .xap__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .xap__profile dl {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .xap__profile dd {
+    margin-bottom: 6px;
+  }
+
+}

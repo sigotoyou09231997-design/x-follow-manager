@@ -25,6 +25,9 @@ vi.mock('../../lib/autopost/api', async (importOriginal) => ({
   setPaused: api.setPaused,
 }))
 
+// X の自動運転の中身は、専用のテストで確かめる。ここではタブの切り替えだけを見る。
+vi.mock('./XAutopilotPanel', () => ({ XAutopilotPanel: () => <div>X自動運転の中身</div> }))
+
 // SaveConflictError は本物を使う（画面が instanceof で見分けているため）。
 import { SaveConflictError } from '../../lib/autopost/api'
 
@@ -279,6 +282,58 @@ describe('AutoPostView', () => {
       await waitFor(() => expect(box().value).toBe('保存してある文'))
       fireEvent.click(screen.getByRole('tab', { name: /Yay/ }))
       expect(await screen.findByText(/いま出ている投稿は消えずに残ります/)).toBeInTheDocument()
+    })
+  })
+
+  describe('X のタブ', () => {
+    it('開くと X の自動運転の画面になり、見出しも変わる（文の入力欄は出ない）', async () => {
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      fireEvent.click(screen.getByRole('tab', { name: 'X' }))
+      expect(await screen.findByText('X自動運転の中身')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Xの自動運転' })).toBeInTheDocument()
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: 'X' })).toHaveAttribute('aria-selected', 'true')
+    })
+
+    it('最後に開いていたタブとして覚え、次に開いたときも X から始まる', async () => {
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      fireEvent.click(screen.getByRole('tab', { name: 'X' }))
+      expect(localStorage.getItem('autopost_tab')).toBe('x')
+    })
+
+    it('覚えているのが X なら、最初から X が開く', async () => {
+      localStorage.setItem('autopost_tab', 'x')
+      render(<AutoPostView />)
+      expect(await screen.findByText('X自動運転の中身')).toBeInTheDocument()
+    })
+
+    it('ディスコード・Yay の保存先（SQL 005）が読めなくても、X のタブへは行ける', async () => {
+      api.fetchSnapshots.mockRejectedValue(new Error('autopost_channels の読み込みに失敗しました: relation does not exist'))
+      render(<AutoPostView />)
+      expect(await screen.findByText('自動投稿の保存先がまだ用意されていません。')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('tab', { name: 'X' }))
+      expect(await screen.findByText('X自動運転の中身')).toBeInTheDocument()
+    })
+
+    it('X のタブを見ているとき、Cmd+S でディスコードの書きかけを保存してしまわない', async () => {
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      fireEvent.change(box(), { target: { value: '直しかけの文' } })
+      fireEvent.click(screen.getByRole('tab', { name: 'X' }))
+      await screen.findByText('X自動運転の中身')
+      fireEvent.keyDown(document, { key: 's', metaKey: true })
+      expect(api.saveMessages).not.toHaveBeenCalled()
+    })
+
+    it('X から戻ると、ディスコードの書きかけは残っている', async () => {
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      fireEvent.change(box(), { target: { value: '直しかけの文' } })
+      fireEvent.click(screen.getByRole('tab', { name: 'X' }))
+      fireEvent.click(screen.getByRole('tab', { name: /ディスコード/ }))
+      await waitFor(() => expect(box().value).toBe('直しかけの文'))
     })
   })
 })

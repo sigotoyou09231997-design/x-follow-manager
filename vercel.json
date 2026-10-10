@@ -27,6 +27,9 @@
     },
     "api/checkAppUpdate.ts": {
       "maxDuration": 60
+    },
+    "api/xAutopilot.ts": {
+      "maxDuration": 60
     }
   }
 }

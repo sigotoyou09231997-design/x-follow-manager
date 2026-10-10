@@ -1,16 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { requireCronSecret, UnauthorizedError } from './_lib/auth.js'
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
-import {
-  createPost,
-  refreshAccessToken,
-  setMediaAltText,
-  uploadMedia,
-  XApiError,
-} from './_lib/xClient.js'
+import { createPost, fetchOwnPosts, setMediaAltText, uploadMedia, XApiError } from './_lib/xClient.js'
+import { getAccessToken } from './_lib/xToken.js'
 import { nextOccurrence } from '../src/lib/schedule/repeat.js'
 import { anthropicApiKey } from './_lib/postWriter.js'
 import { RECENT_POSTS_TO_AVOID, writeDailyPost } from './_lib/dailyWriter.js'
+import { topUpAll } from './_lib/autopilotEngine.js'
+import { supabaseAutopilotStore } from './_lib/autopilotStore.js'
+import { writeAutopilotPost, writeProfile } from './_lib/autopilotWriter.js'
 import { isOverLimit } from '../src/lib/schedule/textLength.js'
 import type { PostSegment, RepeatRule } from '../src/lib/schedule/types.js'
 
@@ -35,6 +33,8 @@ const AI_BUDGET_MS = 30_000
 const AI_TIMEOUT_MS = 20_000
 /** 生成に失敗したテンプレートをやり直す間隔（分）。 */
 const AI_RETRY_INTERVAL_MINUTES = 15
+/** X の自動運転で、前回うまくいかなかった人をやり直す間隔（分）。 */
+const AUTOPILOT_RETRY_INTERVAL_MINUTES = 5
 
 interface PostRow {
   id: string
@@ -43,13 +43,6 @@ interface PostRow {
   scheduled_at: string
   attempt_count: number
   repeat_parent_id: string | null
-}
-
-interface XAccountRow {
-  user_id: string
-  access_token: string
-  refresh_token: string
-  expires_at: string
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -65,7 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const db = getSupabaseAdmin()
   const startedAt = new Date()
-  const result = { recovered: 0, materialized: 0, generated: 0, posted: 0, failed: 0, retrying: 0 }
+  const result = { recovered: 0, materialized: 0, generated: 0, autopilot: 0, posted: 0, failed: 0, retrying: 0 }
 
   try {
     result.recovered = await recoverStalePosts()
@@ -96,10 +89,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     result.materialized = materialized.created
     result.generated = materialized.generated
 
+    // X の自動運転の補充は、さらにそのあと。投稿を出す仕事を最優先にするため、ここで失敗しても
+    // 上の結果（投稿・次回分の用意）は変えない。AIを呼ぶ本数は、AIおまかせの繰り返しと合わせて上限まで。
+    result.autopilot = await topUpAutopilots(startedAt, MAX_AI_GENERATIONS_PER_RUN - materialized.generated)
+
     return res.status(200).json({ ok: true, ...result })
   } catch (error) {
     console.error('publishDue failed:', error)
     return res.status(500).json({ error: (error as Error).message, ...result })
+  }
+}
+
+/**
+ * X の自動運転: ON の人について、先の枠（今日の残り〜数日先）に、まだ作っていない投稿を予約として並べる。
+ * 作るのは AI を呼ぶ重い処理なので、予算（時間・本数）を使い切っていたら何もしない。次の毎分実行で続きを作る。
+ * ここでの失敗は握りつぶして記録するだけにする（予約の投稿そのものを巻き込まないため）。
+ */
+async function topUpAutopilots(startedAt: Date, allowance: number): Promise<number> {
+  if (allowance <= 0) return 0
+  const apiKey = anthropicApiKey()
+  if (!apiKey) return 0
+  try {
+    const outcome = await topUpAll(
+      {
+        store: supabaseAutopilotStore(),
+        now: () => new Date(),
+        apiKey: () => apiKey,
+        getAccessToken: (userId) => getAccessToken(userId),
+        fetchOwnPosts,
+        writeProfile,
+        writePost: writeAutopilotPost,
+        aiTimeoutMs: AI_TIMEOUT_MS,
+        canStartAi: () => Date.now() - startedAt.getTime() < AI_BUDGET_MS,
+      },
+      { maxGenerations: allowance, retryEveryMinutes: AUTOPILOT_RETRY_INTERVAL_MINUTES }
+    )
+    return outcome.generated
+  } catch (error) {
+    console.error('topUpAutopilots failed:', error)
+    return 0
   }
 }
 
@@ -392,47 +420,6 @@ async function publishOne(post: PostRow, tokenCache: Map<string, string>): Promi
     console.error(`publish failed for ${post.id} (attempt ${attempts}):`, error)
     return willRetry ? 'retrying' : 'failed'
   }
-}
-
-/** 期限が近ければ更新しつつ、有効なアクセストークンを返す。 */
-async function getAccessToken(userId: string, cache: Map<string, string>): Promise<string> {
-  const cached = cache.get(userId)
-  if (cached) return cached
-
-  const db = getSupabaseAdmin()
-  const { data, error } = await db
-    .from('x_accounts')
-    .select('user_id, access_token, refresh_token, expires_at')
-    .eq('user_id', userId)
-    .maybeSingle()
-  if (error) throw new Error(`X連携情報の取得に失敗しました: ${error.message}`)
-  if (!data) throw new XApiError('Xアカウントが連携されていません', 400, false)
-
-  const account = data as XAccountRow
-  // 失効の5分前から更新する。投稿の途中で切れるより早めに更新した方が安全。
-  const expiresSoon = new Date(account.expires_at).getTime() - Date.now() < 5 * 60_000
-  if (!expiresSoon) {
-    cache.set(userId, account.access_token)
-    return account.access_token
-  }
-
-  // Xのリフレッシュトークンは使い捨てで、更新のたびに新しいものが返る。
-  // 保存に失敗すると次回以降ずっと更新できなくなるため、必ず書き戻す。
-  const tokens = await refreshAccessToken(account.refresh_token)
-  const { error: saveError } = await db
-    .from('x_accounts')
-    .update({
-      access_token: tokens.accessToken,
-      refresh_token: tokens.refreshToken,
-      expires_at: tokens.expiresAt,
-      scope: tokens.scope,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('user_id', userId)
-  if (saveError) throw new Error(`トークンの保存に失敗しました: ${saveError.message}`)
-
-  cache.set(userId, tokens.accessToken)
-  return tokens.accessToken
 }
 
 /** スレッド（連投）に対応した投稿処理。2件目以降は直前の投稿への返信として繋げる。 */

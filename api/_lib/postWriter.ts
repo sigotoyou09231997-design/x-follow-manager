@@ -78,6 +78,10 @@ export interface WritePostsInput {
   effort?: 'low' | 'medium' | 'high'
   /** 応答が返らないまま関数の実行時間を食い尽くさないための上限(ミリ秒)。 */
   timeoutMs?: number
+  /** 使うAI。省略すると MODEL。自動運転は、画面で選ばれた「文章の質」に合わせて変える。 */
+  model?: string
+  /** 使ったトークン数の報告。費用の記録（月の上限の判定）に使う。 */
+  onUsage?: (usage: { inputTokens: number; outputTokens: number }) => void
 }
 
 /**
@@ -88,7 +92,7 @@ export async function writePosts(input: WritePostsInput): Promise<GeneratedPost[
   const client = new Anthropic({ apiKey: input.apiKey })
   const response = await client.messages.parse(
     {
-      model: MODEL,
+      model: input.model ?? MODEL,
       max_tokens: 16000,
       thinking: { type: 'adaptive' },
       system: input.system,
@@ -100,6 +104,9 @@ export async function writePosts(input: WritePostsInput): Promise<GeneratedPost[
     },
     input.timeoutMs ? { timeout: input.timeoutMs } : undefined
   )
+
+  // 断られた場合も、呼び出し自体には費用がかかっている。先に報告する。
+  input.onUsage?.({ inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens })
 
   if (response.stop_reason === 'refusal') {
     throw new RefusedError('この内容では投稿文を生成できませんでした')

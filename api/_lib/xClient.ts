@@ -282,3 +282,72 @@ export async function createPost(
   const data = JSON.parse(text) as { data: { id: string } }
   return data.data.id
 }
+
+/** 自分のタイムラインから読んだ投稿1件（必要な項目だけ）。 */
+export interface OwnPost {
+  id: string
+  text: string
+  created_at?: string
+  public_metrics?: { like_count?: number; retweet_count?: number }
+}
+
+/** 読み取りの失敗を、原因と次にやることが分かる文にする。X の返事の中身は短く添える。 */
+export function describeReadFailure(status: number, body: string): string {
+  const detail = body.replace(/\s+/g, ' ').slice(0, 200)
+  switch (status) {
+    case 401:
+      return `Xの認証が無効です。予約投稿タブで「Xと連携」し直してください（${status}）`
+    case 402:
+      return `X APIのクレジットが足りません。X開発者コンソールでクレジットを購入してください（${status}）`
+    case 403:
+      return (
+        'このXアプリには、自分の投稿を読む権限がありません。X開発者コンソールで、アプリの権限とクレジット' +
+        `（従量課金）の状態を確認してください（${status}: ${detail}）`
+      )
+    case 429:
+      return `Xの利用制限に達しました。しばらく待ってからもう一度お試しください（${status}）`
+    default:
+      return `自分の投稿を読み込めませんでした（${status}: ${detail}）`
+  }
+}
+
+/** 一度に読む上限。自分の投稿の読み取りは1件 $0.001 なので、400件でも約60円。 */
+export const MAX_HISTORY_READ = 400
+
+/**
+ * 自分のタイムラインを新しい順に読む（返信とリポストは除く）。
+ * sinceId を渡すと、それより新しい投稿だけを読む（読み取りは件数で課金されるので、更新は差分だけにする）。
+ */
+export async function fetchOwnPosts(
+  accessToken: string,
+  xUserId: string,
+  options: { limit: number; sinceId?: string }
+): Promise<OwnPost[]> {
+  const limit = Math.min(Math.max(Math.floor(options.limit), 1), MAX_HISTORY_READ)
+  const posts: OwnPost[] = []
+  let paginationToken: string | undefined
+
+  while (posts.length < limit) {
+    const params = new URLSearchParams({
+      // max_results は 5〜100。
+      max_results: String(Math.min(100, Math.max(5, limit - posts.length))),
+      exclude: 'retweets,replies',
+      'tweet.fields': 'created_at,public_metrics',
+    })
+    if (options.sinceId) params.set('since_id', options.sinceId)
+    if (paginationToken) params.set('pagination_token', paginationToken)
+
+    const response = await fetch(`https://api.x.com/2/users/${xUserId}/tweets?${params}`, {
+      headers: { authorization: `Bearer ${accessToken}` },
+    })
+    const text = await response.text()
+    if (!response.ok) {
+      throw new XApiError(describeReadFailure(response.status, text), response.status, response.status === 429 || response.status >= 500)
+    }
+    const data = JSON.parse(text) as { data?: OwnPost[]; meta?: { next_token?: string } }
+    posts.push(...(data.data ?? []))
+    paginationToken = data.meta?.next_token
+    if (!paginationToken) break
+  }
+  return posts.slice(0, limit)
+}
