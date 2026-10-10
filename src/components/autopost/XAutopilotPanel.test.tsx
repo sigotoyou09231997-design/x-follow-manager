@@ -27,20 +27,13 @@ vi.mock('../../lib/schedule/postsStore', () => ({ deleteScheduledPost: posts.rem
 import { XAutopilotError } from '../../lib/xAutopilot/api'
 import { XAutopilotPanel } from './XAutopilotPanel'
 
-const PROFILE = {
-  summary: 'ゆるい独り言が多い',
-  voice: { person: '一人称なし', endings: ['〜かも', '〜だなあ'], emoji: 'ほぼ使わない', layout: '1〜2文' },
-  themes: [{ name: '朝の気分', note: '短くつぶやく' }],
-  avoid: [],
-}
-
 function state(patch: Partial<AutopilotState> = {}): AutopilotState {
   return {
     enabled: false,
     settings: { ...DEFAULT_SETTINGS },
     xAccount: { username: 'me' },
     history: { total: 0, fetchedAt: null, newestAt: null, oldestAt: null },
-    profile: null,
+    profileReady: false,
     profileBuiltAt: null,
     usage: emptyUsage('2026-10'),
     lastError: null,
@@ -50,7 +43,8 @@ function state(patch: Partial<AutopilotState> = {}): AutopilotState {
 
 const withProfile = (patch: Partial<AutopilotState> = {}) =>
   state({
-    profile: PROFILE,
+    profileReady: true,
+    profileBuiltAt: '2026-10-09T00:00:00Z',
     history: { total: 120, fetchedAt: '2026-10-09T00:00:00Z', newestAt: '2026-10-08T00:00:00Z', oldestAt: '2026-06-01T00:00:00Z' },
     ...patch,
   })
@@ -89,7 +83,7 @@ describe('XAutopilotPanel: 文体', () => {
     expect(screen.getByText(/Xと連携中（@me）/)).toBeInTheDocument()
   })
 
-  it('押すと、読み込み → まとめの順に実行し、終わったら文体を見せる', async () => {
+  it('押すと、読み込み → まとめの順に実行し、終わったら「まとめ済み」とだけ見せる（中身は出さない）', async () => {
     const order: string[] = []
     api.readAutopilotHistory.mockImplementation(async () => {
       order.push('read')
@@ -103,9 +97,12 @@ describe('XAutopilotPanel: 文体', () => {
     fireEvent.click(await screen.findByRole('button', { name: /過去の投稿を読んで、文体をまとめる/ }))
     expect(await screen.findByText('読み込んで、文体をまとめました')).toBeInTheDocument()
     expect(order).toEqual(['read', 'profile'])
-    expect(screen.getByText('ゆるい独り言が多い')).toBeInTheDocument()
-    expect(screen.getByText('〜かも / 〜だなあ')).toBeInTheDocument()
+    expect(screen.getByText(/文体のまとめ済み/)).toBeInTheDocument()
     expect(screen.getByText(/読み込み済み 120件/)).toBeInTheDocument()
+    // 文体のまとめの中身（要約・語尾・話題）は、本人の希望で画面に出さない。
+    expect(screen.queryByText('一人称・呼びかけ')).not.toBeInTheDocument()
+    expect(screen.queryByText('よく使う語尾')).not.toBeInTheDocument()
+    expect(screen.queryByText('よく書く話題')).not.toBeInTheDocument()
   })
 
   it('Xと連携していなければ押せず、連携の案内を出す', async () => {
@@ -199,6 +196,114 @@ describe('XAutopilotPanel: 設定と費用の見積もり', () => {
     render(<XAutopilotPanel />)
     fireEvent.change(await screen.findByLabelText('1日の投稿数'), { target: { value: '5' } })
     expect(screen.getByText(/まだ出ていない予約は新しい設定で作り直されます/)).toBeInTheDocument()
+  })
+})
+
+describe('XAutopilotPanel: 設定が確実に使われる', () => {
+  beforeEach(() => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile() })
+  })
+
+  it('保存せずに「始める」を押しても、変えた設定を先に保存してから始める（保存済みの古い設定で始めない）', async () => {
+    const order: string[] = []
+    api.saveAutopilotSettings.mockImplementation(async (input: unknown) => {
+      order.push(`save:${JSON.stringify(input)}`)
+      return { state: withProfile({ settings: { ...DEFAULT_SETTINGS, postsPerDay: 2 } }) }
+    })
+    api.startAutopilot.mockImplementation(async () => {
+      order.push('start')
+      return { state: withProfile({ enabled: true, settings: { ...DEFAULT_SETTINGS, postsPerDay: 2 } }) }
+    })
+    render(<XAutopilotPanel />)
+    fireEvent.change(await screen.findByLabelText('1日の投稿数'), { target: { value: '2' } })
+    fireEvent.click(button('自動運転を始める'))
+    expect(await screen.findByText('自動運転中')).toBeInTheDocument()
+    expect(order).toEqual(['save:{"postsPerDay":2}', 'start'])
+    // 保存し終えたので、「設定を保存する」は残らない。
+    expect(screen.queryByRole('button', { name: '設定を保存する' })).not.toBeInTheDocument()
+  })
+
+  it('変えていなければ、保存を挟まずに始める', async () => {
+    api.startAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    render(<XAutopilotPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: '自動運転を始める' }))
+    expect(await screen.findByText('自動運転中')).toBeInTheDocument()
+    expect(api.saveAutopilotSettings).not.toHaveBeenCalled()
+  })
+
+  it('試し書きも、変えた「文章の質」を先に保存してから書かせる', async () => {
+    api.saveAutopilotSettings.mockResolvedValue({ state: withProfile({ settings: { ...DEFAULT_SETTINGS, quality: 'saver' } }) })
+    api.previewAutopilotPost.mockResolvedValue({ state: withProfile(), preview: { text: '節約で書いた', problems: [] } })
+    render(<XAutopilotPanel />)
+    fireEvent.click(await screen.findByRole('radio', { name: /節約/ }))
+    fireEvent.click(button(/試し書き/))
+    expect(await screen.findByText('節約で書いた')).toBeInTheDocument()
+    expect(api.saveAutopilotSettings).toHaveBeenCalledWith({ quality: 'saver' })
+    expect(api.saveAutopilotSettings.mock.invocationCallOrder[0]).toBeLessThan(api.previewAutopilotPost.mock.invocationCallOrder[0])
+  })
+
+  it('保存は済んだのに、あとの操作が失敗したら、理由を出して状態を取り直す', async () => {
+    api.saveAutopilotSettings.mockResolvedValue({ state: withProfile() })
+    api.startAutopilot.mockRejectedValue(new XAutopilotError('Xと連携していません', 400))
+    render(<XAutopilotPanel />)
+    fireEvent.change(await screen.findByLabelText('1日の投稿数'), { target: { value: '2' } })
+    const before = api.fetchAutopilot.mock.calls.length
+    fireEvent.click(button('自動運転を始める'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Xと連携していません')
+    await waitFor(() => expect(api.fetchAutopilot.mock.calls.length).toBeGreaterThan(before))
+  })
+
+  it('時間帯の終わりが始めより前なら、黙って既定に戻さず理由を出し、保存も開始も押せない', async () => {
+    render(<XAutopilotPanel />)
+    fireEvent.change(await screen.findByLabelText('投稿する時間帯（終わり）'), { target: { value: '07:00' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('1時間以上あけてください')
+    expect(button('設定を保存する')).toBeDisabled()
+    expect(button('自動運転を始める')).toBeDisabled()
+    expect(button(/試し書き/)).toBeDisabled()
+    expect(screen.queryByText(/予約は最大\d+本が並びます/)).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('投稿する時間帯（終わり）'), { target: { value: '23:00' } })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(button('自動運転を始める')).toBeEnabled()
+  })
+
+  it('時刻が空（入力の途中）でも、理由を出して止める', async () => {
+    render(<XAutopilotPanel />)
+    fireEvent.change(await screen.findByLabelText('投稿する時間帯（始め）'), { target: { value: '' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('時刻を入力してください')
+    expect(button('設定を保存する')).toBeDisabled()
+  })
+
+  it('時間帯が狭くて入りきらない回数は、入る回数を教えて止める', async () => {
+    render(<XAutopilotPanel />)
+    fireEvent.change(await screen.findByLabelText('投稿する時間帯（終わり）'), { target: { value: '10:00' } })
+    fireEvent.change(screen.getByLabelText('1日の投稿数'), { target: { value: '5' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('1日4回までしか入りません')
+    expect(button('設定を保存する')).toBeDisabled()
+  })
+
+  it('月の上限が範囲外なら、範囲を教えて止める', async () => {
+    render(<XAutopilotPanel />)
+    fireEvent.change(await screen.findByLabelText('月の使用額の上限（円）'), { target: { value: '100' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('300〜50,000円')
+    expect(button('設定を保存する')).toBeDisabled()
+  })
+
+  it('時刻の地域と、日ごとにずらすことを伝え、並ぶ予約の最大本数を見せる', async () => {
+    render(<XAutopilotPanel />)
+    expect(await screen.findByText(/時刻は日本時間です/)).toBeInTheDocument()
+    expect(screen.getByText(/日ごとに少しずらして決まります/)).toBeInTheDocument()
+    expect(screen.getByText(/1日3回 × 2日先まで ＝ 予約は最大6本が並びます/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('1日の投稿数'), { target: { value: '2' } })
+    expect(screen.getByText(/1日2回 × 2日先まで ＝ 予約は最大4本が並びます/)).toBeInTheDocument()
+  })
+
+  it('予約の時刻は、端末の時差ではなく設定の地域（日本時間）で見せる', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    posts.list = [post('a', { scheduledAt: '2026-10-11T03:00:00.000Z' })] // 日本時間 12:00
+    render(<XAutopilotPanel />)
+    const item = within(await screen.findByRole('list')).getByRole('listitem')
+    expect(item).toHaveTextContent('12:00')
   })
 })
 

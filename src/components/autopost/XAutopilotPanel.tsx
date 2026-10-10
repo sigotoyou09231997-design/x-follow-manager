@@ -18,6 +18,7 @@ import {
   type AutopilotState,
   type Quality,
 } from '../../lib/xAutopilot/types'
+import { settingsProblems } from '../../lib/xAutopilot/slots'
 import { deleteScheduledPost } from '../../lib/schedule/postsStore'
 import { Icon } from '../Icon'
 
@@ -28,10 +29,14 @@ const QUALITY_ORDER: Quality[] = ['standard', 'saver']
 
 const dayLabel = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric' }) : '')
 
-const whenLabel = (iso?: string) =>
+// 設定の時間帯は設定の地域の時刻。予約の時刻も同じ地域で見せないと、端末の時差しだいで
+// 「8時〜23時にしたのに予約は別の時刻」に見える。
+const whenLabel = (iso: string | undefined, timeZone: string) =>
   iso
-    ? new Date(iso).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' })
+    ? new Date(iso).toLocaleString('ja-JP', { timeZone, month: 'numeric', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' })
     : '日時未設定'
+
+const zoneName = (timeZone: string) => (timeZone === 'Asia/Tokyo' ? '日本時間' : timeZone)
 
 /** 1本書く費用の目安（円）。 */
 const previewYen = (quality: Quality) => aiCostYen(quality, TYPICAL_TOKENS.postInput, TYPICAL_TOKENS.postOutput)
@@ -91,9 +96,12 @@ export function XAutopilotPanel() {
   const form: AutopilotSettings = { ...state.settings, ...edits }
   const dirty = (Object.keys(edits) as (keyof AutopilotSettings)[]).some((k) => edits[k] !== state.settings[k])
   const working = busy !== null
-  const hasProfile = !!state.profile
+  const hasProfile = state.profileReady
   const connected = !!state.xAccount
   const monthly = monthlyYen(form.quality, form.postsPerDay)
+  // 入力の途中の値や押し間違いを、黙って別の設定に直さない。直す所を見せて、先へ進ませない。
+  const problems = settingsProblems(form)
+  const blocked = problems.length > 0
 
   async function act(label: string, action: () => Promise<ActionReply>, onDone?: (reply: ActionReply) => void) {
     setNotice(undefined)
@@ -102,20 +110,35 @@ export function XAutopilotPanel() {
       onDone?.(reply)
     } catch (err) {
       setNotice({ text: errorOf(err), kind: 'err' })
+      // 保存だけ済んで後ろの操作が失敗したとき、画面の状態が古いままにならないよう取り直す。
+      void reload()
     } finally {
       setStep(undefined)
     }
   }
 
+  /**
+   * 押したボタンの金額や動作は、画面で選んでいる設定（form）で見せている。ところがサーバーは保存済みの設定で動くので、
+   * 「保存する」を押さないまま「始める」「試し書き」を押すと、変えたはずの設定（1日2回など）が使われず、
+   * 古い設定で予約が作られていた。先に保存してから動かす。
+   */
+  const saveThen = (action: () => Promise<ActionReply>) => async () => {
+    if (dirty) {
+      await saveAutopilotSettings(edits)
+      setEdits({})
+    }
+    return action()
+  }
+
   const doSetup = () =>
     act(
       'setup',
-      async () => {
+      saveThen(async () => {
         setStep('過去の投稿を読み込んでいます…')
         await readAutopilotHistory()
         setStep('文体をまとめています…（30秒ほどかかります）')
         return buildAutopilotProfile()
-      },
+      }),
       () => setNotice({ text: '読み込んで、文体をまとめました', kind: 'ok' })
     )
 
@@ -126,10 +149,10 @@ export function XAutopilotPanel() {
     })
 
   const doRebuild = () =>
-    act('profile', () => buildAutopilotProfile(), () => setNotice({ text: '文体をまとめ直しました', kind: 'ok' }))
+    act('profile', saveThen(buildAutopilotProfile), () => setNotice({ text: '文体をまとめ直しました', kind: 'ok' }))
 
   const doPreview = () =>
-    act('preview', () => previewAutopilotPost(), (reply) => setPreview(reply.preview))
+    act('preview', saveThen(previewAutopilotPost), (reply) => setPreview(reply.preview))
 
   const doSave = () =>
     act('save', () => saveAutopilotSettings(edits), (reply) => {
@@ -142,7 +165,7 @@ export function XAutopilotPanel() {
     })
 
   const doStart = () =>
-    act('start', () => startAutopilot(), () => {
+    act('start', saveThen(startAutopilot), () => {
       setNotice({ text: '自動運転を始めました。予約はこのあと数分で並びます', kind: 'ok' })
       void reloadPosts()
     })
@@ -186,6 +209,7 @@ export function XAutopilotPanel() {
         step={step}
         working={working}
         connected={connected}
+        blocked={blocked}
         onSetup={() => void doSetup()}
         onReadNew={() => void doReadNew()}
         onRebuild={() => void doRebuild()}
@@ -195,7 +219,7 @@ export function XAutopilotPanel() {
         <h2 className="xap__title">試しに1本書いてみる</h2>
         <p className="xap__muted">いまの文体で、1本だけ書かせます。予約には入れません。気に入らなければ、設定を変えてもう一度。</p>
         <div className="autopost__actions">
-          <button type="button" className="btn btn--secondary" onClick={() => void doPreview()} disabled={!hasProfile || working}>
+          <button type="button" className="btn btn--secondary" onClick={() => void doPreview()} disabled={!hasProfile || working || blocked}>
             <Icon name="sparkles" size={16} />
             {busy === 'preview' ? '書いています…' : `試し書き（約${formatYen(previewYen(form.quality))}）`}
           </button>
@@ -252,6 +276,17 @@ export function XAutopilotPanel() {
             <input type="time" value={form.windowEnd} onChange={(e) => setEdits((p) => ({ ...p, windowEnd: e.target.value }))} />
           </label>
         </div>
+        <p className="xap__muted">
+          時刻は{zoneName(form.timeZone)}です。投稿の時刻は、この時間帯を回数で等分した真ん中あたりを基準に、日ごとに少しずらして決まります
+          （毎日同じ時刻だと機械的に見えるため）。
+        </p>
+        {blocked && (
+          <ul className="xap__warn xap__problems" role="alert">
+            {problems.map((problem) => (
+              <li key={problem}>{problem}</li>
+            ))}
+          </ul>
+        )}
 
         <fieldset className="xap__quality">
           <legend>文章の質（使うAI）</legend>
@@ -283,6 +318,11 @@ export function XAutopilotPanel() {
           />
         </label>
 
+        {!blocked && (
+          <p className="xap__muted">
+            1日{form.postsPerDay}回 × {form.horizonDays}日先まで ＝ 予約は最大{form.postsPerDay * form.horizonDays}本が並びます
+          </p>
+        )}
         <p className="xap__estimate">
           この設定の<strong>月の目安: 約{formatYen(monthly)}</strong>
           <span className="xap__muted">
@@ -296,7 +336,7 @@ export function XAutopilotPanel() {
 
         {dirty && (
           <div className="autopost__actions">
-            <button type="button" className="btn btn--primary" onClick={() => void doSave()} disabled={working}>
+            <button type="button" className="btn btn--primary" onClick={() => void doSave()} disabled={working || blocked}>
               {busy === 'save' ? '保存しています…' : '設定を保存する'}
             </button>
             <button type="button" className="btn btn--ghost" onClick={() => setEdits({})} disabled={working}>
@@ -314,6 +354,7 @@ export function XAutopilotPanel() {
           working={working}
           hasProfile={hasProfile}
           connected={connected}
+          blocked={blocked}
           onStart={() => void doStart()}
           onStop={() => void doStop()}
         />
@@ -327,7 +368,7 @@ export function XAutopilotPanel() {
           <ul className="autopost__history xap__upcoming">
             {upcoming.map((post) => (
               <li key={post.id}>
-                <span className="xap__when">{whenLabel(post.scheduledAt)}</span>
+                <span className="xap__when">{whenLabel(post.scheduledAt, state.settings.timeZone)}</span>
                 <span className="autopost__history-text xap__upcoming-text">{post.segments[0]?.text}</span>
                 <button type="button" className="btn btn--ghost btn--small btn--danger" onClick={() => void cancelOne(post.id)}>
                   <Icon name="trash" size={14} />
@@ -354,14 +395,17 @@ interface StyleCardProps {
   step?: string
   working: boolean
   connected: boolean
+  /** 設定に直す所がある（保存済みの設定とずれたまま動かさない）。 */
+  blocked: boolean
   onSetup: () => void
   onReadNew: () => void
   onRebuild: () => void
 }
 
-function StyleCard({ state, quality, busy, step, working, connected, onSetup, onReadNew, onRebuild }: StyleCardProps) {
-  const { profile, history } = state
-  const first = !profile
+// 文体のまとめの中身（要約・語尾・話題）は、ここには出さない。本人の希望で、裏（Supabase の x_autopilot.profile）でだけ見られる。
+function StyleCard({ state, quality, busy, step, working, connected, blocked, onSetup, onReadNew, onRebuild }: StyleCardProps) {
+  const { history } = state
+  const first = !state.profileReady
   const rebuildYen = aiCostYen(quality, TYPICAL_TOKENS.profileInput, TYPICAL_TOKENS.profileOutput)
 
   return (
@@ -378,36 +422,13 @@ function StyleCard({ state, quality, busy, step, working, connected, onSetup, on
           : 'まだ過去の投稿を読み込んでいません'}
       </p>
 
-      {profile && (
-        <div className="xap__profile">
-          <p className="xap__profile-summary">{profile.summary}</p>
-          <dl>
-            <dt>一人称・呼びかけ</dt>
-            <dd>{profile.voice.person}</dd>
-            <dt>よく使う語尾</dt>
-            <dd>{profile.voice.endings.join(' / ') || '特になし'}</dd>
-            <dt>絵文字・記号</dt>
-            <dd>{profile.voice.emoji}</dd>
-            <dt>長さ・改行</dt>
-            <dd>{profile.voice.layout}</dd>
-            <dt>よく書く話題</dt>
-            <dd>
-              {profile.themes.length === 0
-                ? '特になし'
-                : profile.themes.map((t) => (
-                    <span key={t.name} className="xap__theme">
-                      <strong>{t.name}</strong>
-                      {t.note && <span className="xap__muted">：{t.note}</span>}
-                    </span>
-                  ))}
-            </dd>
-          </dl>
-        </div>
-      )}
+      <p className="xap__line xap__muted">
+        {state.profileReady ? `文体のまとめ済み（${dayLabel(state.profileBuiltAt)}）` : 'まだ文体をまとめていません'}
+      </p>
 
       <div className="autopost__actions">
         {first ? (
-          <button type="button" className="btn btn--primary" onClick={onSetup} disabled={!connected || working}>
+          <button type="button" className="btn btn--primary" onClick={onSetup} disabled={!connected || working || blocked}>
             {busy === 'setup' ? (step ?? '実行しています…') : `過去の投稿を読んで、文体をまとめる（約${formatYen(setupYen(quality))}）`}
           </button>
         ) : (
@@ -415,7 +436,7 @@ function StyleCard({ state, quality, busy, step, working, connected, onSetup, on
             <button type="button" className="btn btn--secondary" onClick={onReadNew} disabled={!connected || working}>
               {busy === 'read' ? '読み込んでいます…' : '新しい投稿だけ取り込む（ほぼ無料）'}
             </button>
-            <button type="button" className="btn btn--ghost" onClick={onRebuild} disabled={working}>
+            <button type="button" className="btn btn--ghost" onClick={onRebuild} disabled={working || blocked}>
               {busy === 'profile' ? 'まとめています…' : `文体をまとめ直す（約${formatYen(rebuildYen)}）`}
             </button>
           </>
@@ -435,11 +456,12 @@ interface RunControlProps {
   working: boolean
   hasProfile: boolean
   connected: boolean
+  blocked: boolean
   onStart: () => void
   onStop: () => void
 }
 
-function RunControl({ state, busy, working, hasProfile, connected, onStart, onStop }: RunControlProps) {
+function RunControl({ state, busy, working, hasProfile, connected, blocked, onStart, onStop }: RunControlProps) {
   const ready = hasProfile && connected
   return (
     <div className={`xap__run xap__run--${state.enabled ? 'on' : 'off'}`}>
@@ -463,7 +485,7 @@ function RunControl({ state, busy, working, hasProfile, connected, onStart, onSt
           {busy === 'stop' ? '止めています…' : '自動運転を止める'}
         </button>
       ) : (
-        <button type="button" className="btn btn--primary" onClick={onStart} disabled={!ready || working}>
+        <button type="button" className="btn btn--primary" onClick={onStart} disabled={!ready || working || blocked}>
           {busy === 'start' ? '始めています…' : '自動運転を始める'}
         </button>
       )}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { localDate, localMonth, normalizeSettings, planSlots } from './slots'
+import { localDate, localMonth, normalizeSettings, planSlots, settingsProblems } from './slots'
 import { DEFAULT_SETTINGS, type AutopilotSettings } from './types'
 
 const settings = (patch: Partial<AutopilotSettings> = {}): AutopilotSettings => ({ ...DEFAULT_SETTINGS, ...patch })
@@ -34,6 +34,48 @@ describe('設定を使える形に直す', () => {
   it('投稿数は時間帯に収まる数まで（間隔の下限30分があるので、2時間に8本は入らない）', () => {
     const n = normalizeSettings({ postsPerDay: 8, windowStart: '10:00', windowEnd: '12:00' })
     expect(n.postsPerDay).toBe(4)
+  })
+})
+
+describe('設定が成り立つか（直さずに理由を返す）', () => {
+  it('既定の設定・保存済みの設定は問題なし', () => {
+    expect(settingsProblems(DEFAULT_SETTINGS)).toEqual([])
+    expect(settingsProblems(normalizeSettings({ postsPerDay: 2, windowStart: '10:00', windowEnd: '20:00' }))).toEqual([])
+  })
+
+  it('一部の項目だけでも調べられる（無い項目は調べない）', () => {
+    expect(settingsProblems({ quality: 'saver' })).toEqual([])
+    expect(settingsProblems({ postsPerDay: 2 })).toEqual([])
+  })
+
+  it('時間帯: 空・形が違う・終わりが始めより前・1時間未満は断る', () => {
+    expect(settingsProblems({ windowStart: '', windowEnd: '23:00' })[0]).toMatch(/時刻を入力/)
+    expect(settingsProblems({ windowStart: '8:00', windowEnd: '23:00' })[0]).toMatch(/時刻を入力/)
+    expect(settingsProblems({ windowStart: '20:00', windowEnd: '08:00' })[0]).toMatch(/1時間以上/)
+    expect(settingsProblems({ windowStart: '08:00', windowEnd: '08:30' })[0]).toMatch(/1時間以上/)
+    expect(settingsProblems({ windowStart: '08:00', windowEnd: '09:00' })).toEqual([])
+  })
+
+  it('回数: 範囲外・小数は断り、時間帯に入りきらない回数は入る回数を教える', () => {
+    expect(settingsProblems({ postsPerDay: 0 })[0]).toMatch(/1〜8回/)
+    expect(settingsProblems({ postsPerDay: 9 })[0]).toMatch(/1〜8回/)
+    expect(settingsProblems({ postsPerDay: 1.5 })[0]).toMatch(/1〜8回/)
+    // 8:00〜10:00 は 120分 ÷ 30分 = 4回まで。
+    expect(settingsProblems({ windowStart: '08:00', windowEnd: '10:00', postsPerDay: 5 })[0]).toMatch(/1日4回までしか/)
+    expect(settingsProblems({ windowStart: '08:00', windowEnd: '10:00', postsPerDay: 4 })).toEqual([])
+  })
+
+  it('日数・月の上限: 範囲外は断る', () => {
+    expect(settingsProblems({ horizonDays: 0 })[0]).toMatch(/1〜3日/)
+    expect(settingsProblems({ horizonDays: 4 })[0]).toMatch(/1〜3日/)
+    expect(settingsProblems({ monthlyBudgetYen: 299 })[0]).toMatch(/300〜50,000円/)
+    expect(settingsProblems({ monthlyBudgetYen: 50_001 })[0]).toMatch(/300〜50,000円/)
+    expect(settingsProblems({ monthlyBudgetYen: Number.NaN })[0]).toMatch(/300〜50,000円/)
+    expect(settingsProblems({ monthlyBudgetYen: 300 })).toEqual([])
+  })
+
+  it('複数の問題は、全部返す', () => {
+    expect(settingsProblems({ postsPerDay: 20, horizonDays: 9 }).length).toBe(2)
   })
 })
 

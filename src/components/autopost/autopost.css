@@ -347,43 +347,11 @@
   line-height: 1.6;
 }
 
-/* AI がまとめた「この人らしさ」。本人が読んで確かめるので、定義リストで項目ごとに分ける。 */
-.xap__profile {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-}
-
-.xap__profile-summary {
+/* 設定に直す所の一覧。点を付けると押せる項目に見えるので、点なしの短い行で並べる。 */
+.xap__problems {
   margin: 0;
-  font-size: 14px;
-  line-height: 1.7;
-  color: var(--text-h);
-}
-
-.xap__profile dl {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 6px 14px;
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.xap__profile dt {
-  color: var(--text-muted);
-}
-
-.xap__profile dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.xap__theme {
-  display: block;
+  padding: 0;
+  list-style: none;
 }
 
 .xap__preview {
@@ -550,15 +518,6 @@
 @media (max-width: 480px) {
   .xap__grid {
     grid-template-columns: 1fr;
-  }
-
-  .xap__profile dl {
-    grid-template-columns: 1fr;
-    gap: 2px;
-  }
-
-  .xap__profile dd {
-    margin-bottom: 6px;
   }
 
 }

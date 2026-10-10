@@ -76,7 +76,7 @@ describe('ログインと形式', () => {
 })
 
 describe('状態', () => {
-  it('GET で、設定・履歴の件数と日付・文体のまとめ・今月の使用額を返す（履歴の本文は返さない）', async () => {
+  it('GET で、設定・履歴の件数と日付・文体のまとめの有無・今月の使用額を返す（履歴の本文も、まとめの中身も返さない）', async () => {
     const { handler } = setup(ready())
     const r = await call(handler, { method: 'GET', ...AS_OWNER })
     expect(r.status).toBe(200)
@@ -85,10 +85,18 @@ describe('状態', () => {
     expect(state.settings.postsPerDay).toBe(3)
     expect(state.history).toMatchObject({ total: 40 })
     expect(state.history.newestAt > state.history.oldestAt).toBe(true)
-    expect(state.profile.summary).toBeTruthy()
+    expect(state.profileReady).toBe(true)
     expect(state.xAccount).toEqual({ username: 'me' })
     expect(state.usage.yen).toBe(0)
     expect(JSON.stringify(state)).not.toContain('過去の投稿その') // 履歴の本文は送らない
+    // 文体のまとめの中身（要約・語尾・話題）は、本人の希望で返事に載せない。見られるのは Supabase の x_autopilot.profile だけ。
+    expect(state.profile).toBeUndefined()
+    expect(JSON.stringify(state)).not.toContain('ゆるい独り言が多い')
+  })
+
+  it('文体のまとめが無ければ profileReady は false', async () => {
+    const r = await call(setup(memoryStore({ history: history(40) })).handler, { method: 'GET', ...AS_OWNER })
+    expect(r.body.state.profileReady).toBe(false)
   })
 
   it('Xと連携していなければ xAccount は null', async () => {
@@ -122,7 +130,9 @@ describe('操作', () => {
     const store = memoryStore({ history: history(40) })
     const r = await call(setup(store).handler, { ...AS_OWNER, body: { action: 'buildProfile' } })
     expect(r.status).toBe(200)
-    expect(r.body.state.profile.summary).toBe('ゆるい独り言が多い')
+    expect(r.body.state.profileReady).toBe(true)
+    expect(JSON.stringify(r.body)).not.toContain('ゆるい独り言が多い') // 中身は返さない（保存だけする）
+    expect(store.rows.get(OWNER)?.profile?.summary).toBe('ゆるい独り言が多い')
   })
 
   it('試し書き: 本文と、検査に落ちた理由（あれば）を返す。予約は作らない', async () => {
@@ -147,12 +157,16 @@ describe('操作', () => {
     expect(store.posts.every((p) => p.status === 'canceled')).toBe(true)
   })
 
-  it('設定を保存する: 範囲外は直し、枠が変わったかも返す', async () => {
+  it('設定を保存する: 枠が変わったかも返す。範囲外は直さず、理由つきで400', async () => {
     const { handler } = setup(ready())
-    const r = await call(handler, { ...AS_OWNER, body: { action: 'saveSettings', settings: { postsPerDay: 99 } } })
+    const r = await call(handler, { ...AS_OWNER, body: { action: 'saveSettings', settings: { postsPerDay: 2 } } })
     expect(r.status).toBe(200)
-    expect(r.body.state.settings.postsPerDay).toBe(8)
+    expect(r.body.state.settings.postsPerDay).toBe(2)
     expect(r.body.rebuilt).toBe(true)
+
+    const bad = await call(handler, { ...AS_OWNER, body: { action: 'saveSettings', settings: { postsPerDay: 99 } } })
+    expect(bad.status).toBe(400)
+    expect(bad.body.error).toMatch(/1〜8回/)
 
     expect((await call(handler, { ...AS_OWNER, body: { action: 'saveSettings', settings: 'x' } })).status).toBe(400)
     expect((await call(handler, { ...AS_OWNER, body: { action: 'saveSettings' } })).status).toBe(400)

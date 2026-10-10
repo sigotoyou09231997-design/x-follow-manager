@@ -52,7 +52,7 @@ export interface HistoryPost {
   reposts: number
 }
 
-/** AIが履歴からまとめた、この人らしさ。画面にそのまま見せるので、人が読める文にする。 */
+/** AIが履歴からまとめた、この人らしさ。画面には出さない（本人の希望）。見るのは Supabase の x_autopilot.profile だけ。 */
 export interface StyleProfile {
   /** 全体の印象を1〜2文で。 */
   summary: string
@@ -90,7 +90,11 @@ export interface AutopilotState {
   /** 連携中の X アカウント。無ければ null。 */
   xAccount: { username: string } | null
   history: { total: number; fetchedAt: string | null; newestAt: string | null; oldestAt: string | null }
-  profile: StyleProfile | null
+  /**
+   * 文体のまとめがあるか。**中身は画面にも返事にも出さない**（本人の希望。見たいときは Supabase の
+   * x_autopilot.profile を直接見る）。画面は「まとめ済みか」だけを知れば足りる。
+   */
+  profileReady: boolean
   profileBuiltAt: string | null
   /** 今月ぶん（月が変わっていれば 0 からの値）。 */
   usage: AutopilotUsage

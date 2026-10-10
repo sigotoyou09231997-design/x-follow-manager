@@ -4,7 +4,7 @@ import {
   PRICE,
   USD_JPY,
 } from '../../src/lib/xAutopilot/cost.js'
-import { localDate, localMonth, normalizeSettings, planSlots, type Slot } from '../../src/lib/xAutopilot/slots.js'
+import { localDate, localMonth, normalizeSettings, planSlots, settingsProblems, type Slot } from '../../src/lib/xAutopilot/slots.js'
 import {
   cleanHistory,
   containsUrl,
@@ -440,11 +440,24 @@ export async function saveSettings(
   input: Partial<AutopilotSettings>
 ): Promise<{ settings: AutopilotSettings; rebuilt: boolean }> {
   const row = await deps.store.get(userId)
+  // 画面から来た入力は、直さずに検証する。黙って別の設定にすると、「2回にしたのに1回のまま」のような
+  // 設定したのに反映されない状態になる（normalizeSettings は、保存済みの値を読み出すときの直し方）。
+  const problems = settingsProblems({ ...row.settings, ...input })
+  if (problems.length > 0) throw new EngineError(problems.join('。'), 400)
+
   const settings = normalizeSettings({ ...row.settings, ...input })
   const rebuilt = row.enabled && slotShapeChanged(row.settings, settings)
   if (rebuilt) {
     await deps.store.cancelUpcoming(userId)
     await deps.store.save(userId, { settings, slots: [], lastError: null })
+    // 作り直した予約の最初の1本は、その場で作る（残りは毎分の補充）。設定を変えたのに、
+    // 予約の一覧が何分も空のままだと、変えた設定が効いたのか分からない。
+    try {
+      await topUp(deps, { ...row, settings, slots: [], enabled: true, lastError: null }, { maxGenerations: 1 })
+    } catch (error) {
+      // 設定の保存そのものは済んでいる。作れなかった理由は topUp が記録するので、ここでは失敗にしない。
+      console.error('autopilot rebuild topUp failed:', errorText(error))
+    }
   } else {
     await deps.store.save(userId, { settings })
   }

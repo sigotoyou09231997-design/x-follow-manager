@@ -78,6 +78,50 @@ export function normalizeSettings(input: Partial<AutopilotSettings> | null | und
   }
 }
 
+/**
+ * 設定が成り立たない理由を日本語で返す（空なら大丈夫）。
+ * normalizeSettings は「保存済みの値を読む」ときに使う寛容な直し方（範囲外は既定へ）で、
+ * 画面から来た入力にそれを使うと、入力の途中の値や押し間違いが、黙って別の設定に化ける
+ * （時間帯が既定の 8:00〜23:00 に戻る・回数が減る、など）。ユーザーが選んだ設定は、
+ * 直さずに理由を見せて止める。
+ */
+export function settingsProblems(input: Partial<AutopilotSettings>): string[] {
+  const problems: string[] = []
+  const { postsPerDay, horizonDays, monthlyBudgetYen, windowStart, windowEnd } = input
+
+  // 渡された項目だけを調べる（保存では保存済みの設定と合わせた全項目、画面では全項目が来る）。
+  const startOk = typeof windowStart === 'string' && HM.test(windowStart)
+  const endOk = typeof windowEnd === 'string' && HM.test(windowEnd)
+  if ((windowStart !== undefined && !startOk) || (windowEnd !== undefined && !endOk)) {
+    problems.push('投稿する時間帯の時刻を入力してください')
+  } else if (startOk && endOk) {
+    const span = toMinutes(windowEnd) - toMinutes(windowStart)
+    if (span < 60) {
+      problems.push('時間帯は1時間以上あけてください（終わりを、始めより後にしてください）')
+    } else if (typeof postsPerDay === 'number') {
+      const max = Math.floor(span / LIMITS.minGapMinutes)
+      if (postsPerDay > max) {
+        problems.push(
+          `この時間帯には、1日${max}回までしか入りません（投稿と投稿の間を${LIMITS.minGapMinutes}分以上あけるため）。時間帯を広げるか、回数を減らしてください`
+        )
+      }
+    }
+  }
+  if (postsPerDay !== undefined && !(Number.isInteger(postsPerDay) && postsPerDay >= LIMITS.postsPerDay.min && postsPerDay <= LIMITS.postsPerDay.max)) {
+    problems.push(`1日の投稿数は${LIMITS.postsPerDay.min}〜${LIMITS.postsPerDay.max}回にしてください`)
+  }
+  if (horizonDays !== undefined && !(Number.isInteger(horizonDays) && horizonDays >= LIMITS.horizonDays.min && horizonDays <= LIMITS.horizonDays.max)) {
+    problems.push(`何日先まで並べるかは${LIMITS.horizonDays.min}〜${LIMITS.horizonDays.max}日にしてください`)
+  }
+  if (
+    monthlyBudgetYen !== undefined &&
+    !(Number.isFinite(monthlyBudgetYen) && monthlyBudgetYen >= LIMITS.monthlyBudgetYen.min && monthlyBudgetYen <= LIMITS.monthlyBudgetYen.max)
+  ) {
+    problems.push(`月の上限は${LIMITS.monthlyBudgetYen.min.toLocaleString('ja-JP')}〜${LIMITS.monthlyBudgetYen.max.toLocaleString('ja-JP')}円で入力してください`)
+  }
+  return problems
+}
+
 const pad = (n: number) => String(n).padStart(2, '0')
 
 /** その地域の日付 'YYYY-MM-DD'。 */

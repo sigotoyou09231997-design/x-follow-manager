@@ -47,7 +47,8 @@ export function memoryStore(initial?: Partial<AutopilotRow>) {
       return store.hasAccount ? account : null
     },
     async insertPost(input) {
-      if (posts.some((p) => p.userId === input.userId && p.slotKey === input.slotKey)) return 'duplicate'
+      // 本物の索引（007）と同じく、取り消した予約は数えない。数えると、設定を変えて作り直すときに同じ枠が重複扱いになる。
+      if (posts.some((p) => p.userId === input.userId && p.slotKey === input.slotKey && p.status !== 'canceled')) return 'duplicate'
       posts.push({ ...input, status: 'scheduled' })
       return 'inserted'
     },

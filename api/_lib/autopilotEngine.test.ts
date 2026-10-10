@@ -357,17 +357,55 @@ describe('ON / OFF / 設定', () => {
 
     const shape = await saveSettings(deps, OWNER, { postsPerDay: 5 })
     expect(shape.rebuilt).toBe(true)
-    expect(store.posts.every((p) => p.status === 'canceled')).toBe(true)
-    expect(store.rows.get(OWNER)?.slots).toEqual([])
     expect(store.rows.get(OWNER)?.settings.postsPerDay).toBe(5)
+    // 古い2本は取り消され、新しい設定の最初の1本だけがその場で作られる（残りは毎分の補充）。
+    // 予約の一覧が何分も空のままだと、変えた設定が効いたのか分からない。
+    expect(store.posts.filter((p) => p.status === 'canceled')).toHaveLength(2)
+    const fresh = store.posts.filter((p) => p.status === 'scheduled')
+    expect(fresh).toHaveLength(1)
+    expect(store.rows.get(OWNER)?.slots).toHaveLength(1)
   })
 
-  it('範囲外の設定は、使える範囲に直して保存する', async () => {
+  it('作り直しの最初の1本が作れなくても、設定の保存は成功のまま（理由は補充が記録する）', async () => {
+    const store = ready()
+    const { deps } = makeDeps(store)
+    await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+    const failing = { ...deps, store: { ...deps.store, insertPost: async () => { throw new Error('保存先が落ちている') } } }
+    const r = await saveSettings(failing, OWNER, { postsPerDay: 4 })
+    expect(r.rebuilt).toBe(true)
+    expect(store.rows.get(OWNER)?.settings.postsPerDay).toBe(4)
+  })
+
+  it('動いていないときの設定変更は、予約を作らない（始めるまで費用が出ない）', async () => {
     const store = ready({ enabled: false })
     const { deps } = makeDeps(store)
-    const { settings } = await saveSettings(deps, OWNER, { postsPerDay: 50, monthlyBudgetYen: -1 })
-    expect(settings.postsPerDay).toBe(8)
-    expect(settings.monthlyBudgetYen).toBe(300)
+    const r = await saveSettings(deps, OWNER, { postsPerDay: 5 })
+    expect(r.rebuilt).toBe(false)
+    expect(store.posts).toHaveLength(0)
+  })
+
+  it('範囲外・成り立たない設定は、黙って直さず理由つきで断り、保存済みの設定を変えない', async () => {
+    const store = ready({ enabled: false })
+    const { deps } = makeDeps(store)
+    const before = { ...store.rows.get(OWNER)?.settings }
+    const cases: [Partial<AutopilotSettings>, RegExp][] = [
+      [{ postsPerDay: 50 }, /1〜8回/],
+      [{ monthlyBudgetYen: -1 }, /300〜50,000円/],
+      [{ horizonDays: 9 }, /1〜3日/],
+      [{ windowStart: '20:00', windowEnd: '08:00' }, /1時間以上あけて/],
+      [{ windowStart: '', windowEnd: '23:00' }, /時刻を入力/],
+      [{ windowStart: '08:00', windowEnd: '10:00', postsPerDay: 8 }, /1日4回までしか/],
+    ]
+    for (const [input, message] of cases) {
+      await expect(saveSettings(deps, OWNER, input)).rejects.toMatchObject({ status: 400, message: expect.stringMatching(message) })
+    }
+    expect(store.rows.get(OWNER)?.settings).toEqual(before)
+  })
+
+  it('保存済みの設定が成り立つ範囲なら、一部の項目だけの保存でも断らない', async () => {
+    const store = ready({ enabled: false })
+    const { deps } = makeDeps(store)
+    await expect(saveSettings(deps, OWNER, { quality: 'saver' })).resolves.toMatchObject({ settings: { quality: 'saver' } })
   })
 })
 
