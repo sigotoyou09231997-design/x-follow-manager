@@ -59,6 +59,11 @@ export function memoryStore(initial?: Partial<AutopilotRow>) {
         .slice(0, limit)
         .map((p) => ({ text: p.text, at: p.at }))
     },
+    async activeSlotKeys(userId, sinceDate) {
+      return posts
+        .filter((p) => p.userId === userId && p.status !== 'canceled' && p.slotKey.slice(0, 10) >= sinceDate)
+        .map((p) => p.slotKey)
+    },
     async cancelUpcoming(userId) {
       let n = 0
       for (const p of posts) {

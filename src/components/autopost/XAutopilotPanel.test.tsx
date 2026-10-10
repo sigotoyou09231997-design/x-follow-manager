@@ -294,8 +294,12 @@ describe('XAutopilotPanel: 設定が確実に使われる', () => {
     expect(await screen.findByText(/時刻は日本時間です/)).toBeInTheDocument()
     expect(screen.getByText(/日ごとに少しずらして決まります/)).toBeInTheDocument()
     expect(screen.getByText(/1日3回 × 2日先まで ＝ 予約は最大6本が並びます/)).toBeInTheDocument()
+    expect(screen.queryByText(/午前（始め〜12:00）に1回/)).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('1日の投稿数'), { target: { value: '2' } })
     expect(screen.getByText(/1日2回 × 2日先まで ＝ 予約は最大4本が並びます/)).toBeInTheDocument()
+    // 1日2回は午前と午後に分ける。今日の過ぎた枠も今日の残りに入れることも伝える。
+    expect(screen.getByText(/午前（始め〜12:00）に1回、午後（12:00〜18:00。終わりが早ければそこまで）に1回/)).toBeInTheDocument()
+    expect(screen.getByText(/今日のぶんは、時刻が過ぎた枠も、今日の残りの時間帯に入れます/)).toBeInTheDocument()
   })
 
   it('予約の時刻は、端末の時差ではなく設定の地域（日本時間）で見せる', async () => {

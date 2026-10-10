@@ -136,6 +136,115 @@ describe('投稿の枠', () => {
   })
 })
 
+describe('1日2回は午前中と午後', () => {
+  // 2026-10-11 0:00 JST 以降の3日ぶん（今日の入れ直しが混ざらない）
+  const FROM_MIDNIGHT = new Date('2026-10-10T15:00:00.000Z')
+
+  it('午前＝始め〜12:00に1回、午後＝12:00〜18:00に1回（毎日）', () => {
+    const slots = planSlots(FROM_MIDNIGHT, settings({ postsPerDay: 2, horizonDays: 3 }))
+    expect(slots).toHaveLength(6)
+    for (const s of slots) {
+      const m = jstHm(s.at)
+      if (s.key.endsWith('#0')) {
+        expect(m).toBeGreaterThanOrEqual(8 * 60)
+        expect(m).toBeLessThan(12 * 60)
+      } else {
+        expect(m).toBeGreaterThanOrEqual(12 * 60)
+        expect(m).toBeLessThanOrEqual(18 * 60)
+      }
+    }
+  })
+
+  it('時間帯の終わりが18時より早ければ、午後はそこまで', () => {
+    const slots = planSlots(FROM_MIDNIGHT, settings({ postsPerDay: 2, horizonDays: 3, windowEnd: '15:00' }))
+    for (const s of slots.filter((x) => x.key.endsWith('#1'))) {
+      expect(jstHm(s.at)).toBeGreaterThanOrEqual(12 * 60)
+      expect(jstHm(s.at)).toBeLessThanOrEqual(15 * 60)
+    }
+  })
+
+  it('午前や午後に収まらない時間帯（昼から夜だけ）は、等分に戻す', () => {
+    const slots = planSlots(FROM_MIDNIGHT, settings({ postsPerDay: 2, horizonDays: 2, windowStart: '13:00', windowEnd: '22:00' }))
+    expect(slots).toHaveLength(4)
+    for (const s of slots) {
+      expect(jstHm(s.at)).toBeGreaterThanOrEqual(13 * 60)
+      expect(jstHm(s.at)).toBeLessThanOrEqual(22 * 60)
+    }
+    const day1 = slots.filter((s) => s.key.startsWith('2026-10-11')).map((s) => jstHm(s.at))
+    expect(day1[1] - day1[0]).toBeGreaterThanOrEqual(30)
+  })
+
+  it('2回以外は、これまでどおり時間帯の等分', () => {
+    const slots = planSlots(FROM_MIDNIGHT, settings({ postsPerDay: 3, horizonDays: 1 }))
+    const minutes = slots.map((s) => jstHm(s.at))
+    // 8〜23時を3等分した真ん中は 10:30 / 15:30 / 20:30。ずれは区間（5時間）の±30%まで。
+    expect(Math.abs(minutes[0] - (10 * 60 + 30))).toBeLessThanOrEqual(90)
+    expect(Math.abs(minutes[1] - (15 * 60 + 30))).toBeLessThanOrEqual(90)
+    expect(Math.abs(minutes[2] - (20 * 60 + 30))).toBeLessThanOrEqual(90)
+  })
+})
+
+describe('今日のぶん（時刻が過ぎた枠も、今日の残りに入れる）', () => {
+  const at = (jst: string) => new Date(`2026-10-10T${jst}:00+09:00`)
+  const todayOf = (slots: ReturnType<typeof planSlots>) => slots.filter((s) => s.key.startsWith('2026-10-10'))
+
+  it('夜に始めても、過ぎた午前・午後の枠を今日の残りに入れ直す（余裕15分後〜時間帯の終わり、30分以上あけて）', () => {
+    const now = at('20:46')
+    const today = todayOf(planSlots(now, settings({ postsPerDay: 2, horizonDays: 1 })))
+    expect(today.map((s) => s.key)).toEqual(['2026-10-10#0', '2026-10-10#1'])
+    const [a, b] = today.map((s) => jstHm(s.at))
+    expect(a).toBeGreaterThanOrEqual(21 * 60 + 1)
+    expect(b).toBeLessThanOrEqual(23 * 60)
+    expect(b - a).toBeGreaterThanOrEqual(30)
+  })
+
+  it('次の未来の枠があるときは、その手前（30分前まで）に収める', () => {
+    const now = at('12:00')
+    const slots = todayOf(planSlots(now, settings({ postsPerDay: 3, horizonDays: 1 })))
+    expect(slots.map((s) => s.key)).toEqual(['2026-10-10#0', '2026-10-10#1', '2026-10-10#2'])
+    const minutes = slots.map((s) => jstHm(s.at))
+    expect(minutes[0]).toBeGreaterThanOrEqual(12 * 60 + 16)
+    for (let i = 1; i < minutes.length; i++) expect(minutes[i] - minutes[i - 1]).toBeGreaterThanOrEqual(30)
+  })
+
+  it('残りの時間に入りきらない分は作らない（翌日へずらさない）', () => {
+    const now = at('22:20') // 余裕をおくと 22:36〜23:00 の24分しかない
+    const today = todayOf(planSlots(now, settings({ postsPerDay: 2, horizonDays: 1 })))
+    expect(today).toHaveLength(1)
+    expect(jstHm(today[0].at)).toBeGreaterThanOrEqual(22 * 60 + 36)
+    expect(jstHm(today[0].at)).toBeLessThanOrEqual(23 * 60)
+  })
+
+  it('時間帯の終わりを過ぎていれば、今日のぶんは無い', () => {
+    expect(todayOf(planSlots(at('22:50'), settings({ postsPerDay: 2, horizonDays: 1 })))).toEqual([])
+    expect(todayOf(planSlots(at('23:30'), settings({ postsPerDay: 2, horizonDays: 2 })))).toEqual([])
+  })
+
+  it('時間帯の始めより前（早朝）なら、入れ直さず本来の時刻で並べる', () => {
+    const today = todayOf(planSlots(at('06:00'), settings({ postsPerDay: 2, horizonDays: 1 })))
+    expect(today).toHaveLength(2)
+    expect(jstHm(today[0].at)).toBeLessThan(12 * 60)
+    expect(jstHm(today[1].at)).toBeGreaterThanOrEqual(12 * 60)
+  })
+
+  it('時間が進んで再計算しても、先に作った枠と30分以上あく（入れ直しの位置が動いても詰まらない）', () => {
+    const base = settings({ postsPerDay: 2, horizonDays: 1 })
+    const start = at('20:46')
+    const first = todayOf(planSlots(start, base)).find((s) => s.key.endsWith('#0'))!
+    for (let minutes = 0; minutes <= 75; minutes++) {
+      const now = new Date(start.getTime() + minutes * 60_000)
+      const second = todayOf(planSlots(now, base)).find((s) => s.key.endsWith('#1'))
+      if (!second) continue
+      expect(new Date(second.at).getTime() - new Date(first.at).getTime()).toBeGreaterThanOrEqual(30 * 60_000)
+    }
+  })
+
+  it('同じ入力なら何度計算しても同じ', () => {
+    const now = at('20:46')
+    expect(planSlots(now, settings({ postsPerDay: 2 }))).toEqual(planSlots(now, settings({ postsPerDay: 2 })))
+  })
+})
+
 describe('その地域の日付・月', () => {
   it('UTC の日付ではなく、設定の地域の日付で数える', () => {
     const t = new Date('2026-10-31T16:30:00.000Z').getTime() // JST では 11/1 1:30

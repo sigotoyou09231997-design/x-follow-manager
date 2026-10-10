@@ -150,6 +150,68 @@ describe('枠の補充（topUp）', () => {
     expect(store.posts.length).toBeLessThanOrEqual(6)
   })
 
+  describe('今日のぶん（時刻が過ぎた枠も、今日の残りに入れる）', () => {
+    // 2026-10-10 20:46 JST。1日2回の午前・午後の時刻はとうに過ぎている。
+    const EVENING = () => new Date('2026-10-10T11:46:00.000Z')
+    const twice = { ...DEFAULT_SETTINGS, postsPerDay: 2, horizonDays: 1 }
+    const hm = (iso: string) => {
+      const d = new Date(new Date(iso).getTime() + 9 * 3600_000)
+      return d.getUTCHours() * 60 + d.getUTCMinutes()
+    }
+
+    it('過ぎた枠を捨てず、今日の残り（余裕をおいた後〜23時）に2本とも入れる', async () => {
+      const store = ready({ settings: twice })
+      const { deps } = makeDeps(store, { now: EVENING })
+      const r = await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      expect(r.created).toBe(2)
+      expect(store.posts.map((p) => p.slotKey).sort()).toEqual(['2026-10-10#0', '2026-10-10#1'])
+      const [a, b] = store.posts.map((p) => hm(p.at)).sort((x, y) => x - y)
+      expect(a).toBeGreaterThanOrEqual(21 * 60 + 1) // 20:46 + 15分の余裕
+      expect(b).toBeLessThanOrEqual(23 * 60)
+      expect(b - a).toBeGreaterThanOrEqual(30)
+    })
+
+    it('今日すでに投稿した枠は、AIに書かせずに飛ばす（書いてから重複と分かると費用だけがかかる）', async () => {
+      // 設定を変えて作り直した直後を想定: 作った枠の記録は空だが、午前の枠は投稿済み。
+      const store = ready({ settings: twice, slots: [] })
+      store.posts.push({ userId: OWNER, at: '2026-10-10T01:30:00.000Z', text: '朝に投稿した分', slotKey: '2026-10-10#0', status: 'posted' })
+      const { deps, writePost } = makeDeps(store, { now: EVENING })
+      const r = await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      expect(r.created).toBe(1)
+      expect(writePost).toHaveBeenCalledTimes(1)
+      expect(store.posts.filter((p) => p.status === 'scheduled').map((p) => p.slotKey)).toEqual(['2026-10-10#1'])
+      expect(store.rows.get(OWNER)?.slots).toEqual(expect.arrayContaining(['2026-10-10#0', '2026-10-10#1']))
+    })
+
+    it('取り消した予約の枠は、生きている枠に数えない（設定を変えたあとの作り直しで入れ直せる）', async () => {
+      const store = ready({ settings: twice, slots: [] })
+      store.posts.push({ userId: OWNER, at: '2026-10-10T05:00:00.000Z', text: '取り消した分', slotKey: '2026-10-10#0', status: 'canceled' })
+      const { deps } = makeDeps(store, { now: EVENING })
+      const r = await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      expect(r.created).toBe(2)
+    })
+
+    it('生きている枠が記録に無いだけなら、AIを呼ばずに記録だけ足す（毎分の調べ直しを繰り返さない）', async () => {
+      const store = ready({ settings: twice, slots: [] })
+      for (const i of [0, 1]) {
+        store.posts.push({ userId: OWNER, at: `2026-10-10T0${i + 1}:00:00.000Z`, text: `投稿済み${i}`, slotKey: `2026-10-10#${i}`, status: 'posted' })
+      }
+      const { deps, writePost } = makeDeps(store, { now: EVENING })
+      const r = await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      expect(r).toEqual({ created: 0, generated: 0 })
+      expect(writePost).not.toHaveBeenCalled()
+      expect(store.rows.get(OWNER)?.slots).toEqual(['2026-10-10#0', '2026-10-10#1'])
+    })
+
+    it('今日の残りが無い時刻（時間帯の終わり間際）なら、今日のぶんは作らない', async () => {
+      const store = ready({ settings: twice })
+      const { deps } = makeDeps(store, { now: () => new Date('2026-10-10T13:50:00.000Z') }) // 22:50 JST
+      const r = await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      expect(r.created).toBe(0)
+      expect(store.posts).toHaveLength(0)
+    })
+  })
+
   it('全部の枠が埋まったら、AIを呼ばない（費用が出ない）', async () => {
     const store = ready()
     const { deps, writePost } = makeDeps(store)

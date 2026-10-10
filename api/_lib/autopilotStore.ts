@@ -53,6 +53,12 @@ export interface AutopilotStore {
   recentTexts(userId: string, limit: number): Promise<{ text: string; at: string }[]>
   /** まだ出ていない自動運転の予約を取り消す。取り消した件数を返す。 */
   cancelUpcoming(userId: string): Promise<number>
+  /**
+   * いま予約として生きている（予約中・投稿処理中・投稿済み）自動運転の枠の印。昨日以降ぶん。
+   * 設定の作り直しで「作った枠の記録」だけが空になっても、今日すでに投稿した枠を、AIに書かせてから
+   * 重複と分かって費用だけがかかる、ということが起きないように。
+   */
+  activeSlotKeys(userId: string, sinceDate: string): Promise<string[]>
 }
 
 interface DbRow {
@@ -214,6 +220,24 @@ export function supabaseAutopilotStore(client: SupabaseClient = getSupabaseAdmin
         .returns<{ id: string }[]>()
       if (error) throw new Error(`予約の取り消しに失敗しました: ${error.message}`)
       return data?.length ?? 0
+    },
+
+    async activeSlotKeys(userId, sinceDate) {
+      // 枠の印は 'autopilot:YYYY-MM-DD#番号'。日付で始まるので、文字列の大小で昨日以降に絞れる。
+      const { data, error } = await client
+        .from('scheduled_posts')
+        .select('ai_prompt')
+        .eq('user_id', userId)
+        .like('ai_prompt', `${AUTOPILOT_PREFIX}%`)
+        .in('status', ['scheduled', 'publishing', 'posted'])
+        .gte('ai_prompt', `${AUTOPILOT_PREFIX}${sinceDate}`)
+        .returns<{ ai_prompt: string }[]>()
+      if (error) {
+        // 読めなくても止めない。最悪、重複を後で弾く（今までの動き）だけ。
+        console.error('autopilot activeSlotKeys failed:', error.message)
+        return []
+      }
+      return (data ?? []).map((r) => r.ai_prompt.slice(AUTOPILOT_PREFIX.length))
     },
   }
 }

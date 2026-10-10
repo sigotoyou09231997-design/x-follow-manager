@@ -148,6 +148,23 @@ describe('autopilot store が送る要求', () => {
     expect(q.get('limit')).toBe('15')
   })
 
+  it('生きている枠: 自分の・自動運転の・予約中か投稿済みのものの印を、昨日以降ぶんだけ', async () => {
+    const { store, sent } = fakeStore(() => ({
+      status: 200,
+      body: [{ ai_prompt: 'autopilot:2026-10-10#0' }, { ai_prompt: 'autopilot:2026-10-10#1' }],
+    }))
+    expect(await store.activeSlotKeys('u1', '2026-10-09')).toEqual(['2026-10-10#0', '2026-10-10#1'])
+    const q = sent[0].url.searchParams
+    expect(q.get('user_id')).toBe('eq.u1')
+    expect(q.get('status')).toBe('in.(scheduled,publishing,posted)')
+    expect(q.getAll('ai_prompt')).toEqual(['like.autopilot:%', 'gte.autopilot:2026-10-09'])
+  })
+
+  it('生きている枠が読めなくても止めない（空で返し、重複は予約への追加で弾く）', async () => {
+    const { store } = fakeStore(() => ({ status: 500, body: { code: 'XX000', message: 'boom', details: '', hint: '' } }))
+    expect(await store.activeSlotKeys('u1', '2026-10-09')).toEqual([])
+  })
+
   it('取り消し: 自分の・自動運転の・まだ出ていない予約だけ（出た分や普通の予約は触らない）', async () => {
     const { store, sent } = fakeStore(() => ({ status: 200, body: [{ id: 'a' }, { id: 'b' }] }))
     expect(await store.cancelUpcoming('u1')).toBe(2)

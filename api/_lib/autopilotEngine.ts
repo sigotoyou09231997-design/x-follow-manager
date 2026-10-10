@@ -299,11 +299,21 @@ export async function topUp(
 
   const now = deps.now()
   const { settings } = row
-  const missing: Slot[] = planSlots(now, settings).filter((s) => !row.slots.includes(s.key))
+  let missing: Slot[] = planSlots(now, settings).filter((s) => !row.slots.includes(s.key))
   if (missing.length === 0) return result
 
+  // 記録に無くても、予約として生きている枠は作り直さない。記録だけが空になる場面（設定を変えて作り直したとき）に、
+  // 今日すでに投稿した枠をAIに書かせてから重複と分かると、費用だけがかかる。足りない枠があるときだけ調べる。
+  const alive = await deps.store.activeSlotKeys(row.userId, localDate(now.getTime() - 86_400_000, settings.timeZone))
+  const slots = [...row.slots, ...alive.filter((key) => !row.slots.includes(key))]
+  missing = missing.filter((s) => !slots.includes(s.key))
+  if (missing.length === 0) {
+    // 生きている枠を記録に足しておく（毎分、同じ調べ直しをしないため）。
+    if (slots.length > row.slots.length) await deps.store.save(row.userId, { slots: pruneSlots(slots, settings.timeZone, now) })
+    return result
+  }
+
   const usage = usageFor(row, now)
-  const slots = [...row.slots]
   const recent = await deps.store.recentTexts(row.userId, RECENT_AUTOPILOT)
   const createdToday: { text: string; at: string }[] = []
   let lastError: string | null = null

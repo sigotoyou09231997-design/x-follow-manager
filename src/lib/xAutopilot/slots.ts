@@ -147,18 +147,61 @@ function hash01(text: string): number {
 
 /** この時間より近い枠は作らない（作ってすぐの投稿は、書いた文を見て止める猶予が無い）。 */
 const MIN_LEAD_MINUTES = 5
+/** 今日の過ぎた枠を入れ直すときの余裕。書いた文を見て、直す・消す時間を残す。 */
+const CATCHUP_LEAD_MINUTES = 15
+
+const NOON = 12 * 60
+/** 1日2回のときの午後の終わり。時間帯の終わりがもっと遅くても、午後の枠はここまでに収める。 */
+const AFTERNOON_END = 18 * 60
+
+interface Segment {
+  from: number
+  to: number
+}
+
+/**
+ * 1日の時間帯を、枠ごとの区間に分ける。基本は回数での等分。
+ * 1日2回だけは「午前中に1回・午後に1回」にしたい、という希望で、12:00 で分ける
+ * （午前＝始め〜12:00、午後＝12:00〜18:00。終わりが18:00より早ければそこまで）。
+ * 等分のままだと、1回目が昼すぎ・2回目が夜になり、午前と午後の2回に見えない。
+ * どちらの区間も最小間隔ぶんの幅が取れない時間帯（午前や午後に収まらない時間帯）は、等分に戻す。
+ */
+function daySegments(count: number, start: number, end: number): Segment[] {
+  if (count === 2) {
+    const afternoonEnd = Math.min(end, AFTERNOON_END)
+    if (start + LIMITS.minGapMinutes <= NOON && NOON + LIMITS.minGapMinutes <= afternoonEnd) {
+      return [
+        { from: start, to: NOON },
+        { from: NOON, to: afternoonEnd },
+      ]
+    }
+  }
+  const segment = (end - start) / count
+  return Array.from({ length: count }, (_, i) => ({ from: start + i * segment, to: start + (i + 1) * segment }))
+}
+
+interface Planned {
+  key: string
+  minute: number
+  at: number
+}
 
 /**
  * 今から horizonDays 日ぶんの枠を、時刻の早い順に返す（過去の枠は含まない）。
- * 1日の枠は、時間帯を投稿数で等分した真ん中を基準に、日付と番号から決まるずれを加えて散らす。
+ * 1日の枠は、区間（daySegments）の真ん中を基準に、日付と番号から決まるずれを加えて散らす。
  * 毎日同じ時刻に出ると機械的に見え、X側にも自動投稿と気づかれやすいため。
+ *
+ * 今日だけは、時刻が過ぎた枠を捨てずに、今日の残りの時間帯へ入れ直す（開始が昼すぎ・設定を変えたあと
+ * でも、今日のぶんが1本も無いまま翌日から始まらないように）。作った枠かどうかは見ない：
+ * 作ったかどうかで入れ直しの位置が変わると、前に作った枠と30分以上あく保証が崩れる。
+ * すでに作った枠を除くのは呼び出し側（topUp）。
  */
 export function planSlots(now: Date, settings: AutopilotSettings): Slot[] {
   const { postsPerDay: count, timeZone } = settings
   const gap = LIMITS.minGapMinutes
   const start = toMinutes(settings.windowStart)
   const end = toMinutes(settings.windowEnd)
-  const segment = (end - start) / count
+  const segments = daySegments(count, start, end)
 
   const today = toZonedParts(now.getTime(), timeZone)
   const earliest = now.getTime() + MIN_LEAD_MINUTES * 60_000
@@ -169,20 +212,61 @@ export function planSlots(now: Date, settings: AutopilotSettings): Slot[] {
     const date = new Date(Date.UTC(today.year, today.month - 1, today.day + day))
     const [y, m, d] = [date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate()]
     const dateKey = `${y}-${pad(m)}-${pad(d)}`
+    const at = (minute: number) => zonedTimeToUtc(y, m, d, Math.floor(minute / 60), minute % 60, timeZone)
 
+    const planned: Planned[] = []
     let previous = start - gap
     for (let i = 0; i < count; i++) {
-      const jitter = (hash01(`${dateKey}#${i}`) * 2 - 1) * segment * 0.3
-      let minute = Math.round(start + (i + 0.5) * segment + jitter)
+      const { from, to } = segments[i]
+      const jitter = (hash01(`${dateKey}#${i}`) * 2 - 1) * (to - from) * 0.3
+      let minute = Math.round((from + to) / 2 + jitter)
       // 前の枠から最小間隔を空け、後ろの枠が時間帯に収まる余地も残す。
       const latest = end - (count - 1 - i) * gap
       minute = Math.min(Math.max(minute, previous + gap), latest)
       previous = minute
+      planned.push({ key: `${dateKey}#${i}`, minute, at: at(minute) })
+    }
 
-      const at = zonedTimeToUtc(y, m, d, Math.floor(minute / 60), minute % 60, timeZone)
-      if (at < earliest) continue
-      slots.push({ key: `${dateKey}#${i}`, at: new Date(at).toISOString() })
+    if (day === 0) catchUpToday(planned, now, settings, at)
+
+    for (const slot of planned) {
+      if (slot.at < earliest) continue
+      slots.push({ key: slot.key, at: new Date(slot.at).toISOString() })
     }
   }
   return slots
+}
+
+/**
+ * 今日の、時刻が過ぎた枠を、今日の残りの時間帯に入れ直す（planned を書き換える）。
+ * 残りの時間（今から余裕ぶん後〜次の未来の枠の手前、無ければ時間帯の終わり）を、入る数ぶんで等分した真ん中に置く。
+ * 入りきらない分は作らない（その日の回数が減るだけで、翌日にはずれ込ませない）。
+ *
+ * 時間が進むと残りが縮むが、位置は「終わりから数えた割合」で決まるので、前に作った枠との間は縮んだ残りでも
+ * 30分以上あく（n は縮んだ残りに30分ずつ入る数以下だから）。
+ */
+function catchUpToday(planned: Planned[], now: Date, settings: AutopilotSettings, at: (minute: number) => number): void {
+  const { timeZone } = settings
+  const earliest = now.getTime() + MIN_LEAD_MINUTES * 60_000
+  const late = planned.filter((slot) => slot.at < earliest)
+  if (late.length === 0) return
+
+  const lead = toZonedParts(now.getTime() + CATCHUP_LEAD_MINUTES * 60_000, timeZone)
+  const today = toZonedParts(now.getTime(), timeZone)
+  // 余裕を足して日付が変わるほど遅い時刻なら、今日の残りは無い。
+  if (lead.year !== today.year || lead.month !== today.month || lead.day !== today.day) return
+
+  const gap = LIMITS.minGapMinutes
+  const from = lead.hour * 60 + lead.minute + 1
+  const nextFuture = planned.find((slot) => slot.at >= earliest)
+  const to = nextFuture ? nextFuture.minute - gap : toMinutes(settings.windowEnd)
+  const room = to - from
+  if (room < 0) return
+
+  const n = Math.min(late.length, Math.max(1, Math.floor(room / gap)))
+  const segment = room / n
+  late.slice(0, n).forEach((slot, j) => {
+    slot.minute = Math.round(from + (j + 0.5) * segment)
+    slot.at = at(slot.minute)
+  })
 }

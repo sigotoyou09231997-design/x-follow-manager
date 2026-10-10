@@ -279,6 +279,8 @@ export function XAutopilotPanel() {
         <p className="xap__muted">
           時刻は{zoneName(form.timeZone)}です。投稿の時刻は、この時間帯を回数で等分した真ん中あたりを基準に、日ごとに少しずらして決まります
           （毎日同じ時刻だと機械的に見えるため）。
+          {form.postsPerDay === 2 && ' 1日2回のときは、午前（始め〜12:00）に1回、午後（12:00〜18:00。終わりが早ければそこまで）に1回です。'}
+          今日のぶんは、時刻が過ぎた枠も、今日の残りの時間帯に入れます。
         </p>
         {blocked && (
           <ul className="xap__warn xap__problems" role="alert">
