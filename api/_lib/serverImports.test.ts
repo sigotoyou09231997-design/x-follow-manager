@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest'
 // src/lib/xAutopilot/slots.ts を共有部品にしたとき、publishDue ごと落ちて予約の投稿が止まった）。
 // そこで、サーバーが読み込む範囲を実際にたどって、拡張子の無い相対 import を探す。
 
-const ROOT = resolve(import.meta.dirname, '..')
+const ROOT = resolve(import.meta.dirname, '../..')
 
 /** 値として読み込まれる相対 import / export-from の指定子。`import type` は変換で消えるので対象外。 */
 function relativeValueImports(source: string): string[] {
@@ -57,6 +57,16 @@ function serverFiles(): { files: Set<string>; problems: string[] } {
   }
   return { files, problems }
 }
+
+// この検査ファイルを api/ の直下に置いてはいけない。api/ 直下の .ts は、テストも含めて全部「関数」として数えられ、
+// Vercel の無料枠（Hobby）は12個まで（超えるとデプロイが丸ごと失敗する）。2026-10-10 に、直下へ置いた
+// この検査ファイルが13個目になって、修正のデプロイが拒否された。api/_lib/ の中は数えられない。
+describe('api/ 直下の関数の数', () => {
+  it('api/ 直下の .ts（テストも含む）は12個まで。増やすなら api/_lib/ に置く', () => {
+    const topLevel = readdirSync(join(ROOT, 'api')).filter((name) => name.endsWith('.ts') && !name.startsWith('_'))
+    expect(topLevel.length, `api/ 直下: ${topLevel.join(', ')}`).toBeLessThanOrEqual(12)
+  })
+})
 
 describe('サーバー関数が読み込むファイルの import', () => {
   it('相対 import は、すべて .js つきで、行き先のファイルがある', () => {
