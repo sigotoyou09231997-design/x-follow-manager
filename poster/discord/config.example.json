@@ -9,6 +9,10 @@
   "minGapSeconds": 60,
   "dailyCap": null,
   "debugPort": 9333,
+  "eroype": {
+    "enabled": false,
+    "url": "https://eroype.net/create"
+  },
   "cloud": {
     "url": "https://x-follow-manager-wine.vercel.app",
     "tokenFile": ".hub-token"

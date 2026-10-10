@@ -4,7 +4,7 @@
 
 | 場所 | 投稿先 | 間隔 | 詳しく |
 | --- | --- | --- | --- |
-| `discord/` | discord-ch.site の募集掲示板 | 画面の「今すぐ投稿できます」が出るたび（約10分） | `discord/README.md` |
+| `discord/` | discord-ch.site の募集掲示板（＋ `config.json` で有効にしたとき、同じ文を eroype.net にも一緒に投稿） | 画面の「今すぐ投稿できます」が出るたび（約10分） | `discord/README.md` |
 | `yay/` | Yay のタイムライン＋参加中のサークル全部（「ショタ」「ロリ」を含む名前は除く） | 5分 | `yay/README.md` |
 
 ```
@@ -41,7 +41,7 @@ touch STOP               # 止める（作ったままなら次のログイン�
   投稿役は、このコードの版へ**入れ替えて**（各フォルダの README にある入れ替えの手順）初めて止まるようになる
 - 投稿役の入れ替えは、投稿の最中に殺さない。`touch STOP` → 止まるのを待つ → `bash launchd.sh restart`（詳しくは各 README）
 
-テスト: `node --test poster/pause-state.test.mjs poster/discord/cloud-client.test.mjs poster/yay/cloud.test.mjs poster/yay/targets.test.mjs`
+テスト: `node --test poster/pause-state.test.mjs poster/discord/cloud-client.test.mjs poster/discord/eroype.test.mjs poster/yay/cloud.test.mjs poster/yay/targets.test.mjs`
 - 合鍵は `discord/.hub-token`（Yay も同じものを探す）。Supabase の `autopost_poster_keys` に sha256 の値を入れてある
 - `chrome-profile/`（Discord・Yay のログイン情報）・`logs/`・合鍵・`config.json` は、コミットしない（ルートの `.gitignore`）
 - playwright は、このアプリの `node_modules` を使う（`npm install` 済みであること）

@@ -20,6 +20,7 @@ import { dirname, join } from "node:path";
 import { readConfig, readMessages, saveMessages } from "./config.mjs";
 import { loadCloud, pullState, pushStatus } from "./cloud-client.mjs";
 import { createPauseTracker } from "../pause-state.mjs";
+import { createEroypePoster } from "./eroype.mjs";
 import { acquireLock, keepAwake } from "./single-instance.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -79,6 +80,22 @@ const pause = createPauseTracker({
     reportStatus(true); // 画面が「Mac が受け取った」と分かるように、すぐ知らせる
   },
 });
+
+// eroype.net にも、ディスコードに投稿できるたびに同じ文を送る（config.json に "eroype": { "enabled": true } があるときだけ）。
+//   ディスコードの投稿に付いて動くので、画面で止められている・STOP があるあいだは送らない。
+//   設定が読めなくても、ディスコードの投稿は今までどおり動かす。
+let eroype = { postTogether: async () => ({ status: "off" }) };
+try {
+  eroype = createEroypePoster({
+    config: CONFIG,
+    logFile: join(LOGS, "eroype-posted.log"),
+    log: (msg) => log(`[eroype] ${msg}`),
+    notify: (msg) => notify(`eroype: ${msg}`),
+    isHeld: () => (pause.paused && !DRY) || existsSync(STOP),
+  });
+} catch (e) {
+  log(`[eroype] 設定を読めないので使いません: ${e.message}`);
+}
 
 async function currentMessages() {
   if (CLOUD) {
@@ -186,7 +203,10 @@ let crashes = 0;
 
 async function run(browser) {
   const ctx = browser.contexts()[0];
-  const page = ctx.pages().find((p) => !p.isClosed() && p.url().includes("discord-ch.site")) ?? (await ctx.newPage());
+  // eroype への投稿のあとは、同じタブが eroype.net に居る。つなぎ直したとき、そのタブも見つけて使い回す（タブが増えない）
+  const page =
+    ctx.pages().find((p) => !p.isClosed() && (p.url().includes("discord-ch.site") || p.url().includes("eroype.net"))) ??
+    (await ctx.newPage());
   page.on("dialog", (d) => {
     log(`ダイアログ: ${d.message()} → OK`);
     d.accept();
@@ -370,6 +390,9 @@ async function run(browser) {
     );
     log(`投稿しました (HTTP ${status}, 今日${todayCount()}件目): ${text.replace(/\n/g, " / ")} → ${page.url()}`);
     reportStatus(true);
+
+    // 同じ文を eroype.net にも。うまくいかなくても、ここでは何も起きない（ディスコードの周回はそのまま続く）
+    await eroype.postTogether(page, text);
   }
 
   log("終了");
