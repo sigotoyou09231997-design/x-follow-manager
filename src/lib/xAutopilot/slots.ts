@@ -1,5 +1,7 @@
-import { toZonedParts, zonedTimeToUtc } from '../schedule/repeat'
-import { DEFAULT_SETTINGS, LIMITS, type AutopilotSettings } from './types'
+// 相対 import に .js を付けているのは、このファイルをサーバー関数（api/）も読むため。
+// Vercel では拡張子の無い相対 import が ERR_MODULE_NOT_FOUND で落ちる（api/serverImports.test.ts が見張っている）。
+import { toZonedParts, zonedTimeToUtc } from '../schedule/repeat.js'
+import { DEFAULT_SETTINGS, LIMITS, type AutopilotSettings } from './types.js'
 
 // 投稿する「枠」（日付＋何番目か＋時刻）の決め方。
 // 枠は日付と番号から決まる（乱数ではなく、決まった式）ので、何度計算しても同じ時刻になる。
