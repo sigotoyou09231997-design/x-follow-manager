@@ -9,6 +9,7 @@ import { RECENT_POSTS_TO_AVOID, writeDailyPost } from './_lib/dailyWriter.js'
 import { topUpAll } from './_lib/autopilotEngine.js'
 import { supabaseAutopilotStore } from './_lib/autopilotStore.js'
 import { writeAutopilotPost, writeProfile } from './_lib/autopilotWriter.js'
+import { supabasePosterWatchDeps, watchPosters } from './_lib/posterWatch.js'
 import { isOverLimit } from '../src/lib/schedule/textLength.js'
 import type { PostSegment, RepeatRule } from '../src/lib/schedule/types.js'
 
@@ -58,7 +59,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const db = getSupabaseAdmin()
   const startedAt = new Date()
-  const result = { recovered: 0, materialized: 0, generated: 0, autopilot: 0, posted: 0, failed: 0, retrying: 0 }
+  const result = {
+    recovered: 0,
+    materialized: 0,
+    generated: 0,
+    autopilot: 0,
+    posted: 0,
+    failed: 0,
+    retrying: 0,
+    posterSilent: 0,
+    posterNotified: 0,
+  }
+
+  // Mac の自動投稿（ディスコード・Yay）が止まっていないかの見張り。予約の投稿とは別の仕事なので、
+  // 待たずに並べて走らせ、応答の直前に結果だけ受け取る（投稿の仕事を遅らせない）。中で失敗は握りつぶす
+  const watching = watchPosterHealth()
 
   try {
     result.recovered = await recoverStalePosts()
@@ -93,10 +108,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 上の結果（投稿・次回分の用意）は変えない。AIを呼ぶ本数は、AIおまかせの繰り返しと合わせて上限まで。
     result.autopilot = await topUpAutopilots(startedAt, MAX_AI_GENERATIONS_PER_RUN - materialized.generated)
 
+    await settleWatch()
+
     return res.status(200).json({ ok: true, ...result })
   } catch (error) {
     console.error('publishDue failed:', error)
+    // 予約の仕事が失敗した日でも、見張りは止めない（応答を返すと関数が止まるので、その前に待つ）
+    await settleWatch()
     return res.status(500).json({ error: (error as Error).message, ...result })
+  }
+
+  async function settleWatch(): Promise<void> {
+    const watch = await watching
+    result.posterSilent = watch.silent
+    result.posterNotified = watch.notified
+  }
+}
+
+/**
+ * Mac の投稿役の報告が途絶えていれば、持ち主の端末へ通知する（中身は _lib/posterWatch.ts）。
+ * 予約の投稿とは無関係な見張りなので、ここでの失敗は握りつぶして記録するだけにする
+ * （見張りの不具合で、X への予約投稿まで 500 にしないため）。
+ */
+async function watchPosterHealth(): Promise<{ silent: number; notified: number }> {
+  try {
+    return await watchPosters(supabasePosterWatchDeps())
+  } catch (error) {
+    console.error('publishDue: 投稿役の見張りに失敗しました:', (error as Error).message)
+    return { silent: 0, notified: 0 }
   }
 }
 

@@ -70,6 +70,10 @@ export function PushSettings() {
         画面を開いているときは上部に帯が出て自動で最新版に切り替わるので、こちらは
         アプリを閉じているあいだの更新に気づくためのものです。
       </p>
+      <p className="settings-section__desc">
+        自動投稿（ディスコード・Yay）の Mac が20分以上報告してこないとき（止まった・Mac が寝た・ネットが切れた）も、
+        同じこの通知でお知らせします。
+      </p>
 
       {!supported ? (
         <p className="settings-section__meta">

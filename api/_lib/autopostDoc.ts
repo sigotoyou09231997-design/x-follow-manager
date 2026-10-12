@@ -65,6 +65,11 @@ export interface PosterStatus {
   paused?: boolean
   /** サーバーが受け取った時刻。Mac の時計には頼らない。 */
   at: string
+  /**
+   * 「止まっている」とスマホへ通知した時刻（api/_lib/posterWatch.ts が書く）。同じ止まりで毎分通知しないための印。
+   * Mac の報告は status ごと入れ替わるので、投稿役が戻って報告すれば自然に消える。Mac は送ってこない。
+   */
+  alertedAt?: string
 }
 
 /** Mac の投稿役からの報告を検める。形が違えば DocError。 */
