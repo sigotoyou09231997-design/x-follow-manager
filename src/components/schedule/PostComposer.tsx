@@ -29,6 +29,8 @@ interface Props {
    *            見出しと保存ボタンを上下に貼り付けて、長い本文でも操作を見失わないようにする。
    */
   variant?: 'inline' | 'sheet'
+  /** AI下書き支援を開いた状態で始める（ホームの「AIで下書きを作る」から来たとき）。 */
+  startWithAiOpen?: boolean
 }
 
 function emptySegment(): PostSegment {
@@ -63,6 +65,7 @@ export function PostComposer({
   onCancel,
   onDraftsAdded,
   variant = 'inline',
+  startWithAiOpen,
 }: Props) {
   const [segments, setSegments] = useState<PostSegment[]>(
     () => editing?.segments ?? [emptySegment()]
@@ -317,6 +320,7 @@ export function PostComposer({
           editRequest={aiEditRequest}
           onUse={applyGenerated}
           onSavedDrafts={() => onDraftsAdded?.()}
+          startOpen={startWithAiOpen}
         />
       )}
 

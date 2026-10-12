@@ -7,30 +7,29 @@ import { isEditing } from '../../lib/editingGuard'
 import type { ScheduledPost } from '../../lib/schedule/types'
 import { Icon } from '../Icon'
 import { ComposerSheet } from './ComposerSheet'
-import { PostComposer } from './PostComposer'
 import { ScheduledPostList } from './ScheduledPostList'
 import { ScheduleSummaryBar } from './ScheduleSummaryBar'
 import { XConnectCard } from './XConnectCard'
 
 interface Props {
   /**
-   * 増えるたびにコンポーザーを開く。モバイル下部バーの中央＋から渡ってくる。
+   * 増えるたびにコンポーザーを開く。モバイル下部バーの中央＋、ホームの「AIで下書きを作る」から渡ってくる。
    * boolean だと「開いて閉じてもう一度押す」が同じ値になって効かないため、
    * 押された回数をそのまま渡してもらう。
    */
   composeRequest?: number
+  /** composeRequest と同時に渡る。true なら、開くコンポーザーをAI下書き支援が開いた状態で始める。 */
+  composeStartWithAi?: boolean
 }
 
-// 'compose' … 一覧の上に開く、これまでのコンポーザー
-// 'sheet'   … ＋から前面にかぶせて出すコンポーザー
-type Pane = 'none' | 'compose' | 'sheet'
-
-export function ScheduleView({ composeRequest = 0 }: Props) {
+export function ScheduleView({ composeRequest = 0, composeStartWithAi = false }: Props) {
   const { session, loading: authLoading, configured, configStatus } = useSupabaseAuth()
   const loggedIn = !!session
   const { posts, summary, xAccount, loading, error, reload } = useScheduledPosts(loggedIn)
 
-  const [pane, setPane] = useState<Pane>('none')
+  // 投稿作成は前面にかぶせて出す ComposerSheet 一本（以前は一覧の上に開く別パネルもあったが統一した）。
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [sheetStartWithAi, setSheetStartWithAi] = useState(false)
   const [editing, setEditing] = useState<ScheduledPost>()
   const [callbackMessage, setCallbackMessage] = useState<string>()
   const [callbackError, setCallbackError] = useState<string>()
@@ -65,12 +64,13 @@ export function ScheduleView({ composeRequest = 0 }: Props) {
     })()
   }, [loggedIn, reload])
 
-  // 中央の＋から来たときは、かぶせて出す方のコンポーザーを開く。
+  // 中央の＋、ホームの「AIで下書きを作る」から来たらコンポーザーを開く。
   useEffect(() => {
     if (composeRequest <= 0) return
     setEditing(undefined)
-    setPane('sheet')
-  }, [composeRequest])
+    setSheetStartWithAi(composeStartWithAi)
+    setSheetOpen(true)
+  }, [composeRequest, composeStartWithAi])
 
   if (authLoading) {
     return <p className="loading-indicator">読み込み中…</p>
@@ -117,11 +117,12 @@ export function ScheduleView({ composeRequest = 0 }: Props) {
 
   function openCompose(post?: ScheduledPost) {
     setEditing(post)
-    setPane('compose')
+    setSheetStartWithAi(false)
+    setSheetOpen(true)
   }
 
-  function closePane() {
-    setPane('none')
+  function closeSheetPane() {
+    setSheetOpen(false)
     setEditing(undefined)
   }
 
@@ -129,7 +130,7 @@ export function ScheduleView({ composeRequest = 0 }: Props) {
   // 背景やEscで閉じるのは指が滑っただけのこともあるので、書きかけなら一度止める。
   function closeSheet() {
     if (isEditing() && !window.confirm('書きかけの投稿を破棄しますか？')) return
-    closePane()
+    closeSheetPane()
   }
 
   return (
@@ -150,11 +151,7 @@ export function ScheduleView({ composeRequest = 0 }: Props) {
       <div className="schedule-view__toolbar">
         {/* 「新しい投稿」と「AIで投稿案を作る」は別々の入口だったが、
             AI支援はコンポーザーの中に入れて入口を1つにした。 */}
-        <button
-          type="button"
-          className={pane === 'compose' ? 'btn btn--primary' : 'btn btn--ghost'}
-          onClick={() => (pane === 'compose' ? closePane() : openCompose())}
-        >
+        <button type="button" className="btn btn--ghost" onClick={() => openCompose()}>
           <Icon name="plus" />
           投稿を作る
         </button>
@@ -168,26 +165,16 @@ export function ScheduleView({ composeRequest = 0 }: Props) {
         </div>
       </div>
 
-      {pane === 'compose' && (
-        <PostComposer
-          editing={editing}
-          onSaved={() => {
-            closePane()
-            void reload()
-          }}
-          onCancel={closePane}
-          onDraftsAdded={() => void reload()}
-        />
-      )}
-
-      {pane === 'sheet' && (
+      {sheetOpen && (
         <ComposerSheet
+          editing={editing}
           onClose={closeSheet}
           onSaved={() => {
-            closePane()
+            closeSheetPane()
             void reload()
           }}
           onDraftsAdded={() => void reload()}
+          startWithAiOpen={sheetStartWithAi}
         />
       )}
 

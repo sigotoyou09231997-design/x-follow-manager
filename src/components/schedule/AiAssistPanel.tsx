@@ -18,6 +18,8 @@ interface Props {
   onUse: (segments: PostSegment[]) => void
   /** 案をまとめて下書き保存したあと、一覧を取り直させる。 */
   onSavedDrafts: () => void
+  /** 最初から開いた状態で始める（ホームの「AIで下書きを作る」から来たとき）。 */
+  startOpen?: boolean
 }
 
 function toSegments(post: GeneratedPost): PostSegment[] {
@@ -36,8 +38,8 @@ function toSegments(post: GeneratedPost): PostSegment[] {
  * 「言いたいことはあるのにどの欄に書けばいいか分からない」で止まりやすかった。
  * 思いついた順のメモをそのまま1か所に流し込めば、あとはAI側が仕分ける。
  */
-export function AiAssistPanel({ currentText, editRequest, onUse, onSavedDrafts }: Props) {
-  const [open, setOpen] = useState(false)
+export function AiAssistPanel({ currentText, editRequest, onUse, onSavedDrafts, startOpen }: Props) {
+  const [open, setOpen] = useState(!!startOpen)
   const [message, setMessage] = useState('')
   const [count, setCount] = useState(3)
   const [mode, setMode] = useState<'single' | 'thread'>('single')

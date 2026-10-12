@@ -32,8 +32,11 @@ interface Props {
   onGotoProtected: () => void
   onGotoSchedule: () => void
   onGotoSettings: () => void
-  /** 投稿の作成を開く。予約投稿タブのコンポーザーへ直行する。 */
-  onCompose: () => void
+  /**
+   * 投稿の作成を開く。予約投稿タブのコンポーザーへ直行する。
+   * true を渡すと、AI下書き支援を開いた状態で始める。
+   */
+  onCompose: (startWithAi?: boolean) => void
   /** 未確認の確認作業を始める / 途中のバッチを再開する。 */
   onReview: () => void
   /** 「いまの動き」の丸いアイコン・カードを押したとき。開く場所は呼び出し側が決める。 */
@@ -175,7 +178,7 @@ export function HomeView({
             </span>
             <Icon name="chevron-right" size={18} className="link-row__chevron" />
           </button>
-          <button type="button" className="link-row" onClick={onCompose}>
+          <button type="button" className="link-row" onClick={() => onCompose(true)}>
             <span className="link-row__icon">
               <Icon name="sparkles" size={18} />
             </span>
@@ -231,7 +234,7 @@ export function HomeView({
         </section>
       )}
 
-      {hasData && <HistoryView accounts={accounts} limit={5} heading="最近のうごき" overline="RECENT" />}
+      {hasData && <HistoryView accounts={accounts} limit={5} heading="最近のうごき" overline="直近" />}
     </div>
   )
 }

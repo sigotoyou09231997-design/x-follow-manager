@@ -160,10 +160,10 @@ DOMの並び順は `src/App.tsx` の JSX がそのまま。上から下へ:
 1. `XConnectCard`（連携状態）
 2. `.stat-hero`(1901) … **濃紺のサマリーカード**（予約中N件 / 次の投稿）＋ `.stat-grid`(1960)
 3. `.schedule-view__toolbar`（投稿を作る / 再読み込み / ログアウト）
-4. `.post-list` … `.post-item`(2865)
-   - これから出すもの（予約中・処理中・下書き）は `.post-item--photo`(2905) で
-     写真の面になる。色味は `--tone-0..2` を index で回す（ScheduledPostList.tsx）
-   - 投稿済み・失敗は落ち着いた面のまま（本文と理由を読ませたいので写真にしない）
+4. `.post-list` … `.post-item`(2992)
+   - 状態に関わらずフラットなカード（写真は使わない）。状態ごとの差分は
+     `.post-item--{status}` で付ける（投稿済みは`opacity: 0.8`で控えめに:3000、
+     失敗は枠を危険色に:3004）
 
 ### 新しい投稿（`ComposerSheet`）
 

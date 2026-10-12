@@ -23,10 +23,11 @@
   --text-h: #1d1d1f;
   --text-muted: #6e6e73;
 
-  /* アクセント: システムブルー。主ボタン・選択状態・リンクに使う。 */
-  --accent: #0071e3;
-  --accent-hover: #0077ed;
-  --accent-bg: rgba(0, 113, 227, 0.1);
+  /* アクセント: システムブルー。主ボタン・選択状態・リンクに使う。
+     ダークの systemBlue(#0a84ff) と同じ系統に揃えている。 */
+  --accent: #007aff;
+  --accent-hover: #3395ff;
+  --accent-bg: rgba(0, 122, 255, 0.1);
   --on-accent: #ffffff;
 
   /* 状態。白文字を載せる塗りボタン用に *-strong を別に持つ

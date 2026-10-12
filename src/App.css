@@ -2436,7 +2436,7 @@ input[type='checkbox'] {
   background: var(--surface);
   /* 下から出る面なので、角丸は上だけ。カードより一段強くして「別の層」に見せる。 */
   border-radius: var(--radius-modal) var(--radius-modal) 0 0;
-  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
   animation: composer-sheet-rise 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
@@ -2552,7 +2552,7 @@ input[type='checkbox'] {
   .composer-sheet__panel {
     max-height: min(86vh, 100%);
     border-radius: var(--radius-modal);
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--shadow-lg);
   }
 
   .composer-sheet__bar {

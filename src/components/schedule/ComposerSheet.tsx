@@ -1,21 +1,26 @@
 import { useEffect, useRef } from 'react'
 import { Icon } from '../Icon'
 import { PostComposer } from './PostComposer'
+import type { ScheduledPost } from '../../lib/schedule/types'
 
 interface Props {
+  /** 編集対象。未指定なら新規作成。 */
+  editing?: ScheduledPost
   onClose: () => void
   onSaved: () => void
   onDraftsAdded?: () => void
+  /** AI下書き支援を開いた状態で始める（ホームの「AIで下書きを作る」から来たとき）。 */
+  startWithAiOpen?: boolean
 }
 
 /**
- * 下部バー中央の＋から開く、かぶせて出す投稿画面。
+ * 投稿の作成・編集を前面にかぶせて出す画面。
  *
- * 予約投稿タブの中に開くコンポーザーは「一覧を見ながら書く」ための面なのに対し、
- * こちらは＋を押した勢いのまま書き切るための面なので、一覧を暗くして前に出し、
+ * 予約投稿タブに一覧埋め込み型のコンポーザーも以前は別にあったが、入口を
+ * 増やさないためこちらへ一本化した。一覧を暗くして前に出し、
  * 「予約する」を常に手の届く位置（下端）に置いている。
  */
-export function ComposerSheet({ onClose, onSaved, onDraftsAdded }: Props) {
+export function ComposerSheet({ editing, onClose, onSaved, onDraftsAdded, startWithAiOpen }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
 
@@ -76,7 +81,7 @@ export function ComposerSheet({ onClose, onSaved, onDraftsAdded }: Props) {
       className="composer-sheet"
       role="dialog"
       aria-modal="true"
-      aria-label="新しい投稿"
+      aria-label={editing ? '予約を編集' : '新しい投稿'}
       // 背景（暗い部分）を触ったときだけ閉じる。中身のクリックでは閉じない。
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
@@ -86,7 +91,7 @@ export function ComposerSheet({ onClose, onSaved, onDraftsAdded }: Props) {
         <div className="composer-sheet__grip" aria-hidden="true" />
         {/* 見出しと×はシートの中に置く。シートごと動くので、キーボードが出ても見失わない。 */}
         <div className="composer-sheet__bar">
-          <span className="composer-sheet__title">新しい投稿</span>
+          <span className="composer-sheet__title">{editing ? '予約を編集' : '新しい投稿'}</span>
           <button
             type="button"
             className="composer-sheet__close"
@@ -98,9 +103,11 @@ export function ComposerSheet({ onClose, onSaved, onDraftsAdded }: Props) {
         </div>
         <PostComposer
           variant="sheet"
+          editing={editing}
           onSaved={onSaved}
           onCancel={onClose}
           onDraftsAdded={onDraftsAdded}
+          startWithAiOpen={startWithAiOpen}
         />
       </div>
     </div>

@@ -82,8 +82,13 @@ function App() {
   const [warnings, setWarnings] = useState<string[]>([])
   const [errorMessage, setErrorMessage] = useState<string[]>([])
   const [detectedFiles, setDetectedFiles] = useState<string[]>([])
-  // 中央の＋を押した回数。ScheduleViewはこれが増えたらコンポーザーを開く。
-  const [composeRequest, setComposeRequest] = useState(0)
+  // 中央の＋・ホームの「AIで下書きを作る」を押した回数。ScheduleViewはnonceが増えたらコンポーザーを開く。
+  // startWithAiをnonceと同じstateにまとめているのは、2つの入口を区別する値が
+  // nonceと必ず同時に・ずれなく更新されるようにするため。
+  const [composeRequest, setComposeRequest] = useState<{ nonce: number; startWithAi: boolean }>({
+    nonce: 0,
+    startWithAi: false,
+  })
 
   const headerSearchRef = useRef<HTMLInputElement>(null)
   const listSearchRef = useRef<HTMLInputElement>(null)
@@ -180,12 +185,14 @@ function App() {
     await startNextBatch()
   }
 
-  // 中央の＋（FAB）。予約投稿の作成画面を直接開く。
+  // 中央の＋（FAB）とホームの「AIで下書きを作る」。予約投稿の作成画面を直接開く。
   // フォロー整理の「次の◯人を確認」は、ホームの今日のタスクとフォロー整理の
   // ツールバーから始められるので、モバイルでも入口は失われない。
-  function openCompose() {
+  // startWithAi: trueならAI下書き支援を開いた状態で始める（「AIで下書きを作る」から）。
+  // ＋の方は「とにかく書く」なので、何も開いていない状態（本文欄フォーカス）のまま。
+  function openCompose(startWithAi = false) {
     setTab('schedule')
-    setComposeRequest((prev) => prev + 1)
+    setComposeRequest((prev) => ({ nonce: prev.nonce + 1, startWithAi }))
   }
 
   // 「残すリスト」はフォロー整理の派生画面なので、下部バーでは同じ項目を現在地として扱う。
@@ -305,7 +312,10 @@ function App() {
           {/* 予約投稿はアーカイブの読み込みと無関係に使えるので、hasDataで閉じない。 */}
           {tab === 'schedule' && (
             <Suspense fallback={<p className="loading-indicator">読み込み中…</p>}>
-              <ScheduleView composeRequest={composeRequest} />
+              <ScheduleView
+                composeRequest={composeRequest.nonce}
+                composeStartWithAi={composeRequest.startWithAi}
+              />
             </Suspense>
           )}
 
@@ -366,7 +376,7 @@ function App() {
               {(tab === 'tidy' || tab === 'protected') && (
                 <FollowTidyView
                   accounts={accountList}
-                  overline={tab === 'protected' ? 'KEEPING' : 'READY TO REVIEW'}
+                  overline={tab === 'protected' ? 'キープ中' : '未確認'}
                   heading={
                     tab === 'protected'
                       ? `残す${summary.protected.toLocaleString()}人`
@@ -417,7 +427,7 @@ function App() {
         <button
           type="button"
           className="bottom-nav__fab"
-          onClick={openCompose}
+          onClick={() => openCompose()}
           aria-label="投稿を作る"
         >
           <Icon name="plus" size={24} />

@@ -20,7 +20,7 @@ function renderView(accounts: AccountRecord[], selectedKey: string | null) {
   const view = render(
     <FollowTidyView
       accounts={accounts}
-      overline="READY TO REVIEW"
+      overline="未確認"
       heading="見出し"
       filter="all"
       onFilterChange={() => {}}

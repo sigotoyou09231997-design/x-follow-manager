@@ -70,7 +70,7 @@ export function HomeActivity({ tidy, onOpen }: Props) {
   return (
     <section className="home-activity" aria-labelledby="home-activity-title">
       <header className="home-activity__head">
-        <p className="overline">NOW</p>
+        <p className="overline">最新</p>
         <h2 id="home-activity-title" className="home-activity__title">
           いまの動き
         </h2>
