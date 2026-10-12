@@ -4,7 +4,8 @@
 #   bash scripts/ship.sh "<何を直したか>" [--from <依頼が来た時刻 epoch 秒>] [--skip-e2e] [--keep] [--dry-run]
 #
 # やること(CLAUDE.md の「反映する前に必ず通すもの」と同じ条件に、2つ足してある。1つでも落ちたら main に入れずに止まる):
-#   1. 手元の main が公開の main と同じか確かめる(違えば止まる)。ブランチが main に追いついていなければ main を取り込む
+#   1. 手元の main が公開の main と同じか確かめる。公開より「先に進んでいるだけ」(Cowork の裏実行が push できずに残したコミット)
+#      なら、その先行分も確認に含めて一緒に出す。公開のほうが進んでいる・枝分かれなら止まる。ブランチが main に追いついていなければ main を取り込む
 #   2. 型・lint・ユニット・poster のテスト・サーバー関数の読み込み・本番ビルドを**同時に**走らせる → 通ったら E2E
 #        足した2つ:
 #        - poster のテスト(node --test)。`npm test` には入っていない。poster/ を直しても今まで誰も走らせていなかった
@@ -49,7 +50,18 @@ COAUTHOR="${SHIP_COAUTHOR:-Claude Sonnet 5.5 <noreply@anthropic.com>}"
 step "1/7 公開の main と手元の main を見比べる"
 REMOTE_MAIN="$(git ls-remote origin refs/heads/main 2>/dev/null | cut -f1)"
 [ -n "$REMOTE_MAIN" ] || die "公開の main を読めませんでした(通信を確かめてください)"
-[ "$(git rev-parse main)" = "$REMOTE_MAIN" ] || die "手元の main が公開の main と違います(手元 $(git rev-parse --short main) / 公開 ${REMOTE_MAIN:0:7})。手元の main を進めてから"
+LOCAL_MAIN="$(git rev-parse main)"
+if [ "$LOCAL_MAIN" != "$REMOTE_MAIN" ]; then
+  # 手元が公開より「先に進んでいるだけ」(公開の main が手元の祖先)なら止めない。Cowork の裏実行は、ネットワークの許可が
+  # 無くて push できず、コミットだけを手元の main に残す。それを毎回手で出し直すのでは遅いので、この作業の確認に含めて
+  # 一緒に出す(確認は作業場所の中で、先行分も含めて走る)。公開のほうが進んでいる・枝分かれしているときは止まる。
+  if git cat-file -e "$REMOTE_MAIN^{commit}" 2>/dev/null && git merge-base --is-ancestor "$REMOTE_MAIN" "$LOCAL_MAIN"; then
+    echo "   手元の main は公開より $(git rev-list --count "$REMOTE_MAIN..$LOCAL_MAIN") コミット先行しています(push できずに残ったもの)。確認に含めて、一緒に出します:"
+    git log --format='     %h %s' "$REMOTE_MAIN..$LOCAL_MAIN" | cut -c1-110
+  else
+    die "手元の main($(git rev-parse --short main))が公開の main(${REMOTE_MAIN:0:7})の先ではありません(公開のほうが進んでいる、または枝分かれ)。手元の main を進めてから"
+  fi
+fi
 git merge-base --is-ancestor main HEAD || { step "ブランチが main に追いついていないので、main を取り込む"; git merge -q --no-edit main || die "main の取り込みで衝突しました"; }
 
 step "2/7 型・lint・テスト・サーバー関数の読み込み・ビルドを同時に走らせる"

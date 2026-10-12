@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { FileDropZone } from './components/FileDropZone'
 import { ErrorBanner } from './components/ErrorBanner'
@@ -195,6 +195,13 @@ function App() {
     setComposeRequest((prev) => ({ nonce: prev.nonce + 1, startWithAi }))
   }
 
+  // ScheduleView が頼みを受けて開いたら、使い切ったことにする。nonce を 0 へ戻すだけで、次に押せば 1 から数え直す。
+  // 戻さないと、別のタブへ行って予約投稿に戻るたびに、残った頼みで作成画面が勝手にまた開く。
+  // useCallback にしているのは、ScheduleView の effect の依存に入っていて、毎回新しい関数だと毎回走り直すため。
+  const handleComposeHandled = useCallback(() => {
+    setComposeRequest((prev) => (prev.nonce === 0 ? prev : { nonce: 0, startWithAi: false }))
+  }, [])
+
   // 「残すリスト」はフォロー整理の派生画面なので、下部バーでは同じ項目を現在地として扱う。
   function isCurrent(id: Tab): boolean {
     return id === tab || (id === 'tidy' && tab === 'protected')
@@ -315,6 +322,7 @@ function App() {
               <ScheduleView
                 composeRequest={composeRequest.nonce}
                 composeStartWithAi={composeRequest.startWithAi}
+                onComposeHandled={handleComposeHandled}
               />
             </Suspense>
           )}
