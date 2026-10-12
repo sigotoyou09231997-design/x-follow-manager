@@ -15,6 +15,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeF
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { connect, createPost, deletePost, listJoinedGroups, openTarget, postState, selfId, waitForCard } from "./yay.mjs";
+import { backoffMs, isTransient, nextStep, shouldGiveUp } from "./failure.mjs";
 import { append, pending, stats } from "./ledger.mjs";
 import { pickTargets } from "./targets.mjs";
 import { loadCloud, pullState, pushStatus } from "./cloud.mjs";
@@ -239,6 +240,10 @@ const fatalPattern = /ログインが切れ|HTTP (403|429)|自分の投稿では
 // 専用 Chrome のウインドウ／タブを閉じられた・Chrome を終了された、というときのエラー
 const closedPattern = /has been closed|Target closed|Target page|Browser has been closed|Connection closed|disconnected|Session closed|ECONNREFUSED|Browser context management|Chrome に接続できません/i;
 let failures = 0;
+// 一時的な不調（時間切れ・サーバーの答えが無い 等。failure.mjs）の連続。ほんとうの失敗(failures)とは別に数え、
+// すぐには止まらず、待って続ける。transientSince は、不調が途切れず続き始めた時刻（直れば null に戻す）
+let transientStreak = 0;
+let transientSince = null;
 let cycles = 0;
 let { browser, page } = await connect();
 page.on("dialog", (d) => d.accept());
@@ -251,14 +256,30 @@ async function reattach(reason) {
   page.on("dialog", (d) => d.accept());
   await openTarget(page, TARGETS[0]);
 }
-try {
-  await openTarget(page, TARGETS[0]);
-  await selfId(page); // 自分のユーザー番号を、作りの揃った一覧の画面で先に読んで覚えておく
-} catch (e) {
-  log(`止まります: 起動時の確認に失敗: ${e.message.split("\n")[0]}`);
-  notify(`起動できません: ${e.message.slice(0, 60)}`);
-  await browser.close().catch(() => {});
-  process.exit(1);
+// 起動の直後にサイトや Mac が重くて時間切れになっただけで止まらないよう、一時的な不調なら少し待って数回やり直す
+// （2026-10-12 16:19 の再起動は、1回目の確認だけで2分かかった）
+for (let attempt = 1; ; attempt++) {
+  try {
+    await openTarget(page, TARGETS[0]);
+    await selfId(page); // 自分のユーザー番号を、作りの揃った一覧の画面で先に読んで覚えておく
+    break;
+  } catch (e) {
+    const msg = e.message.split("\n")[0];
+    if (attempt < 4 && !fatalPattern.test(msg) && isTransient(msg)) {
+      log(`起動時の確認が遅れています（${attempt}回目）: ${msg}。少し待ってやり直します`);
+      await sleep(backoffMs(attempt));
+      continue;
+    }
+    log(`止まります: 起動時の確認に失敗: ${msg}`);
+    notify(`起動できません: ${e.message.slice(0, 60)}`);
+    await browser.close().catch(() => {});
+    process.exit(1);
+  }
+}
+
+// 待ち時間。1秒ごとに STOP と「画面で止めた」を見て、止められたらすぐ切り上げる
+async function patientSleep(ms) {
+  for (let i = 0; i < ms / 1000 && !existsSync(STOP) && !pause.paused; i++) await sleep(1000);
 }
 log(`開始: ${AUTO ? "タイムライン + 参加中のサークル（周回ごとに読み直し）" : TARGETS.join(", ")} / ${INTERVAL}秒ごと${CYCLES === Infinity ? "" : ` / ${CYCLES}周で終了`}`);
 
@@ -296,10 +317,29 @@ try {
           await cycleTarget(page, target); // 1回だけやり直す（前の投稿は、記録にあるものとして消してから投稿する）
         }
         failures = 0;
+        transientStreak = 0;
+        transientSince = null;
         badRounds.delete(target);
       } catch (e) {
-        failures++;
         const msg = e.message.split("\n")[0];
+        // 一時的な不調（時間切れ・サーバーの答えが無い 等）は、止まらずに待って続ける。ログイン切れ・403/429 は別（すぐ止まる）。
+        // この投稿先だけの問題とは限らないので、「3周続けて失敗した投稿先はお休み」にも数えない
+        if (!fatalPattern.test(msg) && isTransient(msg)) {
+          transientStreak++;
+          transientSince ??= Date.now();
+          log(`失敗 (${target}) 一時的な不調${transientStreak}回目: ${msg}`);
+          if (shouldGiveUp(transientSince, Date.now())) {
+            throw new Fatal(`${Math.round((Date.now() - transientSince) / 60000)}分間、不調が続いています: ${msg}`);
+          }
+          const step = nextStep(transientStreak);
+          if (step.waitMs) await patientSleep(step.waitMs);
+          if (step.action === "skip-rest") {
+            log("不調が続いているので、この周回の残りは見送ります。次の周回でまた試します");
+            break;
+          }
+          continue;
+        }
+        failures++;
         log(`失敗 (${target}) ${failures}回目: ${msg}`);
         if (fatalPattern.test(msg) || failures >= 3) throw new Fatal(msg);
         const bad = (badRounds.get(target) ?? 0) + 1;
