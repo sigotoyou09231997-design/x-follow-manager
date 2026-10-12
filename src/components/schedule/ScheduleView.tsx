@@ -20,9 +20,19 @@ interface Props {
   composeRequest?: number
   /** composeRequest と同時に渡る。true なら、開くコンポーザーをAI下書き支援が開いた状態で始める。 */
   composeStartWithAi?: boolean
+  /**
+   * composeRequest を受けて開いたら呼ぶ。呼び出し側は、頼みを使い切ったことにして 0 へ戻す。
+   * 戻さないと、別のタブへ行って予約投稿タブに戻る（＝この画面が作り直される）たびに、
+   * 残っていた同じ頼みでコンポーザーが勝手にまた開く（AIから来たなら、AIパネルを開いたまま）。
+   */
+  onComposeHandled?: () => void
 }
 
-export function ScheduleView({ composeRequest = 0, composeStartWithAi = false }: Props) {
+export function ScheduleView({
+  composeRequest = 0,
+  composeStartWithAi = false,
+  onComposeHandled,
+}: Props) {
   const { session, loading: authLoading, configured, configStatus } = useSupabaseAuth()
   const loggedIn = !!session
   const { posts, summary, xAccount, loading, error, reload } = useScheduledPosts(loggedIn)
@@ -70,7 +80,8 @@ export function ScheduleView({ composeRequest = 0, composeStartWithAi = false }:
     setEditing(undefined)
     setSheetStartWithAi(composeStartWithAi)
     setSheetOpen(true)
-  }, [composeRequest, composeStartWithAi])
+    onComposeHandled?.()
+  }, [composeRequest, composeStartWithAi, onComposeHandled])
 
   if (authLoading) {
     return <p className="loading-indicator">読み込み中…</p>
