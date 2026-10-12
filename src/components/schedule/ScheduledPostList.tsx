@@ -5,14 +5,13 @@ import { Icon } from '../Icon'
 import type { ScheduledPost } from '../../lib/schedule/types'
 import { isAutopilotPost } from '../../lib/xAutopilot/types'
 
-type Filter = 'all' | 'scheduled' | 'draft' | 'repeating' | 'posted' | 'failed'
+type Filter = 'all' | 'scheduled' | 'draft' | 'repeating' | 'failed'
 
 const FILTER_LABELS: Record<Filter, string> = {
   all: 'すべて',
   scheduled: '予約中',
   draft: '下書き',
   repeating: '繰り返し',
-  posted: '投稿済み',
   failed: '失敗',
 }
 
@@ -52,34 +51,37 @@ export function ScheduledPostList({ posts, onChanged, onEdit }: Props) {
   const [busyId, setBusyId] = useState<string>()
   const [error, setError] = useState<string>()
 
+  // 投稿済みは一覧に出さない（本人の指示 2026-10-13）。出たあとの投稿が積み上がって、これからの予約が埋もれるため。
+  // データは消さない（Supabase にそのまま残り、上部の集計の「投稿済み」にも数えられる）。
+  // 繰り返しの親も、終わると status が posted になるので、ここで一緒に外れる。
+  const listed = useMemo(() => posts.filter((post) => post.status !== 'posted'), [posts])
+
   const counts = useMemo(() => {
     const result: Record<Filter, number> = {
-      all: posts.length,
+      all: listed.length,
       scheduled: 0,
       draft: 0,
       repeating: 0,
-      posted: 0,
       failed: 0,
     }
-    for (const post of posts) {
+    for (const post of listed) {
       if (isTemplate(post)) result.repeating += 1
       else if (post.status === 'scheduled' || post.status === 'publishing') result.scheduled += 1
       else if (post.status === 'draft') result.draft += 1
-      else if (post.status === 'posted') result.posted += 1
       else if (post.status === 'failed') result.failed += 1
     }
     return result
-  }, [posts])
+  }, [listed])
 
   const visible = useMemo(() => {
-    return posts.filter((post) => {
+    return listed.filter((post) => {
       if (filter === 'all') return true
       if (filter === 'repeating') return isTemplate(post)
       if (isTemplate(post)) return false
       if (filter === 'scheduled') return post.status === 'scheduled' || post.status === 'publishing'
       return post.status === filter
     })
-  }, [posts, filter])
+  }, [listed, filter])
 
   async function run(id: string, action: () => Promise<void>) {
     setBusyId(id)
@@ -171,17 +173,15 @@ export function ScheduledPostList({ posts, onChanged, onEdit }: Props) {
               {post.errorMessage && <p className="post-item__error">{post.errorMessage}</p>}
 
               <div className="post-item__actions">
-                {post.status !== 'posted' && (
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--small"
-                    onClick={() => onEdit(post)}
-                    disabled={busy}
-                  >
-                    <Icon name="edit" size={15} />
-                    編集
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--small"
+                  onClick={() => onEdit(post)}
+                  disabled={busy}
+                >
+                  <Icon name="edit" size={15} />
+                  編集
+                </button>
                 {(post.status === 'scheduled' || post.status === 'publishing') && !template && (
                   <button
                     type="button"
