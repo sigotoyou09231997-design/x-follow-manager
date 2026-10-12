@@ -41,7 +41,7 @@ touch STOP               # 止める（作ったままなら次のログイン�
   投稿役は、このコードの版へ**入れ替えて**（各フォルダの README にある入れ替えの手順）初めて止まるようになる
 - 投稿役の入れ替えは、投稿の最中に殺さない。`touch STOP` → 止まるのを待つ → `bash launchd.sh restart`（詳しくは各 README）
 
-テスト: `node --test poster/pause-state.test.mjs poster/discord/cloud-client.test.mjs poster/discord/eroype.test.mjs poster/yay/cloud.test.mjs poster/yay/targets.test.mjs`
+テスト: `npm run test:poster`（poster/ 配下の `*.test.mjs` を全部。`npm test` には入っていない。ファイルを足しても一覧は直さなくてよい。`scripts/ship.sh` も走らせる）
 - 合鍵は `discord/.hub-token`（Yay も同じものを探す）。Supabase の `autopost_poster_keys` に sha256 の値を入れてある
 - `chrome-profile/`（Discord・Yay のログイン情報）・`logs/`・合鍵・`config.json` は、コミットしない（ルートの `.gitignore`）
 - playwright は、このアプリの `node_modules` を使う（`npm install` 済みであること）

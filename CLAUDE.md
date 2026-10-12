@@ -7,14 +7,42 @@
 `main` への push は Vercel の自動デプロイに繋がる＝そのまま本番へ出る、という前提で扱う。
 作業ブランチに置いたまま報告して終わりにしない。直したものは反映まで持っていく。
 
+### 速く出す手順（2026-10-13、todoアプリの仕組みを移した）
+
+```bash
+bash scripts/new-fix.sh <名前>                    # 作業場所(git worktree)を作る。最後の行がそのパス
+# ……その中で直して、コミットする。直している間は `npm run test:changed`(変えた所のテストだけ)……
+bash scripts/ship.sh "何を直したか" [--from <epoch秒>] [--skip-e2e] [--dry-run]
+node scripts/fix-times.mjs                        # 出すのにかかった時間の記録（直近の平均つき）
+```
+
+- **本体のフォルダで直さず、作業場所で直す。** 本体の `poster/` には作業途中の変更が溜まりやすく（Mac の投稿役は
+  このフォルダのファイルで動いている）、Cowork の裏実行も同じフォルダで走る。巻き込んでコミットする・書き換えられる事故を避ける。
+- `ship.sh` は下の「反映する前に必ず通すもの」を**同時に**走らせ、通れば main へ統合・プッシュ・手元の main を進め、
+  Vercel が公開するのを `/version.json` で待ち、最後に全受け口を鍵なしで叩いて 500 が無いか見る。1つでも落ちたら main には入れない。
+  下の一覧に**足してある**もの: poster のテスト（`npm run test:poster`。`npm test` には入っていないので、poster/ を直しても今まで走っていなかった）、
+  サーバー関数の読み込み（`npm run check:api`。`.js` の付け忘れは型もテストも通ったまま本番だけ壊れる — 2026-10-10 に publishDue が約15分止まった）。
+  `dist-artifact` は作り直して、差分が出たら自動でコミットする。
+- Vercel は **main だけビルドする**（`vercel.json` の `ignoreCommand`）。**作業ブランチは GitHub にプッシュしない**
+  （`ship.sh` が統合した main だけをプッシュする。ブランチのプッシュも Vercel の待ち行列に1件入り、本番が待たされる）。
+- Vercel のビルドは**型チェックを飛ばす**（`buildCommand` が `SKIP_BUILD_TSC=1`。`ship.sh` が先に済ませているため、約9秒縮む）。
+  そのかわり、`ship.sh` を通さずに main へ push すると型チェックを通らない。手で push するなら下の一覧を必ず先に通すこと。
+  戻すなら `vercel.json` の `buildCommand` を `npm run build` に。
+- 同時に走る `ship.sh` は1つだけ（順番待ちの札 `sns-ship-tests.lock`）。Mac では自動投稿も動いているので、重ねて走らせない。
+- 公開後の受け口の確認は、401/405 を正常、500・つながらないを失敗として見る（読み込みの失敗は 500 で出るため）。
+- **E2E は既定で走る**（約6秒）。`CI=1` で走らせるので、4173番に別のサーバーが居たら黙ってそれを使わず落ちる。
+  画面に触らない直し（poster だけなど）なら `--skip-e2e`。
+
 ### 反映する前に必ず通すもの
 
-1つでも落ちていたら push しない。直してから出す。
+1つでも落ちていたら push しない。直してから出す。（`ship.sh` が同じことを自動でやる。手で出すときだけ、これを順に通す）
 
 ```bash
 npx tsc -b          # 型
 npm run lint        # oxlint
 npm test            # ユニット（api/ 配下のサーバー関数も含む）
+npm run test:poster # poster/ のテスト（npm test には入っていない）
+npm run check:api   # サーバー関数を Node の ESM で本当に読み込めるか（.js の付け忘れ）
 npm run build       # 本番ビルド
 npm run build:artifact
 ```
