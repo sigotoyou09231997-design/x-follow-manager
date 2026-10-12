@@ -48,6 +48,17 @@ touch STOP               # 止める（作ったままなら次のログイン�
 - launchd のラベルは `local.discord-ch-auto-post` / `local.yay-auto-post`（plist は `~/Library/LaunchAgents/`）。
   フォルダを動かしたら、それぞれ `bash launchd.sh install` をやり直す（plist に絶対パスを書くため）
 
+## Chrome の保存先（iCloud の外にある）— 2026-10-12
+
+`yay/chrome-profile` と `discord/chrome-profile` は、**実体を `~/Library/Application Support/auto-poster/<yay|discord>/chrome-profile` に置き、ここからはリンク**にしてある（コードは変えていない。`ls -l` で `->` が見える）。
+
+- 理由: このフォルダはデスクトップの中＝iCloud Drive の同期の対象で、Chrome のキャッシュだけで約31万ファイル、絶えず書き換わって `fileproviderd`/`bird` が CPU を使い切り、Mac の負荷が約45まで上がった。
+  ページが開くのに30秒以上かかり、Yay が「3回続けて失敗」で止まった。iCloud が作った重複コピー（`LOG 2`・`Network Persistent State 10` など、中身が iCloud 側にしか無いもの）で、コピー中の読み込みが固まることもあった
+- 移したのは、ログイン等の中身だけ（キャッシュは Chrome が新しい場所で作り直す）。Yay は約250MB、Discord は約220MB
+- `chrome-profile.old/` は移す前の元のフォルダ（ログイン入り。`.gitignore` 済み）。新しい場所で数日動くのを確かめたら消してよい
+- 元に戻すとき: 投稿役と専用 Chrome を止め、`rm chrome-profile && mv chrome-profile.old chrome-profile`
+- 新しい Mac などで作り直すときは、リンクを作らず、そのまま `chrome-profile/` を作ってもよい（その場合は iCloud の同期の対象外にすること）
+
 ## 止まったとき（スマホから再起動）
 
 投稿役の報告が20分途絶えると、アプリを入れたスマホに通知が来る（アプリの設定で「この端末で通知を受け取る」を有効にしておく）。

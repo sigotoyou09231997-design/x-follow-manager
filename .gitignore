@@ -22,7 +22,10 @@ dist-ssr
 
 # Mac で動く投稿役（poster/）の、手元だけのもの。ログイン情報・合鍵・記録・手元の設定は絶対にコミットしない
 # （chrome-profile/ には Discord・Yay のログインが入っていて、数GBある）
-/poster/*/chrome-profile/
+# 末尾の / を付けない: 2026-10-12 に実体を ~/Library/Application Support/auto-poster/ へ移し、ここはそこへのリンクになった
+# （リンクは「フォルダ」とは見なされず、/ 付きだと除外されない）。.old は移す前の元のフォルダ（ログイン入り。確認後に消す）
+/poster/*/chrome-profile
+/poster/*/chrome-profile.old
 /poster/*/logs/
 /poster/*/config.json
 /poster/*/.hub-token

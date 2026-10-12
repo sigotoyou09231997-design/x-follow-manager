@@ -15,7 +15,10 @@
 /** この時間、一時的な不調が途切れず続いたら、止まって知らせる。 */
 export const TRANSIENT_GIVE_UP_MS = 30 * 60 * 1000;
 
-const TRANSIENT = /Timeout \d+ms exceeded|サーバーの答えが無い|投稿欄が見つかりません|net::ERR_|ECONNRESET|ETIMEDOUT|EAI_AGAIN|fetch failed/i;
+// 「interrupted by another navigation」は、前のページ移動が時間切れで終わらないまま次の移動に進んだときに出る
+// （2026-10-12 16:41 に、これが3回続いて止まった）。つながりが遅いときの副作用なので、一時的な不調に数える
+const TRANSIENT =
+  /Timeout \d+ms exceeded|サーバーの答えが無い|投稿欄が見つかりません|is interrupted by another navigation|net::ERR_|ECONNRESET|ETIMEDOUT|EAI_AGAIN|fetch failed/i;
 
 /** 待てば直りうる失敗か。 */
 export const isTransient = (message) => TRANSIENT.test(message);

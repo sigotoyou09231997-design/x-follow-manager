@@ -11,6 +11,8 @@ test("実際に投稿役を止めた失敗（時間切れ・サーバーの答�
     "page.waitForResponse: Timeout 30000ms exceeded while waiting for event \"response\"",
     "投稿 610321010 の状態を確認できません（サーバーの答えが無い）",
     "投稿欄が見つかりません (https://yay.space/)",
+    'page.goto: Navigation to "https://yay.space/group/124414/post/610323227" is interrupted by another navigation to "https://yay.space/group/1/post/2"',
+
     "page.goto: net::ERR_INTERNET_DISCONNECTED at https://yay.space/",
     "fetch failed",
   ]) {
