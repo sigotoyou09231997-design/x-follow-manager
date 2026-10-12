@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { buildSystemPrompt, buildUserMessage, readMessage } from './generatePosts.js'
+import { buildSystemPrompt, buildUserMessage, readMessage } from '../generatePosts.js'
 
 // 画面の入力欄が「AIに伝えたいこと」1つになったので、サーバー側もそれを
 // 「お題（何について書くか）」ではなく「伝えたい中身そのもの」として扱う。

@@ -155,7 +155,7 @@ function fakeRes() {
 }
 
 async function run(secret = 'test-cron-secret') {
-  const handler = (await import('./checkAppUpdate.js')).default
+  const handler = (await import('../checkAppUpdate.js')).default
   const { res, result } = fakeRes()
   await handler({ headers: { 'x-cron-secret': secret } } as never, res)
   return result

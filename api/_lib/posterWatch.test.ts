@@ -90,7 +90,7 @@ describe('通知の文面', () => {
     expect(payload.body).toContain('Yay：35分前から報告がありません')
     expect(payload.body).toContain('ディスコード：2時間5分前から報告がありません')
     expect(payload.tag).toBe('poster-silent')
-    expect(payload.url).toBe('/')
+    expect(payload.url).toBe('/?open=autopost')
   })
 })
 

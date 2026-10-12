@@ -68,7 +68,8 @@ export function buildSilentPayload(rows: WatchedChannel[], nowMs: number): strin
   return JSON.stringify({
     title: '自動投稿が止まっているかもしれません',
     body: `${lines.join('\n')}\nMac の状態を確認してください。`,
-    url: '/',
+    // タップすると、再起動のボタンがある自動投稿タブが開く（App.tsx が ?open=autopost を見る）
+    url: '/?open=autopost',
     // 同じ通知が積み上がらないようにまとめる
     tag: 'poster-silent',
   })

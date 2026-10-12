@@ -11,25 +11,30 @@ import {
   type ChannelName,
 } from './autopostDoc.js'
 import { PauseNotReadyError, supabaseAutopostStore, type AutopostStore, type ChannelRow } from './autopostStore.js'
+import { NOT_READY, RestartNotReadyError, supabaseRestartStore, type RestartStore } from './restartStore.js'
 
 // 掲示板・Yay の自動投稿の受け口。
 //   画面（X のアプリ。Supabase のログインが要る）…… api/autopost.ts
-//     GET  = 全投稿先の文・履歴・状態   POST = 文の保存、または止める／再開する（{ channel, paused }）
-//   投稿側（Mac。合鍵が要る）…………………………… api/poster-text.ts / api/poster-status.ts
+//     GET  = 全投稿先の文・履歴・状態（?part=restart なら、再起動の依頼の状態だけ）
+//     POST = 文の保存／止める・再開する（{ channel, paused }）／投稿役の再起動を依頼する（{ restart: true }）
+//   投稿側（Mac。合鍵が要る）…………………………… api/poster-text.ts / api/poster-status.ts / api/poster-command.ts
 //     GET  = 投稿する文と、止められているかを読む
 //     POST = 「動いている・最後の投稿・いま止まっているか」を報告する
+//     poster-command … 画面からの「再起動」の依頼を受け取り、結果を書き戻す（_lib/posterCommandHandler.ts）
 //
 // 投稿側の2つは、以前の編集画面（ch-post-editor）と同じ URL・同じ返し方にしてある。
 // そのため Mac 側は config.json の cloud.url を差し替えるだけでつなぎ替えられる。
 
 export interface Deps {
   store: AutopostStore
+  /** 再起動の依頼の預かり場所。無ければ（古いテストなど）再起動は「準備中」として扱う。 */
+  restart?: RestartStore
   /** Authorization ヘッダーからユーザーIDを引く。通らなければ UnauthorizedError。 */
   authenticate: (authorization: string | undefined) => Promise<string>
 }
 
-function defaultDeps(): Deps {
-  return { store: supabaseAutopostStore(), authenticate: requireUserId }
+export function defaultDeps(): Deps {
+  return { store: supabaseAutopostStore(), restart: supabaseRestartStore(), authenticate: requireUserId }
 }
 
 function readBody(req: VercelRequest): Record<string, unknown> | null {
@@ -59,6 +64,9 @@ function snapshot(row: ChannelRow) {
 const PAUSE_SETUP_MESSAGE =
   '止める機能の準備がまだです。Supabase の SQL Editor で supabase/sql/006_autopost_pause.sql を実行すると使えるようになります'
 
+const RESTART_SETUP_MESSAGE =
+  '再起動の準備がまだです。Supabase の SQL Editor で supabase/sql/008_autopost_restart.sql を実行すると使えるようになります'
+
 function channelOf(req: VercelRequest, body: Record<string, unknown> | null): ChannelName | null {
   const q = req.query?.ch
   const fromQuery = Array.isArray(q) ? q[0] : q
@@ -73,13 +81,13 @@ function failure(res: VercelResponse, error: unknown) {
   return res.status(500).json({ error: 'サーバーでエラーが起きました' })
 }
 
-export function createAutopostHandler(deps?: Deps) {
+export function createAutopostHandler(deps?: Deps, now: () => Date = () => new Date()) {
   return async function autopost(req: VercelRequest, res: VercelResponse) {
     res.setHeader('cache-control', 'no-store')
     if (req.method !== 'GET' && req.method !== 'POST') {
       return res.status(405).json({ error: 'Method not allowed' })
     }
-    const { store, authenticate } = deps ?? defaultDeps()
+    const { store, authenticate, restart } = deps ?? defaultDeps()
 
     let userId: string
     try {
@@ -90,6 +98,10 @@ export function createAutopostHandler(deps?: Deps) {
 
     try {
       if (req.method === 'GET') {
+        // 再起動の依頼の状態だけ（画面が、依頼したあとの様子を短い間隔で見るため。文などは読まない）
+        const part = Array.isArray(req.query?.part) ? req.query.part[0] : req.query?.part
+        if (part === 'restart') return res.status(200).json({ restart: (await restart?.get(userId)) ?? NOT_READY })
+
         const names = Object.keys(CHANNELS) as ChannelName[]
         const rows = await Promise.all(names.map((name) => store.getChannel(userId, name)))
         return res.status(200).json({ channels: Object.fromEntries(rows.map((r) => [r.channel, snapshot(r)])) })
@@ -97,6 +109,21 @@ export function createAutopostHandler(deps?: Deps) {
 
       const body = readBody(req)
       if (!body) return res.status(400).json({ error: 'リクエストの形式が不正です' })
+
+      if (body.restart !== undefined) {
+        // 投稿役の再起動の依頼。どの投稿先の話でもなく、ほかの操作とは混ぜない
+        if (body.restart !== true || body.messages !== undefined || body.paused !== undefined) {
+          return res.status(400).json({ error: 'リクエストの形式が不正です' })
+        }
+        try {
+          if (!restart) throw new RestartNotReadyError()
+          return res.status(200).json({ restart: await restart.request(userId, now()) })
+        } catch (error) {
+          if (error instanceof RestartNotReadyError) return res.status(503).json({ error: RESTART_SETUP_MESSAGE })
+          throw error
+        }
+      }
+
       const channel = channelOf(req, body)
       if (!channel) return res.status(400).json({ error: '投稿先が正しくありません' })
 
@@ -145,7 +172,7 @@ export function createAutopostHandler(deps?: Deps) {
 }
 
 /** 合鍵から持ち主を引く。合鍵が無い・合わないときは null。 */
-async function posterUserId(store: AutopostStore, authorization: string | undefined): Promise<string | null> {
+export async function posterUserId(store: AutopostStore, authorization: string | undefined): Promise<string | null> {
   const key = authorization?.replace(/^Bearer\s+/i, '').trim()
   if (!key) return null
   return store.userIdForPosterKey(hashPosterKey(key))

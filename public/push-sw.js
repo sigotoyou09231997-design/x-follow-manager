@@ -29,6 +29,11 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
+        // すでにアプリが開いているときは、行き先（例: /?open=autopost）へ移してから前に出す。
+        // 移さないと、通知を押しても今見ている画面のままで、再起動のボタンにたどり着けない
+        if (url !== '/' && 'navigate' in client) {
+          return client.navigate(url).then((moved) => (moved || client).focus())
+        }
         if (client.url.includes(url) && 'focus' in client) return client.focus()
       }
       if (self.clients.openWindow) return self.clients.openWindow(url)

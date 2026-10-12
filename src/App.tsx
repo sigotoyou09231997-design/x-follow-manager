@@ -66,8 +66,13 @@ function App() {
   const batchKeys = useCurrentBatchKeys()
 
   // Xの認可画面から戻ってきた直後は、そのまま予約投稿タブを開く。
+  // 「自動投稿が止まっているかもしれません」の通知から開いたとき（?open=autopost）は、再起動のボタンがある自動投稿タブから始める。
   const [tab, setTab] = useState<Tab>(() =>
-    window.location.pathname === X_CALLBACK_PATH ? 'schedule' : 'home'
+    window.location.pathname === X_CALLBACK_PATH
+      ? 'schedule'
+      : new URLSearchParams(window.location.search).get('open') === 'autopost'
+        ? 'autopost'
+        : 'home'
   )
   const [filter, setFilter] = useState<FilterKey>('all')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)

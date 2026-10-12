@@ -17,12 +17,16 @@ const api = vi.hoisted(() => ({
   fetchSnapshots: vi.fn(),
   saveMessages: vi.fn(),
   setPaused: vi.fn(),
+  fetchRestart: vi.fn(),
+  requestRestart: vi.fn(),
 }))
 vi.mock('../../lib/autopost/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/autopost/api')>()),
   fetchSnapshots: api.fetchSnapshots,
   saveMessages: api.saveMessages,
   setPaused: api.setPaused,
+  fetchRestart: api.fetchRestart,
+  requestRestart: api.requestRestart,
 }))
 
 // X の自動運転の中身は、専用のテストで確かめる。ここではタブの切り替えだけを見る。
@@ -66,6 +70,8 @@ beforeEach(() => {
   api.fetchSnapshots.mockReset().mockResolvedValue(snapshots())
   api.saveMessages.mockReset()
   api.setPaused.mockReset()
+  api.fetchRestart.mockReset().mockResolvedValue({ ready: true, requestedAt: null, handledAt: null, result: null })
+  api.requestRestart.mockReset()
   resetEditingGuardsForTest()
   localStorage.clear()
   window.scrollTo = vi.fn() // jsdom には無い。履歴の文を選んだとき、画面の上へ戻すのに使う

@@ -48,14 +48,14 @@ export class SaveConflictError extends Error {
   }
 }
 
-async function call<T>(method: 'GET' | 'POST', body?: unknown): Promise<{ status: number; data: T }> {
+async function call<T>(method: 'GET' | 'POST', body?: unknown, query = ''): Promise<{ status: number; data: T }> {
   const client = await requireSupabase()
   const {
     data: { session },
   } = await client.auth.getSession()
   if (!session) throw new Error('ログインしていません')
 
-  const response = await fetch('/api/autopost', {
+  const response = await fetch(`/api/autopost${query}`, {
     method,
     headers: {
       authorization: `Bearer ${session.access_token}`,
@@ -108,4 +108,31 @@ export async function setPaused(channel: ChannelName, paused: boolean): Promise<
   const { status, data } = await call<{ snapshot: ChannelSnapshot; error?: string }>('POST', { channel, paused })
   if (status < 200 || status >= 300) throw new Error(failureMessage(status, data))
   return data.snapshot
+}
+
+/**
+ * 投稿役（Mac）の再起動の依頼の状態。画面の「投稿役を再起動する」を押すと依頼が置かれ、
+ * Mac の見張りが1分ごとに見に来て、投稿役を入れ替えて結果を書き戻す。
+ */
+export interface RestartState {
+  /** 準備（SQL 008）ができているか。無ければ画面は、ボタンの代わりに案内を出す。 */
+  ready: boolean
+  requestedAt: string | null
+  /** Mac が処理した時刻。null のあいだは依頼中。 */
+  handledAt: string | null
+  /** Mac が書き戻した結果（何を再起動し、何をそのままにしたか）。 */
+  result: string | null
+}
+
+export async function fetchRestart(): Promise<RestartState> {
+  const { status, data } = await call<{ restart: RestartState }>('GET', undefined, '?part=restart')
+  if (status < 200 || status >= 300) throw new Error(failureMessage(status, data))
+  return data.restart
+}
+
+/** 投稿役の再起動を依頼する。依頼が1分以内に出ていれば、それをそのまま返す（連打しても何度も入れ替わらない）。 */
+export async function requestRestart(): Promise<RestartState> {
+  const { status, data } = await call<{ restart: RestartState; error?: string }>('POST', { restart: true })
+  if (status < 200 || status >= 300) throw new Error(failureMessage(status, data))
+  return data.restart
 }

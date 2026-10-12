@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { buildDailySystemPrompt, buildDailyUserMessage } from './_lib/dailyWriter.js'
+import { buildDailySystemPrompt, buildDailyUserMessage } from './dailyWriter.js'
 
 // 毎日の自動投稿は誰にも見られずにそのまま出る。画面から作る投稿と違って
 // 「おかしければ人が直す」が効かないぶん、プロンプト側で釘を刺しておく必要がある。

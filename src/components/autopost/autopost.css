@@ -175,6 +175,11 @@
   background: color-mix(in srgb, var(--danger) 18%, transparent);
 }
 
+.autopost__restart-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .autopost__pause-error {
   color: var(--danger);
   font-weight: 600;

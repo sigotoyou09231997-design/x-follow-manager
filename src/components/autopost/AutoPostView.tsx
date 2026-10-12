@@ -24,6 +24,7 @@ import {
 } from '../../lib/autopost/draft'
 import { readAutopostTab, rememberAutopostTab, type AutopostTab } from '../../lib/autopost/tab'
 import { Icon } from '../Icon'
+import { RestartControl } from './RestartControl'
 import { XAutopilotPanel } from './XAutopilotPanel'
 
 const CHANNEL_LABELS: Record<ChannelName, string> = { discord: 'ディスコード', yay: 'Yay' }
@@ -303,6 +304,10 @@ export function AutoPostView() {
         busy={pauseBusy}
         error={pauseError}
         onChange={(next) => void changePaused(next)}
+      />
+      <RestartControl
+        enabled={loggedIn}
+        silent={CHANNEL_NAMES.some((name) => livenessOf(snapshots?.[name]?.status ?? null, now) === 'silent')}
       />
 
       <section className="surface-card autopost__card">
