@@ -162,6 +162,9 @@ export async function createPost(page, text, { target = "timeline", dry = false 
     return { dry: true, buttonWasEnabled: true };
   }
   const reply = page.waitForResponse((r) => r.request().method() === "POST" && new URL(r.url()).pathname === "/api/posts", { timeout: 30000 });
+  // クリックが先に失敗すると、この待ちは誰にも受け取られないまま30秒後に失敗し、投稿役のプロセスごと落ちる
+  // （2026-10-12 12:20 に実際に落ちて、3時間止まった）。ほかの2か所と同じく、先に受け取り口を付けておく
+  reply.catch(() => {});
   await button.click({ timeout: 10000 });
   const res = await reply;
   const raw = await res.text().catch(() => "");
