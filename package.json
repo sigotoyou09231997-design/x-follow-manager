@@ -5,13 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "([ \"$SKIP_BUILD_TSC\" = \"1\" ] || tsc -b) && vite build",
     "build:artifact": "vite build --config vite.artifact.config.ts && node scripts/build-artifact-template.mjs",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:changed": "vitest run --changed main",
     "test:watch": "vitest",
+    "test:poster": "node --test $(find poster -name '*.test.mjs' -not -path '*/node_modules/*' | sort)",
     "test:e2e": "playwright test",
+    "check:api": "rm -rf .api-esm-check && tsc -p tsconfig.api.json --noEmit false --incremental false --outDir .api-esm-check && node scripts/check-api-esm.mjs .api-esm-check",
     "design:shots": "node scripts/design-shots.mjs"
   },
   "dependencies": {

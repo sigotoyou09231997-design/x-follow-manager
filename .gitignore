@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# scripts/ship.sh が出すたびに1行足す、修正にかかった時間の記録（node scripts/fix-times.mjs で見る）
+.fix-times.log
+# npm run check:api の出力（api/ を変換した JS。サーバー関数が読み込めるかを試すための一時物）
+.api-esm-check/
+
 # Xアーカイブ（個人情報を含むため絶対にコミットしない）
 *.zip
 # E2E用のテストZIPだけは合成データなので例外的に含める（無いとE2Eが動かない）
