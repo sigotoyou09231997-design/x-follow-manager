@@ -827,3 +827,32 @@ describe('XAutopilotPanel: 投稿可能（確認してから投稿する）', ()
     expect(screen.getAllByRole('button', { name: 'この予約を投稿可能にする' })).toHaveLength(2)
   })
 })
+
+describe('XAutopilotPanel: 予約の並びと時刻の見せ方', () => {
+  const future = (hours: number) => new Date(Date.now() + hours * 3600_000).toISOString()
+
+  it('投稿可能を上に、確認待ちを下に。それぞれ、時刻の早い順', async () => {
+    posts.list = [
+      post('d1', { status: 'draft', scheduledAt: future(1), segments: [{ text: '確認待ち・早い', media: [] }] }),
+      post('s2', { scheduledAt: future(9), segments: [{ text: '投稿可能・遅い', media: [] }] }),
+      post('d2', { status: 'draft', scheduledAt: future(5), segments: [{ text: '確認待ち・遅い', media: [] }] }),
+      post('s1', { scheduledAt: future(3), segments: [{ text: '投稿可能・早い', media: [] }] }),
+    ]
+    render(<XAutopilotPanel />)
+    await screen.findByText('投稿可能・早い')
+
+    const order = screen.getAllByRole('listitem').map((li) => li.textContent ?? '')
+    const names = ['投稿可能・早い', '投稿可能・遅い', '確認待ち・早い', '確認待ち・遅い']
+    expect(names.map((n) => order.findIndex((t) => t.includes(n)))).toEqual([0, 1, 2, 3])
+  })
+
+  it('時刻は「今日／明日／日付」と大きな時刻、あと何時間かで出す', async () => {
+    posts.list = [post('a', { scheduledAt: future(2.5) })]
+    render(<XAutopilotPanel />)
+    await screen.findByText('自動運転の本文 a')
+
+    expect(screen.getByText(/^(今日|明日)$/)).toBeInTheDocument()
+    expect(screen.getByText(/^\d{2}:\d{2}$/)).toBeInTheDocument()
+    expect(screen.getByText(/^あと2時間(30|29)分$/)).toBeInTheDocument()
+  })
+})
