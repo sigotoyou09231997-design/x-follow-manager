@@ -284,9 +284,14 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
       // 似た話題・同じ型の文が出続けた。残した文は、次に書くとき「こういうのは出さない」の材料になる。
       // 取り消した枠は空きとして扱い、別の文で作り直す（下の queueRefill）。一覧には出ない。
       await updateScheduledPost(post.id, { status: 'canceled', rejected: true })
-      setNotice({ text: '取り消しました。いちばん近い時刻の枠から、別の文を作り直します', kind: 'ok' })
+      // 確認してから投稿する設定では、外したものは外したまま（作り直さない。サーバーの毎分の補充も作り直さない）。
+      const redo = !state?.settings.requireApproval
+      setNotice({
+        text: redo ? '取り消しました。いちばん近い時刻の枠から、別の文を作り直します' : '取り消しました。この枠は、そのまま空けておきます',
+        kind: 'ok',
+      })
       await reloadPosts()
-      queueRefill()
+      if (redo) queueRefill()
     } catch (err) {
       setNotice({ text: errorOf(err), kind: 'err' })
     }
@@ -396,8 +401,12 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
       {upcoming.length > 0 && (
         <p className="xap__muted">
           {variant === 'summary'
-            ? '「編集」で本文と投稿時刻を直せます。取り消すと、近い時刻の枠から別の文を作り直します（数十秒）。'
-            : '「編集」で本文と投稿時刻を直せます。取り消すと、いちばん近い時刻の枠から、別の文を作り直して並べます（数十秒）。取り消した文は覚えておき、似た話題・型は作らないようにします。'}
+            ? state.settings.requireApproval
+              ? '「編集」で本文と投稿時刻を直せます。取り消すと、その枠はそのまま空きます（作り直しません）。'
+              : '「編集」で本文と投稿時刻を直せます。取り消すと、近い時刻の枠から別の文を作り直します（数十秒）。'
+            : state.settings.requireApproval
+              ? '「編集」で本文と投稿時刻を直せます。取り消すと、その枠はそのまま空きます（作り直しません）。取り消した文は覚えておき、似た話題・型は作らないようにします。'
+              : '「編集」で本文と投稿時刻を直せます。取り消すと、いちばん近い時刻の枠から、別の文を作り直して並べます（数十秒）。取り消した文は覚えておき、似た話題・型は作らないようにします。'}
         </p>
       )}
     </section>
