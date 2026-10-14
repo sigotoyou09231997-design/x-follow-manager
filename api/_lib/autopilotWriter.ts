@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
 import { QUALITY_MODELS } from '../../src/lib/xAutopilot/cost.js'
+import { recentWindow } from '../../src/lib/xAutopilot/text.js'
 import type { HistoryPost, Quality, StyleProfile } from '../../src/lib/xAutopilot/types.js'
 import { RefusedError, WRITING_RULES, writePosts } from './postWriter.js'
 
@@ -45,11 +46,15 @@ export const PROFILE_SYSTEM_PROMPT = `あなたは、X(旧Twitter)の過去の�
 - 反応（♥）が多い投稿は、読み手に届いている書き方の手がかりとして重みをつける。ただし、少数の例だけで決めつけない
 - 未成年・学生・年齢が曖昧な相手を連想させる内容が混ざっていても、themes にも summary にも書かない`
 
-/** 文体のまとめに渡す投稿を選ぶ。新しい順150件＋反応の多いもの50件（重複なし）。多すぎると費用が増える。 */
+/**
+ * 文体のまとめに渡す投稿を選ぶ。新しい順150件＋反応の多いもの50件（重複なし）。多すぎると費用が増える。
+ * 反応の多い50件は、「いまの書き方」の範囲（いちばん新しい投稿から半年）の中から選ぶ。古い投稿は、反応が多くても入れない
+ * （いまは使っていない書き方のまとめになり、AIがそれで書いてしまうため。理由は recentWindow）。
+ */
 export function selectForProfile(history: HistoryPost[]): HistoryPost[] {
   const newest = history.slice(0, 150)
   const used = new Set(newest.map((p) => p.id))
-  const top = [...history]
+  const top = recentWindow(history, 150)
     .filter((p) => !used.has(p.id))
     .sort((a, b) => b.likes + b.reposts * 2 - (a.likes + a.reposts * 2))
     .slice(0, 50)

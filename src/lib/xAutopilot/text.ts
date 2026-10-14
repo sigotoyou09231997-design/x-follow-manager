@@ -98,12 +98,37 @@ function mulberry32(seed: number): () => number {
   }
 }
 
+/** 「いまの書き方」の手がかりにする期間。いちばん新しい投稿から、何日さかのぼるか。 */
+export const STYLE_WINDOW_DAYS = 183
+
+/**
+ * 履歴のうち、「いまの書き方」を表す範囲（いちばん新しい投稿から半年）。history は新しい順。
+ *
+ * 書き方は時期で変わる。反応の多さだけで全期間から選ぶと、いまは使っていない型（実例: 2025年に投稿の3〜4割が
+ * 「おはようございます🍋」始まりだったが、2026年は0件）の古い投稿が、反応が多いぶんお手本や文体のまとめに多く混ざり、
+ * AIがそれを真似て、本人がもうやめた書き方で投稿してしまう。
+ * 範囲が minCount 件に満たないとき（長く休んでいた人など）は、新しい順に minCount 件まで広げる。お手本が空になるより、
+ * 古くても有るほうがよいため。日付が読めない投稿は、範囲の内に数える（捨てて件数を減らさない）。
+ */
+export function recentWindow(history: HistoryPost[], minCount: number): HistoryPost[] {
+  const times = history.map((p) => Date.parse(p.at)).filter((t) => !Number.isNaN(t))
+  if (times.length === 0) return history
+  const cutoff = Math.max(...times) - STYLE_WINDOW_DAYS * 86_400_000
+  const inWindow = history.filter((p) => {
+    const t = Date.parse(p.at)
+    return Number.isNaN(t) || t >= cutoff
+  })
+  return inWindow.length >= minCount ? inWindow : history.slice(0, minCount)
+}
+
 /**
  * AIに見せる「お手本」の投稿を n 件選ぶ。反応の多いもの・最近のもの・残りからの無作為を混ぜる。
+ * どれも「いまの書き方」の範囲（recentWindow）の中から選ぶ。古い投稿は、反応が多くても選ばない。
  * 毎回同じお手本だと文が似通うので、seed（枠の印など）で選び方を変える。同じ seed なら同じ結果。
  */
 export function pickSamples(history: HistoryPost[], n: number, seed: number): HistoryPost[] {
   if (history.length <= n) return [...history]
+  const pool = recentWindow(history, Math.max(n * 3, 12))
   const rand = mulberry32(seed)
   const picked: HistoryPost[] = []
   const used = new Set<string>()
@@ -117,9 +142,9 @@ export function pickSamples(history: HistoryPost[], n: number, seed: number): Hi
       count--
     }
   }
-  const byReaction = [...history].sort((a, b) => b.likes + b.reposts * 2 - (a.likes + a.reposts * 2))
+  const byReaction = [...pool].sort((a, b) => b.likes + b.reposts * 2 - (a.likes + a.reposts * 2))
   takeRandom(byReaction.slice(0, Math.max(n * 3, 12)), Math.ceil(n * 0.4)) // 反応の多かったもの
-  takeRandom(history.slice(0, Math.max(n * 3, 12)), Math.ceil(n * 0.3)) // 最近のもの
-  takeRandom(history, n - picked.length) // 残りは全体から
+  takeRandom(pool.slice(0, Math.max(n * 3, 12)), Math.ceil(n * 0.3)) // 最近のもの
+  takeRandom(pool, n - picked.length) // 残りは範囲の中から
   return picked
 }
