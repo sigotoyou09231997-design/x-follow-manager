@@ -727,15 +727,32 @@ describe('XAutopilotPanel: 前の投稿を X から消す（スイッチ）', ()
 describe('XAutopilotPanel: 投稿可能（確認してから投稿する）', () => {
   const future = (hours: number) => new Date(Date.now() + hours * 3600_000).toISOString()
 
-  it('確認待ち（draft）の予約には「確認待ち」と「投稿可能にする」が出る。投稿可能（scheduled）には「投稿可能」と「確認待ちに戻す」', async () => {
-    posts.list = [post('a', { status: 'draft', scheduledAt: future(3) }), post('b', { scheduledAt: future(6) })]
+  it('投稿可能の枠と確認待ちの枠に分かれる。確認待ちには「投稿可能にする」、投稿可能には「確認待ちに戻す」が出る', async () => {
+    posts.list = [post('a', { status: 'draft', scheduledAt: future(3), segments: [{ text: '確認待ちの文', media: [] }] }), post('b', { scheduledAt: future(6), segments: [{ text: '投稿可能の文', media: [] }] })]
     render(<XAutopilotPanel />)
 
-    expect(await screen.findByText('確認待ち')).toBeInTheDocument()
-    expect(screen.getByText('投稿可能')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'この予約を投稿可能にする' })).toHaveLength(1)
-    expect(screen.getAllByRole('button', { name: 'この予約を確認待ちに戻す' })).toHaveLength(1)
-    expect(screen.getByText(/「投稿可能」を押したものだけが、時刻になると投稿されます/)).toBeInTheDocument()
+    const ok = await screen.findByRole('group', { name: /投稿可能/ })
+    const waiting = screen.getByRole('group', { name: /確認待ち/ })
+    expect(within(ok).getByText('投稿可能の文')).toBeInTheDocument()
+    expect(within(ok).queryByText('確認待ちの文')).not.toBeInTheDocument()
+    expect(within(waiting).getByText('確認待ちの文')).toBeInTheDocument()
+    expect(within(ok).getByText('時刻になると投稿されます')).toBeInTheDocument()
+    expect(within(waiting).getByText(/押すまで、投稿されません/)).toBeInTheDocument()
+    expect(within(ok).getByText('1件')).toBeInTheDocument()
+    expect(within(waiting).getByRole('button', { name: 'この予約を投稿可能にする' })).toBeInTheDocument()
+    expect(within(ok).getByRole('button', { name: 'この予約を確認待ちに戻す' })).toBeInTheDocument()
+  })
+
+  it('確認待ちしか無いときも、投稿可能の枠は出し、確認待ちから押すと入ると案内する。確認待ちが無ければ、確認待ちの枠は出さない', async () => {
+    posts.list = [post('a', { status: 'draft', scheduledAt: future(3) })]
+    const { unmount } = render(<XAutopilotPanel />)
+    expect(await screen.findByText(/確認待ちの「投稿可能にする」を押すと、ここに入ります/)).toBeInTheDocument()
+    unmount()
+
+    posts.list = [post('b', { scheduledAt: future(6) })]
+    render(<XAutopilotPanel />)
+    await screen.findByRole('group', { name: /投稿可能/ })
+    expect(screen.queryByRole('group', { name: /確認待ち/ })).not.toBeInTheDocument()
   })
 
   it('「投稿可能にする」で scheduled にし、投稿可能な予約の中でいちばん早ければ、5分後に前倒しする。前の時刻の空き枠も作り直してもらう', async () => {
