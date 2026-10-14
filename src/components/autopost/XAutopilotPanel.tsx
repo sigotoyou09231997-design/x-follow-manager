@@ -23,6 +23,7 @@ import { settingsProblems } from '../../lib/xAutopilot/slots'
 import { updateScheduledPost } from '../../lib/schedule/postsStore'
 import { Icon } from '../Icon'
 import { SwitchRow } from './ChannelControls'
+import { UpcomingEditor } from './UpcomingEditor'
 
 // 「自動投稿」タブの X。過去の投稿を読んで文体をまとめ、AIが新しい投稿を前もって予約に並べる。
 // 費用が出る操作（読み込み・まとめ・試し書き）は、押す前にボタンの横へ金額の目安を出す。
@@ -75,6 +76,8 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
   // 「取り消す」のあとの作り直し。続けて何本も取り消しても、1つずつ順番に頼む（同じ枠を同時に作って費用が無駄にならないように）。
   const refillQueue = useRef<Promise<unknown>>(Promise.resolve())
   const [refilling, setRefilling] = useState(0)
+  // 並んだ予約の本文・時刻を直している最中の1件。
+  const [editing, setEditing] = useState<{ id: string; saving: boolean; error?: string }>()
 
   const upcoming = useMemo(
     () =>
@@ -208,6 +211,23 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
       void reloadPosts()
     })
 
+  async function saveEdit(id: string, text: string, scheduledAt: string) {
+    const post = posts.find((p) => p.id === id)
+    if (!post) return
+    setEditing({ id, saving: true })
+    try {
+      // 本文は先頭の1件だけを差し替える（自動運転の予約は1件。画像などほかの中身は触らない）。
+      // 枠の印（ai_prompt）は変えないので、時刻を動かしても、その枠は埋まったままで、別の文が重ねて作られることはない。
+      const segments = post.segments.map((segment, i) => (i === 0 ? { ...segment, text } : segment))
+      await updateScheduledPost(id, { segments, scheduledAt })
+      setEditing(undefined)
+      setNotice({ text: '直しました。この内容で予定どおり投稿されます', kind: 'ok' })
+      await reloadPosts()
+    } catch (err) {
+      setEditing({ id, saving: false, error: errorOf(err) })
+    }
+  }
+
   async function cancelOne(id: string) {
     const post = posts.find((p) => p.id === id)
     if (!post) return
@@ -253,22 +273,40 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
       ) : (
         <ul className="autopost__history xap__upcoming">
           {upcoming.map((post) => (
-            <li key={post.id}>
-              <span className="xap__when">{whenLabel(post.scheduledAt, state.settings.timeZone)}</span>
-              <span className="autopost__history-text xap__upcoming-text">{post.segments[0]?.text}</span>
-              <button type="button" className="btn btn--ghost btn--small btn--danger" onClick={() => void cancelOne(post.id)}>
-                <Icon name="trash" size={14} />
-                取り消す
-              </button>
-            </li>
+            editing?.id === post.id ? (
+              <li key={post.id} className="xap__editing">
+                <UpcomingEditor
+                  text={post.segments[0]?.text ?? ''}
+                  at={post.scheduledAt ?? new Date().toISOString()}
+                  timeZone={state.settings.timeZone}
+                  saving={editing.saving}
+                  error={editing.error}
+                  onSave={(text, at) => void saveEdit(post.id, text, at)}
+                  onCancel={() => setEditing(undefined)}
+                />
+              </li>
+            ) : (
+              <li key={post.id}>
+                <span className="xap__when">{whenLabel(post.scheduledAt, state.settings.timeZone)}</span>
+                <span className="autopost__history-text xap__upcoming-text">{post.segments[0]?.text}</span>
+                <button type="button" className="btn btn--ghost btn--small" onClick={() => setEditing({ id: post.id, saving: false })} aria-label="この予約の本文と時刻を直す">
+                  <Icon name="edit" size={14} />
+                  編集
+                </button>
+                <button type="button" className="btn btn--ghost btn--small btn--danger" onClick={() => void cancelOne(post.id)}>
+                  <Icon name="trash" size={14} />
+                  取り消す
+                </button>
+              </li>
+            )
           ))}
         </ul>
       )}
       {upcoming.length > 0 && (
         <p className="xap__muted">
           {variant === 'summary'
-            ? '取り消すと、近い時刻の枠から別の文を作り直します（数十秒）。文を直したいときは、設定の「予約投稿」から。'
-            : '文を直したいときは、設定の「予約投稿」でこの予約を開いてください。取り消すと、いちばん近い時刻の枠から、別の文を作り直して並べます（数十秒）。取り消した文は覚えておき、似た話題・型は作らないようにします。'}
+            ? '「編集」で本文と投稿時刻を直せます。取り消すと、近い時刻の枠から別の文を作り直します（数十秒）。'
+            : '「編集」で本文と投稿時刻を直せます。取り消すと、いちばん近い時刻の枠から、別の文を作り直して並べます（数十秒）。取り消した文は覚えておき、似た話題・型は作らないようにします。'}
         </p>
       )}
     </section>
