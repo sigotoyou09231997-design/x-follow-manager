@@ -19,6 +19,8 @@ interface PostTime {
   id: string
   status: string
   scheduledAt?: string
+  /** 本人が投稿時刻を決めた予約。自動では動かさない。 */
+  fixedTime?: boolean
 }
 
 const at = (iso: string | undefined): number | undefined => {
@@ -49,6 +51,8 @@ export function earliestAllowed(now: number, lastPosted: number | undefined, lea
  * 前倒し先は「いまから猶予ぶん」と「直前の投稿から最低間隔」の遅いほう。それより前の時刻なら、これ以上は動かさない。
  */
 export function soonestApprovalTime(post: PostTime, autopilot: PostTime[], now: number): string | undefined {
+  // 本人が時刻を決めた予約は、投稿可能にしても、時刻を動かさない。
+  if (post.fixedTime) return undefined
   const current = at(post.scheduledAt)
   if (current === undefined) return undefined
   const target = earliestAllowed(now, lastPostedAt(autopilot), APPROVE_LEAD_MS)
@@ -66,7 +70,8 @@ export function soonestApprovalTime(post: PostTime, autopilot: PostTime[], now: 
  */
 export function pullForwardTime(autopilot: PostTime[], now: number): { id: string; scheduledAt: string } | undefined {
   const approved = autopilot
-    .filter((p) => p.status === 'scheduled' && at(p.scheduledAt) !== undefined)
+    // 本人が時刻を決めた予約は、前倒しの対象にしない（本人が選んだ時刻に出す）。
+    .filter((p) => p.status === 'scheduled' && !p.fixedTime && at(p.scheduledAt) !== undefined)
     .sort((a, b) => (at(a.scheduledAt) as number) - (at(b.scheduledAt) as number))
   const first = approved[0]
   if (!first) return undefined

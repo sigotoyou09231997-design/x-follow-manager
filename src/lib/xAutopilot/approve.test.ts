@@ -85,3 +85,17 @@ describe('毎分の前倒し（先に出した予約のあと、残りが待た�
     expect(pullForwardTime(after, NOW + 60_000)).toBeUndefined()
   })
 })
+
+describe('本人が時刻を決めた予約は、動かさない', () => {
+  const fixed = (id: string, status: string, min: number) => ({ ...post(id, status, min), fixedTime: true })
+
+  it('投稿可能にしても、前倒ししない', () => {
+    expect(soonestApprovalTime(fixed('b', 'draft', 300), [], NOW)).toBeUndefined()
+  })
+
+  it('毎分の前倒しの対象にしない。時刻を決めていない、次に早い予約が前倒しされる', () => {
+    const list = [post('p', 'posted', -300), fixed('f', 'scheduled', 90), post('c', 'scheduled', 200)]
+    expect(pullForwardTime(list, NOW)?.id).toBe('c')
+    expect(pullForwardTime([post('p', 'posted', -300), fixed('f', 'scheduled', 90)], NOW)).toBeUndefined()
+  })
+})

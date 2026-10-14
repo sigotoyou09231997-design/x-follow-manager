@@ -917,3 +917,42 @@ describe('XAutopilotPanel: トップの1画面用（summary）の「今月のAI�
     expect(meter.compareDocumentPosition(switches) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy() // 料金が上
   })
 })
+
+describe('XAutopilotPanel: 本人が決めた時刻は、自動で動かさない印を付ける', () => {
+  const future = (hours: number) => new Date(Date.now() + hours * 3600_000).toISOString()
+  const tokyoInput = (iso: string) =>
+    new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    })
+      .format(new Date(iso))
+      .replace(' ', 'T')
+
+  it('時刻を変えて保存すると、本文の先頭に fixedTime を付けて保存する', async () => {
+    posts.list = [post('a', { scheduledAt: future(5) })]
+    render(<XAutopilotPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'この予約の本文と時刻を直す' }))
+    fireEvent.change(screen.getByLabelText('投稿日時を直す'), { target: { value: tokyoInput(future(30)) } })
+    fireEvent.click(screen.getByRole('button', { name: '保存する' }))
+
+    await waitFor(() => expect(posts.update).toHaveBeenCalledTimes(1))
+    expect(posts.update.mock.calls[0][1].segments[0].fixedTime).toBe(true)
+  })
+
+  it('本文だけ直したときは、印を付けない（時刻は本人が決めたわけではない）', async () => {
+    posts.list = [post('a', { scheduledAt: future(5) })]
+    render(<XAutopilotPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'この予約の本文と時刻を直す' }))
+    fireEvent.change(screen.getByLabelText('本文を直す'), { target: { value: '直した本文' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存する' }))
+
+    await waitFor(() => expect(posts.update).toHaveBeenCalledTimes(1))
+    expect(posts.update.mock.calls[0][1].segments[0].fixedTime).toBeUndefined()
+  })
+
+  it('時刻を決めた予約を投稿可能にしても、時刻は動かさない（状態だけ scheduled にする）', async () => {
+    posts.list = [post('a', { status: 'draft', scheduledAt: future(30), segments: [{ text: '本文', media: [], fixedTime: true }] })]
+    render(<XAutopilotPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'この予約を投稿可能にする' }))
+    await waitFor(() => expect(posts.update).toHaveBeenCalledWith('a', { status: 'scheduled' }))
+  })
+})

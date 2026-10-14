@@ -1,7 +1,8 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { emptyUsage } from '../../lib/xAutopilot/types'
-import { UsageMeter, usagePercent } from './UsageMeter'
+import { usagePercent } from '../../lib/xAutopilot/usage'
+import { UsageMeter } from './UsageMeter'
 
 afterEach(cleanup)
 

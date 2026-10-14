@@ -11,7 +11,8 @@ interface Props {
   timeZone: string
   saving: boolean
   error?: string
-  onSave: (text: string, scheduledAt: string) => void
+  /** timeChanged: 本人が時刻の欄を変えたか（変えたなら、その時刻は自動で動かさない）。 */
+  onSave: (text: string, scheduledAt: string, timeChanged: boolean) => void
   onCancel: () => void
 }
 
@@ -69,7 +70,7 @@ export function UpcomingEditor({ text, at, timeZone, saving, error, onSave, onCa
         <button
           type="button"
           className="btn btn--primary btn--small"
-          onClick={() => iso && onSave(draft.trim(), timeChanged ? iso : at)}
+          onClick={() => iso && onSave(draft.trim(), timeChanged ? iso : at, timeChanged)}
           disabled={saving || !!problem || !changed}
         >
           {saving ? '保存しています…' : '保存する'}

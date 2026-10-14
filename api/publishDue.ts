@@ -197,7 +197,7 @@ async function pullForwardApproved(now: Date): Promise<void> {
       if (!row.settings.requireApproval) continue
       const { data, error } = await db
         .from('scheduled_posts')
-        .select('id, status, scheduled_at')
+        .select('id, status, scheduled_at, segments')
         .eq('user_id', row.userId)
         .like('ai_prompt', `${AUTOPILOT_PREFIX}%`)
         .in('status', ['scheduled', 'publishing', 'posted'])
@@ -207,10 +207,11 @@ async function pullForwardApproved(now: Date): Promise<void> {
         console.error('pullForwardApproved failed:', error.message)
         continue
       }
-      const rows = ((data ?? []) as { id: string; status: string; scheduled_at: string }[]).map((r) => ({
+      const rows = ((data ?? []) as { id: string; status: string; scheduled_at: string; segments: PostSegment[] | null }[]).map((r) => ({
         id: r.id,
         status: r.status,
         scheduledAt: r.scheduled_at,
+        fixedTime: r.segments?.[0]?.fixedTime === true,
       }))
       const move = pullForwardTime(rows, now.getTime())
       if (!move) continue
