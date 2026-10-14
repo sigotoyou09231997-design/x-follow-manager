@@ -675,3 +675,192 @@ describe('いますぐ作り直し（refill）', () => {
     expect(writePost).not.toHaveBeenCalled()
   })
 })
+
+// 文を作るたびに最新の履歴を取り入れ、自動運転が出した分は学習から外し、話題の偏りを避けさせる。
+// 実例: 自動運転の文が、ハイボール・ジンソーダ・晩酌などお酒の話に偏った。履歴は画面のボタンを押した日のまま古くなり、
+// 自動運転が出した文が履歴に戻って次のお手本になり、AI が好む話題が自分で自分を強めていた。
+describe('最新の履歴を毎回取り入れる・自動運転の投稿は学習から外す・話題の偏りを避ける', () => {
+  const stale = new Date(NOW.getTime() - 5 * 3600_000).toISOString()
+  const fresh = new Date(NOW.getTime() - 10 * 60_000).toISOString()
+  const ownPost = (id: string, text: string) => ({
+    id,
+    text,
+    created_at: '2026-10-10T00:00:00.000Z',
+    public_metrics: { like_count: 3, retweet_count: 0 },
+  })
+  type Input = { recent: string[]; samples: { id: string }[]; crowded?: string[]; neglected?: string[]; recentStyle?: string }
+
+  describe('履歴の読み直し', () => {
+    it('2時間より古い履歴は、文を作る前に読み直す（差分）。新しい投稿が、その回の AI に渡る', async () => {
+      const store = ready({ historyFetchedAt: stale })
+      const { deps, writePost, fetchOwnPosts } = makeDeps(store)
+      fetchOwnPosts.mockResolvedValue([ownPost('9001', '昨夜の最新の独り言です、いまの書き方')])
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      expect(fetchOwnPosts).toHaveBeenCalledTimes(1)
+      expect((writePost.mock.calls[0][0] as unknown as Input).recent).toContain('昨夜の最新の独り言です、いまの書き方')
+      expect(store.rows.get(OWNER)?.history.some((p) => p.id === '9001')).toBe(true)
+    })
+
+    it('2時間以内に読んでいれば、読み直さない（書くたびに X の読み取りを呼ばない）', async () => {
+      const store = ready({ historyFetchedAt: fresh })
+      const { deps, fetchOwnPosts } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      expect(fetchOwnPosts).not.toHaveBeenCalled()
+    })
+
+    it('空きの枠が無ければ、読み直さない（文を作らない回に X の読み取りを使わない）', async () => {
+      const store = ready({ historyFetchedAt: stale })
+      const { deps, fetchOwnPosts } = makeDeps(store)
+      for (let i = 0; i < 20; i++) await topUp(deps, await store.get(OWNER), { maxGenerations: 4 })
+      fetchOwnPosts.mockClear()
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 4 }) // 全部埋まったあと
+      expect(fetchOwnPosts).not.toHaveBeenCalled()
+    })
+
+    it('読めなかったときは、いまある履歴でそのまま書く（読めないことで予約が止まらない・エラーにもしない）', async () => {
+      const store = ready({ historyFetchedAt: stale })
+      const { deps, fetchOwnPosts } = makeDeps(store)
+      fetchOwnPosts.mockRejectedValue(new Error('Xが応答しません'))
+      const r = await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      expect(r.created).toBe(1)
+      expect(r.error).toBeUndefined()
+      expect(store.rows.get(OWNER)?.lastError).toBeNull()
+    })
+
+    it('試し書きも、古ければ読み直してから書く', async () => {
+      const store = ready({ historyFetchedAt: stale })
+      const { deps, fetchOwnPosts } = makeDeps(store)
+      await previewPost(deps, OWNER)
+      expect(fetchOwnPosts).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('自動運転が投稿した分を、学習から外す', () => {
+    const hist = history(40)
+    const autopilotIds = hist.slice(0, 6).map((p) => p.id) // 新しい6件は、実は自動運転が出した文
+
+    function withAutopilotPosted() {
+      const store = ready({ history: hist, historyFetchedAt: fresh })
+      store.posts.push({
+        userId: OWNER,
+        at: '2026-09-02T00:00:00.000Z',
+        text: '自動運転が出した文です',
+        slotKey: '2026-09-02#0',
+        status: 'posted',
+        postedTweetIds: autopilotIds,
+      })
+      return store
+    }
+
+    it('お手本・最近の投稿に、自動運転が投稿した X の投稿を入れない。自動運転の文そのものは「最近の投稿」に入る（同じ話題を避けるため）', async () => {
+      const store = withAutopilotPosted()
+      const { deps, writePost } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      const input = writePost.mock.calls[0][0] as unknown as Input
+      expect(input.samples.some((p) => autopilotIds.includes(p.id))).toBe(false)
+      for (const p of hist.slice(0, 6)) expect(input.recent).not.toContain(p.text)
+      expect(input.recent).toContain('自動運転が出した文です')
+    })
+
+    it('文体のまとめにも、自動運転が投稿した分は渡さない', async () => {
+      const store = withAutopilotPosted()
+      const { deps, writeProfile } = makeDeps(store)
+      await buildProfile(deps, OWNER)
+      const passed = (writeProfile.mock.calls[0][0] as unknown as { history: { id: string }[] }).history
+      expect(passed).toHaveLength(34)
+      expect(passed.some((p) => autopilotIds.includes(p.id))).toBe(false)
+    })
+
+    it('自動運転の投稿が無ければ、履歴はそのまま', async () => {
+      const store = ready({ history: hist, historyFetchedAt: fresh })
+      const { deps, writeProfile } = makeDeps(store)
+      await buildProfile(deps, OWNER)
+      expect((writeProfile.mock.calls[0][0] as unknown as { history: unknown[] }).history).toHaveLength(40)
+    })
+  })
+
+  describe('話題の偏り', () => {
+    // 新しい順に: 最近の15件は当たり障りのない独り言 → 会社 → ゲーム（本人がふだん書く話題）
+    const at = (i: number) => new Date(Date.UTC(2026, 9, 9) - i * 3600_000).toISOString()
+    const humanPosts = [
+      ...Array.from({ length: 15 }, (_, i) => `何もない一日だったと思う、その${i}`),
+      ...Array.from({ length: 15 }, (_, i) => `今日の会社は忙しかった、その${i}`),
+      ...Array.from({ length: 10 }, (_, i) => `パズドラのダンジョンを回した、その${i}`),
+    ].map((text, i) => ({ id: String(2000 + i), text, at: at(i), likes: 0, reposts: 0 }))
+
+    function withRecentAutopilot(texts: string[]) {
+      const store = ready({ history: humanPosts, historyFetchedAt: fresh })
+      texts.forEach((text, i) =>
+        store.posts.push({ userId: OWNER, at: new Date(Date.UTC(2026, 9, 9, 12) - i * 3600_000).toISOString(), text, slotKey: `2026-10-0${(i % 9) + 1}#${i}`, status: 'posted' })
+      )
+      return store
+    }
+
+    it('自動運転が最近出した文が、お酒の話に偏っていたら、「最近多すぎる話題」として渡し、ふだん書くのに最近少ない話題を勧める', async () => {
+      const store = withRecentAutopilot([
+        '最近、ジンソーダの炭酸が強いほうが好きやと気づいた。',
+        '帰り道のハイボールが一番うまい。',
+        '晩酌の楽しみが増えたわ。',
+        '昼に食べたおにぎり、具が最後まで来なかった。',
+        '電車で席が空いてるのに立ってる人がいた。',
+      ])
+      const { deps, writePost } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      const input = writePost.mock.calls[0][0] as unknown as Input
+      expect(input.crowded?.[0]).toContain('お酒・晩酌')
+      expect(input.crowded?.[0]).toContain('ハイボール')
+      // 本人がふだん書く（会社・ゲーム）のに、最近の30件には出ていない
+      expect(input.neglected).toEqual(expect.arrayContaining(['会社・仕事', 'ゲーム']))
+      expect(input.neglected).not.toContain('お酒・晩酌')
+    })
+
+    it('偏っていなければ、「多すぎる」は出さない', async () => {
+      const store = withRecentAutopilot([
+        'ジンソーダを飲んでみた。',
+        '昼に食べたおにぎり、具が最後まで来なかった。',
+        '電車で席が空いてるのに立ってる人がいた。',
+        '税金が高すぎる。',
+        '週末は何もしないで寝ていたい。',
+      ])
+      const { deps, writePost } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      expect((writePost.mock.calls[0][0] as unknown as Input).crowded).toEqual([])
+    })
+
+    it('同じ回で続けて作るとき、いま作った文も数える（1回の実行で偏らせない）', async () => {
+      const store = ready({
+        history: humanPosts,
+        historyFetchedAt: fresh,
+        settings: { ...DEFAULT_SETTINGS, postsPerDay: 6, horizonDays: 2 },
+      })
+      // 偽の AI が、お酒の話ばかり書く。渡された指示を全部覚えておく
+      const seen: Input[] = []
+      const drinks = ['ハイボールが好きすぎて困る', 'ジンソーダの新作を試した', '晩酌の時間が一日の楽しみ', 'ウイスキーの香りが落ち着く']
+      let n = 0
+      const { deps } = makeDeps(store, {
+        writePost: (async (input: Input & { onUsage?: (u: { inputTokens: number; outputTokens: number }) => void }) => {
+          seen.push(input)
+          input.onUsage?.({ inputTokens: 10, outputTokens: 10 })
+          return drinks[n++ % 4]
+        }) as never,
+      })
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 4 })
+      expect(seen.length).toBe(4)
+      expect(seen[0].crowded).toEqual([]) // 最初は、まだ偏っていない
+      // 4本目を書くころには、直前の3本（すべてお酒）が「多すぎる」として渡っている
+      expect(seen[3].crowded?.[0]).toContain('お酒・晩酌（直近3件のうち3件')
+    })
+
+    it('傾向の数字（最新の履歴から計算）を毎回渡す。履歴が少なすぎれば渡さない', async () => {
+      const store = withRecentAutopilot([])
+      const { deps, writePost } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      expect((writePost.mock.calls[0][0] as unknown as Input).recentStyle).toContain('直近40件')
+
+      const few = ready({ history: humanPosts.slice(0, 5), historyFetchedAt: fresh })
+      const fewDeps = makeDeps(few)
+      await topUp(fewDeps.deps, await few.get(OWNER), { maxGenerations: 1 })
+      expect((fewDeps.writePost.mock.calls[0][0] as unknown as Input).recentStyle).toBeUndefined()
+    })
+  })
+})

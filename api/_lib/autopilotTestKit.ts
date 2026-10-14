@@ -29,7 +29,16 @@ export function history(n: number, start = 1): HistoryPost[] {
 export function memoryStore(initial?: Partial<AutopilotRow>) {
   const rows = new Map<string, AutopilotRow>([[OWNER, { ...emptyRow(OWNER), ...initial }]])
   // rejected: 本人が「取り消す」で外したもの（本物では error_message の印）。「自動運転を止める」での一括の取り消しには付かない
-  const posts: { userId: string; at: string; text: string; slotKey: string; status: string; rejected?: boolean }[] = []
+  // postedTweetIds: 投稿済みになったときの X の投稿の番号（本物では posted_tweet_ids）
+  const posts: {
+    userId: string
+    at: string
+    text: string
+    slotKey: string
+    status: string
+    rejected?: boolean
+    postedTweetIds?: string[]
+  }[] = []
   const account = { xUserId: '555', username: 'me' }
   const store: AutopilotStore & { rows: typeof rows; posts: typeof posts; hasAccount: boolean } = {
     rows,
@@ -66,6 +75,13 @@ export function memoryStore(initial?: Partial<AutopilotRow>) {
         .reverse() // あとから取り消したものが新しい
         .slice(0, limit)
         .map((p) => p.text)
+    },
+    async autopilotTweetIds(userId, limit) {
+      return posts
+        .filter((p) => p.userId === userId && p.status === 'posted')
+        .sort((a, b) => b.at.localeCompare(a.at))
+        .slice(0, limit)
+        .flatMap((p) => p.postedTweetIds ?? [])
     },
     async rejectedSlotKeys(userId, sinceDate) {
       return posts

@@ -153,3 +153,54 @@ describe('文体をまとめる指示', () => {
     expect(message).toContain('投稿その1')
   })
 })
+
+// 実例: 自動運転の文が、ハイボールなどお酒の話に偏った。最近の投稿を毎回数えて、多すぎる括りを避けさせ、
+// 書き方の数字は、画面のボタンを押した日の分析ではなく、毎回最新の履歴から出したものを渡す。
+describe('最近の傾向・話題の偏りの渡し方', () => {
+  const base = {
+    profile: PROFILE,
+    samples: [],
+    recent: [],
+    plannedSameDay: [],
+    scheduledAt: '2026-10-10T03:00:00.000Z',
+    timeZone: 'Asia/Tokyo',
+  }
+
+  it('傾向・多すぎる話題・少ない話題があれば、それぞれの欄で渡す', () => {
+    const message = buildPostUserMessage({
+      ...base,
+      recentStyle: '直近40件の集計:\n- 長さ: 中央値26字',
+      crowded: ['お酒・晩酌（直近12件のうち5件。ハイボール×3）'],
+      neglected: ['会社・仕事', 'ゲーム'],
+    })
+    expect(message).toContain('【最近の投稿の傾向】')
+    expect(message).toContain('長さ・割合はこれに合わせる')
+    expect(message).toContain('- 長さ: 中央値26字')
+    expect(message).toContain('【最近多すぎる話題】')
+    expect(message).toContain('この括りの話題は、今回は書かない。同じ括りの別の話も不可')
+    expect(message).toContain('- お酒・晩酌（直近12件のうち5件。ハイボール×3）')
+    expect(message).toContain('【最近少ない話題】')
+    expect(message).toContain('事実は作らず、感想や考えとして書く')
+    expect(message).toContain('- 会社・仕事')
+    expect(message).toContain('- ゲーム')
+  })
+
+  it('何も無ければ（空・空白だけも）、欄ごと出さない', () => {
+    const message = buildPostUserMessage({ ...base, recentStyle: '  ', crowded: [], neglected: ['  '] })
+    expect(message).not.toContain('【最近の投稿の傾向】')
+    expect(message).not.toContain('【最近多すぎる話題】')
+    expect(message).not.toContain('【最近少ない話題】')
+    const omitted = buildPostUserMessage(base)
+    expect(omitted).not.toContain('【最近多すぎる話題】')
+  })
+
+  it('指示に、話題を先に決める・多すぎる括りは選ばない（括りは大きく見る）・最新の数字を優先する、が書いてある', () => {
+    const system = buildPostSystemPrompt()
+    expect(system).toContain('まず今回の話題を決めてから書く')
+    expect(system).toContain('【最近多すぎる話題】にある括りは選ばず、【最近少ない話題】があればその中から選ぶ')
+    expect(system).toContain('ハイボールもジンソーダも晩酌も、同じ「お酒」')
+    expect(system).toContain('【最近の投稿の傾向】があるときは、長さ・句点・絵文字・「w」「草」などの割合は、その数字に合わせる')
+    // 守りは残っている
+    expect(system).toContain('事実を作らない')
+  })
+})

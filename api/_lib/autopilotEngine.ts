@@ -4,6 +4,13 @@ import {
   PRICE,
   USD_JPY,
 } from '../../src/lib/xAutopilot/cost.js'
+import {
+  crowdedTopics,
+  describeCrowded,
+  describeRecentStyle,
+  mergeCrowded,
+  neglectedTopics,
+} from '../../src/lib/xAutopilot/recentStyle.js'
 import { localDate, localMonth, normalizeSettings, planSlots, settingsProblems, type Slot } from '../../src/lib/xAutopilot/slots.js'
 import {
   cleanHistory,
@@ -152,11 +159,47 @@ export async function readHistory(
 
 // ------------------------------------------------------------------ 文体のまとめ
 
+/** 自動運転が投稿した分を、何件ぶんさかのぼって「本人の投稿ではない」と見分けるか。履歴の保存上限（MAX_HISTORY_KEPT）に合わせる。 */
+const AUTOPILOT_TWEET_LOOKBACK = 400
+
+/**
+ * 履歴（X から読んだ本人のアカウントの投稿）から、自動運転が投稿した分を外す。学習・お手本・傾向の数え方には、
+ * 本人が自分で書いた投稿だけを使う。外さないと、自動運転が出した文が履歴に戻って次のお手本になり、AI が好む話題
+ * （実例: ハイボールなどお酒）が自分で自分を強めて偏っていった。
+ */
+async function humanHistory(deps: EngineDeps, row: AutopilotRow): Promise<HistoryPost[]> {
+  const ids = new Set(await deps.store.autopilotTweetIds(row.userId, AUTOPILOT_TWEET_LOOKBACK))
+  return ids.size === 0 ? row.history : row.history.filter((p) => !ids.has(p.id))
+}
+
+/** 履歴がこれより古ければ、文を作る前に読み直す。短すぎると、書くたびに X の読み取りを呼んで費用がかさむ。 */
+const FRESH_HISTORY_MS = 2 * 3600_000
+
+/**
+ * 文を作る前に、本人の最新の投稿を読み直す（毎回。2時間以内に読んでいれば、読み直さない）。
+ * 書き方は変わる（2026年にそれまでの型が消えた）ので、画面のボタンを押した日の履歴のままでは、いずれ古くなる。
+ * 差分だけを読み、新しい投稿が無ければ費用は出ない。読めなかった（X の障害・連携切れ・月の上限）ときは、いまある履歴で
+ * そのまま書く（読めないことで、投稿の予約が止まらないように）。
+ */
+async function withFreshHistory(deps: EngineDeps, row: AutopilotRow): Promise<AutopilotRow> {
+  const fetchedAt = row.historyFetchedAt ? Date.parse(row.historyFetchedAt) : 0
+  if (deps.now().getTime() - fetchedAt < FRESH_HISTORY_MS) return row
+  try {
+    await readHistory(deps, row.userId)
+    const latest = await deps.store.get(row.userId)
+    return { ...row, history: latest.history, historyFetchedAt: latest.historyFetchedAt, usage: latest.usage }
+  } catch {
+    return row
+  }
+}
+
 export async function buildProfile(deps: EngineDeps, userId: string): Promise<StyleProfile> {
   const row = await deps.store.get(userId)
-  if (row.history.length < MIN_HISTORY) {
+  // 文体のまとめには、本人が自分で書いた投稿だけを渡す（自動運転が出した分は入れない）。
+  const history = await humanHistory(deps, row)
+  if (history.length < MIN_HISTORY) {
     throw new EngineError(
-      `文体をまとめるには、投稿が${MIN_HISTORY}件以上必要です（いま${row.history.length}件）。先に過去の投稿を読み込んでください`
+      `文体をまとめるには、投稿が${MIN_HISTORY}件以上必要です（いま${history.length}件）。先に過去の投稿を読み込んでください`
     )
   }
   const apiKey = deps.apiKey()
@@ -168,7 +211,7 @@ export async function buildProfile(deps: EngineDeps, userId: string): Promise<St
 
   const profile = await deps.writeProfile({
     apiKey,
-    history: row.history,
+    history,
     quality: row.settings.quality,
     timeoutMs: deps.aiTimeoutMs,
     onUsage: (u) => {
@@ -204,6 +247,8 @@ interface GenerateContext {
   recent: { text: string; at: string }[]
   /** 本人が「取り消す」で外した投稿。同じ話題・型・言い回しを出さないために、AIにも見せ、似すぎの検査にも使う。 */
   rejected: string[]
+  /** 本人が自分で書いた投稿（新しい順）。自動運転が投稿した分は外してある（humanHistory）。お手本・傾向・話題の数え方に使う。 */
+  history: HistoryPost[]
   plannedSameDay: string[]
 }
 
@@ -222,9 +267,23 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
     ...ctx.recent.map((r) => r.text),
     ...ctx.rejected,
     ...ctx.plannedSameDay,
-    ...row.history.slice(0, RECENT_HISTORY).map((p) => p.text),
+    ...ctx.history.slice(0, RECENT_HISTORY).map((p) => p.text),
   ]
-  const recentForPrompt = [...ctx.recent.map((r) => r.text), ...row.history.slice(0, 10).map((p) => p.text)].slice(0, RECENT_AUTOPILOT)
+  const autoTexts = ctx.recent.map((r) => r.text)
+  const humanTexts = ctx.history.map((p) => p.text)
+  const recentForPrompt = [...autoTexts, ...humanTexts.slice(0, 10)].slice(0, RECENT_AUTOPILOT)
+
+  // 毎回、最新の履歴から計算して AI に渡す（AI は呼ばない）。書き方の傾向と、話題の偏り。
+  //   多すぎる: 自動運転が最近出した12件のうち3件以上（25%）／本人の最近20件のうち5件以上（30%）の括り
+  //   少ない  : 本人がふだん書くのに、最近の30件に1つも出ていない括り（根拠の無い話題は勧めない）
+  const recentStyle = describeRecentStyle(ctx.history)
+  const crowdedList = mergeCrowded([
+    crowdedTopics(autoTexts.slice(0, 12), { minCount: 3, minShare: 0.25 }),
+    crowdedTopics(humanTexts.slice(0, 20), { minCount: 5, minShare: 0.3 }),
+  ])
+  const neglected = neglectedTopics(humanTexts, [...autoTexts.slice(0, 15), ...humanTexts.slice(0, 15)], 3).filter(
+    (name) => !crowdedList.some((t) => t.name === name)
+  )
 
   let feedback: string | undefined
   let last: Generated = { problems: ['本文が空'] }
@@ -235,9 +294,12 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
       apiKey,
       quality: row.settings.quality,
       profile: ctx.profile,
-      samples: pickSamples(row.history, SAMPLES_PER_POST, ctx.seed + attempt),
+      samples: pickSamples(ctx.history, SAMPLES_PER_POST, ctx.seed + attempt),
       recent: recentForPrompt,
       rejected: ctx.rejected,
+      recentStyle,
+      crowded: crowdedList.map(describeCrowded),
+      neglected,
       plannedSameDay: ctx.plannedSameDay,
       scheduledAt: ctx.slotAt,
       timeZone: row.settings.timeZone,
@@ -258,24 +320,29 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
 
 /** 保存せずに、いまの設定で1本書いてみる。検査に落ちた場合も、最後の案と理由を返す（見て判断してもらう）。 */
 export async function previewPost(deps: EngineDeps, userId: string): Promise<Generated & { usage: AutopilotUsage }> {
-  const row = await deps.store.get(userId)
+  let row = await deps.store.get(userId)
   if (!row.profile) throw new EngineError('先に、過去の投稿から文体をまとめてください')
+  const profile = row.profile // row を最新の履歴で入れ替えても、まとめは変わらない
   const now = deps.now()
-  const usage = usageFor(row, now)
-  if (overBudget(usage, row.settings, onePostYen(row.settings.quality))) throw new EngineError(budgetMessage(row.settings))
+  if (overBudget(usageFor(row, now), row.settings, onePostYen(row.settings.quality))) throw new EngineError(budgetMessage(row.settings))
 
+  // 試し書きも、本番と同じ材料で書く（最新の投稿を読み直し、自動運転が出した分は学習から外す）。
+  row = await withFreshHistory(deps, row)
+  const history = await humanHistory(deps, row)
+  const usage = usageFor(row, now)
   const recent = await deps.store.recentTexts(userId, RECENT_AUTOPILOT)
   const rejected = await deps.store.rejectedTexts(userId, REJECTED_FOR_PROMPT)
   const slotAt = new Date(now.getTime() + 3600_000).toISOString()
   const result = await generateOne({
     deps,
     row,
-    profile: row.profile,
+    profile,
     usage,
     slotAt,
     seed: now.getTime() >>> 10,
     recent,
     rejected,
+    history,
     plannedSameDay: [],
   })
   await deps.store.save(userId, { usage })
@@ -304,6 +371,7 @@ export async function topUp(
 ): Promise<TopUpResult> {
   const result: TopUpResult = { created: 0, generated: 0 }
   if (!row.enabled || !row.profile || options.maxGenerations <= 0) return result
+  const profile = row.profile // row を最新の履歴で入れ替えても、まとめは変わらない
 
   const now = deps.now()
   const { settings } = row
@@ -330,6 +398,10 @@ export async function topUp(
     return result
   }
 
+  // 文を作る前に、本人の最新の投稿を読み直し（毎回。2時間以内に読んでいれば読み直さない）、
+  // 自動運転が出した分を外した「本人が自分で書いた投稿」だけを、お手本・傾向・話題の数え方に使う。
+  row = await withFreshHistory(deps, row)
+  const history = await humanHistory(deps, row)
   const usage = usageFor(row, now)
   const recent = await deps.store.recentTexts(row.userId, RECENT_AUTOPILOT)
   const rejected = await deps.store.rejectedTexts(row.userId, REJECTED_FOR_PROMPT)
@@ -353,12 +425,13 @@ export async function topUp(
       generated = await generateOne({
         deps,
         row,
-        profile: row.profile,
+        profile,
         usage,
         slotAt: slot.at,
         seed: parseInt(slot.key.replace(/\D/g, '').slice(0, 9), 10) || 1,
         recent: [...createdToday, ...recent],
         rejected,
+        history,
         plannedSameDay: sameDay,
       })
     } catch (error) {
