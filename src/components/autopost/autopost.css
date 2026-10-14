@@ -871,3 +871,84 @@
 .xap__zone .xap__upcoming li {
   background: var(--surface);
 }
+
+/* トップの「今月のAI料金」。金額を大きく、上限に対する割合を棒で。8割を超えたらオレンジ、上限に達したら赤。 */
+.usage-meter {
+  --meter: var(--accent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+}
+
+.usage-meter--warn {
+  --meter: var(--warning);
+}
+
+.usage-meter--over {
+  --meter: var(--danger);
+}
+
+.usage-meter__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.usage-meter__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.usage-meter__percent {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--meter);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-meter__amount {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-meter__amount strong {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--text-h);
+}
+
+.usage-meter__amount span {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.usage-meter__bar {
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--fill);
+}
+
+.usage-meter__fill {
+  height: 100%;
+  min-width: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--meter);
+  transition: width 0.3s var(--ease, ease);
+}
+
+.usage-meter__note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
