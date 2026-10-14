@@ -6,6 +6,8 @@ import { flat, withArchived } from '../../lib/autopost/draft'
 // 文を自分で書き換える・順番に回す文を増やす・外す、は詳細の画面（AutoPostView）。
 
 interface Props {
+  /** 名前の見出しを出すか。稼働スイッチの行の下に置くとき（行に名前がある）は false。 */
+  showName?: boolean
   snapshot: ChannelSnapshot
   /** 保存の返事（や、別の端末と取り合いになって分かった最新）を、画面に取り込む。 */
   onChanged: (snapshot: ChannelSnapshot) => void
@@ -18,7 +20,7 @@ const short = (text: string) => {
   return line.length > OPTION_LENGTH ? `${line.slice(0, OPTION_LENGTH)}…` : line
 }
 
-export function ChannelTextRow({ snapshot, onChanged }: Props) {
+export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) {
   const name = CHANNEL_LABELS[snapshot.channel]
   const [picked, setPicked] = useState('')
   const [saving, setSaving] = useState(false)
@@ -54,7 +56,7 @@ export function ChannelTextRow({ snapshot, onChanged }: Props) {
 
   return (
     <div className="channel-row" role="group" aria-label={`${name}の投稿文`}>
-      <strong className="channel-row__name">{name}</strong>
+      {showName && <strong className="channel-row__name">{name}</strong>}
 
       {snapshot.messages.length === 0 ? (
         <p className="channel-row__empty">まだ文がありません。「文や回数を変える」で書いてください。</p>

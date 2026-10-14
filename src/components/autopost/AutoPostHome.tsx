@@ -13,7 +13,7 @@ import { RestartControl } from './RestartControl'
 import { XAutopilotPanel } from './XAutopilotPanel'
 
 // アプリを開いて最初に出る1画面。自動投稿の「いま」だけを並べる:
-//   ディスコード・Yay の、いま投稿されている文（過去の文を選べる）→ X・ディスコード・Yay のスイッチ → X のこれから投稿される予定。
+//   X・ディスコード・Yay の稼働スイッチ（ディスコード・Yay は、いま投稿している文と、過去の文の選び方も同じ枠の中）→ X のこれから投稿される予定。
 // 文を書き換える・文体・回数・予約投稿・フォロー整理など、ほかの機能は設定から開く。
 
 interface Props {
@@ -81,16 +81,6 @@ export function AutoPostHome({ onOpenDetail }: Props) {
       {/* 止まっているかもしれないときだけ、いちばん上に出す（普段は文を変える画面にある）。 */}
       {silent && <RestartControl enabled={loggedIn} silent />}
 
-      {/* 一番上: ディスコード・Yay が、いま投稿している文。過去の文は、ここで選んで切り替えられる。 */}
-      {snapshots && (
-        <section className="surface-card channel-texts" aria-label="ディスコード・Yayの投稿文">
-          <h2 className="channel-texts__title">いま投稿されている文</h2>
-          {CHANNEL_NAMES.map((name) => (
-            <ChannelTextRow key={name} snapshot={snapshots[name]} onChanged={applySnapshot} />
-          ))}
-        </section>
-      )}
-
       <XAutopilotPanel variant="summary" onOpenDetail={onOpenDetail}>
         {channelRows}
       </XAutopilotPanel>
@@ -136,5 +126,13 @@ function ChannelRow({ channel, snapshot, now, onChanged }: ChannelRowProps) {
     }
   }
 
-  return <ChannelSwitchRow snapshot={snapshot} now={now} busy={busy} error={error} onChange={(next) => void change(next)} />
+  // 1つの枠の中に、「名前・状態・止めるボタン」の行と、その下に「いま投稿している文・過去の文の選び方」を続ける。
+  return (
+    <div className="channel-block">
+      <ChannelSwitchRow snapshot={snapshot} now={now} busy={busy} error={error} onChange={(next) => void change(next)} />
+      <div className="channel-block__text">
+        <ChannelTextRow snapshot={snapshot} onChanged={onChanged} showName={false} />
+      </div>
+    </div>
+  )
 }
