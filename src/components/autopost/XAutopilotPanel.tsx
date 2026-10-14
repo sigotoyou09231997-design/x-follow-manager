@@ -231,14 +231,15 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
       void reloadPosts()
     })
 
-  async function saveEdit(id: string, text: string, scheduledAt: string) {
+  async function saveEdit(id: string, text: string, scheduledAt: string, timeChanged: boolean) {
     const post = posts.find((p) => p.id === id)
     if (!post) return
     setEditing({ id, saving: true })
     try {
       // 本文は先頭の1件だけを差し替える（自動運転の予約は1件。画像などほかの中身は触らない）。
       // 枠の印（ai_prompt）は変えないので、時刻を動かしても、その枠は埋まったままで、別の文が重ねて作られることはない。
-      const segments = post.segments.map((segment, i) => (i === 0 ? { ...segment, text } : segment))
+      // 時刻を本人が変えたときは、「時刻は本人が決めた」印（fixedTime）を付ける。付いた予約は、自動で前倒ししない。
+      const segments = post.segments.map((segment, i) => (i === 0 ? { ...segment, text, ...(timeChanged ? { fixedTime: true } : {}) } : segment))
       await updateScheduledPost(id, { segments, scheduledAt })
       setEditing(undefined)
       setNotice({ text: '直しました。この内容で予定どおり投稿されます', kind: 'ok' })
@@ -257,7 +258,8 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
     setNotice(undefined)
     try {
       // 投稿可能な予約の中で、これがいちばん早いなら、待たせずに前倒しする（5分後）。前に投稿可能な予約があれば、時刻はそのまま。
-      const moved = approved ? soonestApprovalTime(post, posts.filter((p) => isAutopilotPost(p.aiPrompt)), Date.now()) : undefined
+      const toTimes = (p: (typeof posts)[number]) => ({ id: p.id, status: p.status, scheduledAt: p.scheduledAt, fixedTime: p.segments[0]?.fixedTime === true })
+      const moved = approved ? soonestApprovalTime(toTimes(post), posts.filter((p) => isAutopilotPost(p.aiPrompt)).map(toTimes), Date.now()) : undefined
       await updateScheduledPost(id, { status: approved ? 'scheduled' : 'draft', ...(moved ? { scheduledAt: moved } : {}) })
       const late = !!post.scheduledAt && new Date(post.scheduledAt).getTime() <= Date.now()
       const text = approved
@@ -328,7 +330,7 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
           timeZone={state.settings.timeZone}
           saving={editing.saving}
           error={editing.error}
-          onSave={(text, at) => void saveEdit(post.id, text, at)}
+          onSave={(text, at, timeChanged) => void saveEdit(post.id, text, at, timeChanged)}
           onCancel={() => setEditing(undefined)}
         />
       </li>

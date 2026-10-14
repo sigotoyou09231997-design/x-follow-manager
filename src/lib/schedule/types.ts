@@ -20,6 +20,11 @@ export interface PostSegment {
   text: string
   /** Xの仕様上、1投稿に添付できる画像は最大4枚。 */
   media: PostMedia[]
+  /**
+   * 本人が投稿時刻を自分で決めた（X の自動運転の予約。先頭の1件に付く）。付いていれば、自動運転は、時刻を前倒ししたり
+   * 動かしたりしない（先に出た予約のあと、残りを前へ詰める毎分の処理も、投稿可能にしたときの前倒しも）。
+   */
+  fixedTime?: boolean
 }
 
 export type RepeatFreq = 'daily' | 'weekly' | 'monthly'
