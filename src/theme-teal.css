@@ -1,0 +1,531 @@
+/* ============================================================================
+   Teal — LIFE HUB（todoアプリ）の見た目に合わせた上塗り（2026-10-14）
+
+   本人の依頼「デザインをtodoアプリを参考に全体的に変更して」。
+   LIFE HUB の src/styles/theme-teal.css（白＋青緑＋黒）を手本に、同じ作りにしてある。
+
+   - 機能・データ・画面の構成（何がどこに並ぶか）は変えない。色・形・影・動き・部品の見た目だけを上から塗る。
+   - 手本から借りたのは: 地は青緑に少し寄せた灰(#f3f6f6)＋白いカード、アクセントは青緑1色、
+     選んでいるチップだけ黒く塗る、右下の＋とサイドバーの主ボタンは黒い丸、
+     数字の主役（ホームの「フォロー整理」）は青緑の光を載せた黒いカード、PCのサイドバーとスマホの下部バーは浮いた白い面。
+   - 色は index.css のトークン（--accent など）を差し替えるだけで、ほぼ全部に効く。ここでは足りない部品だけを書き足す。
+   - 手本は明るい色のみ。こちらはダークがあるので、ダークも同じ青緑に揃える（黒いチップは白いチップに反転）。
+
+   main.tsx（と artifact/main.tsx）で一番最後に読み込む。この import を外せば、元の見た目（Apple 風）に戻る。
+   ========================================================================= */
+
+:root {
+  --teal-700: #0f736e;
+  --teal-600: #128a84;
+  --teal-500: #17a199;
+  --teal-400: #3cbab2;
+  --teal-100: #d4f0ed;
+  --teal-50: #ebf8f6;
+  --ink-black: #121416;
+  --ink-black-2: #1d2124;
+
+  /* 地はほんの少しだけ青緑に寄せた灰。白いカードとの境目がはっきりする（手本と同じ）。 */
+  --bg: #f3f6f6;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f3f5f5;
+  --neutral-bg: #e9eded;
+  --fill: rgba(18, 28, 30, 0.06);
+  --border: #e3e9e9;
+  --border-strong: #cfd8d8;
+
+  --text: #141618;
+  --text-h: #141618;
+  /* 補足の文字。白地で約6:1、ページの地で約5.5:1、灰色の面の上でも約5:1（4.5:1 の目安を超える）。 */
+  --text-muted: #5d6468;
+
+  /* アクセントは青緑1色。文字・リンク・白文字を載せる塗りに使うので、白との差が 4.5:1 以上ある濃さ
+     （#0e7a74 = 白の上で約5.2:1、ページの地 #f3f6f6 の上で約4.8:1。一段明るい #0f7f79 は地の上で約4.46:1 と、わずかに届かなかった）。
+     手本の明るい青緑(#17a199)は白文字だと約3:1 しかないので、塗りや文字には使わず、光・印・丸い飾りにだけ使う。
+     hover は暗い側へ振る（明るくすると白文字の差が落ちる）。差の確認は theme-teal.test.ts。 */
+  --accent: #0e7a74;
+  --accent-hover: #0b6661;
+  --accent-bg: rgba(23, 161, 153, 0.12);
+  --on-accent: #ffffff;
+
+  /* 「成功・済み・残す」の緑も、青緑のテーマの中で浮かないよう青緑に寄せる（危険の赤・注意の橙はそのまま）。 */
+  --success: #0e7a74;
+  --success-strong: #0e7a74;
+  --success-hover: #0b6661;
+  --success-bg: rgba(23, 161, 153, 0.12);
+
+  /* 影は2段。置いてある物（カード・ボタン・選んだチップ）と、浮いている物（下のバー・サイドバー・シート）。 */
+  --shadow-rest: 0 1px 2px rgba(16, 32, 34, 0.04), 0 8px 24px rgba(16, 32, 34, 0.05);
+  --shadow-float: 0 2px 6px rgba(16, 32, 34, 0.06), 0 18px 44px rgba(16, 32, 34, 0.14);
+  --shadow-sm: var(--shadow-rest);
+  --shadow-md: var(--shadow-float);
+
+  /* 角丸は4段（手本と同じ）。丸いもの・カードや大きな面・入力欄やボタン類・小さな札。 */
+  --radius-pill: 999px;
+  --radius: 22px;
+  --radius-modal: 22px;
+  --radius-sm: 14px;
+  --r-tag: 8px;
+
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* 選んでいるチップ・＋・主要な丸ボタン。ライトでは黒、ダークでは反転（下のダークの定義）。 */
+  --chip-on-bg: var(--ink-black);
+  --chip-on-text: #ffffff;
+  --fab-bg: var(--ink-black);
+  --fab-text: #ffffff;
+}
+
+/* ダーク。index.css の @media と data-theme の2か所と同じ詳細度・同じ内容に揃える（あとから読むので勝つ）。 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0b0e0f;
+    --bg-elevated: #141819;
+    --surface: #141819;
+    --surface-2: #1b2123;
+    --neutral-bg: #222a2c;
+    --fill: rgba(255, 255, 255, 0.07);
+    --border: #252d2f;
+    --border-strong: #374143;
+    --text: #f1f5f5;
+    --text-h: #ffffff;
+    --text-muted: #9aa5a8;
+    /* 黒地では青緑を明るく、その上の文字は暗くする（白文字だと差が足りない）。 */
+    --accent: #2fb1a8;
+    --accent-hover: #4cc6bd;
+    --accent-bg: rgba(60, 186, 178, 0.16);
+    --on-accent: #041a19;
+    --success: #3cbab2;
+    /* 塗りに白文字を載せる緑（「残す」ボタンなど）は、ダークでもライトと同じ濃さ。 */
+    --success-strong: #0e7a74;
+    --success-hover: #12918a;
+    --success-bg: rgba(60, 186, 178, 0.16);
+    --shadow-rest: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+    --shadow-float: 0 2px 6px rgba(0, 0, 0, 0.5), 0 18px 44px rgba(0, 0, 0, 0.55);
+    --shadow-sm: 0 0 0 0 transparent;
+    --shadow-md: var(--shadow-float);
+    --chip-on-bg: #f1f5f5;
+    --chip-on-text: #0b0e0f;
+    --fab-bg: var(--accent);
+    --fab-text: var(--on-accent);
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0b0e0f;
+  --bg-elevated: #141819;
+  --surface: #141819;
+  --surface-2: #1b2123;
+  --neutral-bg: #222a2c;
+  --fill: rgba(255, 255, 255, 0.07);
+  --border: #252d2f;
+  --border-strong: #374143;
+  --text: #f1f5f5;
+  --text-h: #ffffff;
+  --text-muted: #9aa5a8;
+  --accent: #2fb1a8;
+  --accent-hover: #4cc6bd;
+  --accent-bg: rgba(60, 186, 178, 0.16);
+  --on-accent: #041a19;
+  --success: #3cbab2;
+  --success-strong: #0e7a74;
+  --success-hover: #12918a;
+  --success-bg: rgba(60, 186, 178, 0.16);
+  --shadow-rest: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-float: 0 2px 6px rgba(0, 0, 0, 0.5), 0 18px 44px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 0 0 0 transparent;
+  --shadow-md: var(--shadow-float);
+  --chip-on-bg: #f1f5f5;
+  --chip-on-text: #0b0e0f;
+  --fab-bg: var(--accent);
+  --fab-text: var(--on-accent);
+}
+
+::selection {
+  background: var(--teal-100);
+  color: var(--ink-black);
+}
+
+/* ---------------------------------------------------------------------------
+   1. カード — 白・細い線・柔らかい影。PCでは乗せると少し持ち上がる
+   ------------------------------------------------------------------------ */
+.card,
+.surface-card,
+.settings-section,
+.composer,
+.x-connect,
+.post-item,
+.schedule-view--notice,
+.entry-card {
+  border-color: var(--border);
+  box-shadow: var(--shadow-rest);
+}
+
+.entry-card {
+  transition:
+    transform 420ms var(--ease-out-expo),
+    box-shadow 420ms var(--ease-out-expo),
+    border-color 300ms ease;
+}
+
+.entry-card:hover {
+  background: var(--surface);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .entry-card:hover {
+    border-color: color-mix(in srgb, var(--teal-500) 28%, transparent);
+    box-shadow: var(--shadow-float);
+    transform: translateY(-3px);
+  }
+}
+
+.entry-card__chevron {
+  color: var(--text-muted);
+  transition: transform 300ms var(--spring);
+}
+
+.entry-card:hover .entry-card__chevron {
+  transform: translateX(3px);
+}
+
+.link-row__chevron {
+  transition: transform 300ms var(--spring);
+}
+
+.link-row:hover .link-row__chevron {
+  transform: translateX(3px);
+}
+
+/* 区切りの見出し（「予約投稿」「今日のタスク」）は太く、少しだけ詰める。 */
+.home-section__title {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* ---------------------------------------------------------------------------
+   2. 数字の主役（ホームの「フォロー整理」）— 青緑の光を載せた黒いカード
+      手本の「今月のお金」と同じ作り。光沢が、現れたあと一度だけ斜めに流れる。
+   ------------------------------------------------------------------------ */
+.home-metrics {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background:
+    radial-gradient(520px circle at 85% -10%, rgba(60, 186, 178, 0.28), transparent 46%),
+    radial-gradient(380px circle at 110% 120%, rgba(23, 161, 153, 0.18), transparent 55%),
+    linear-gradient(160deg, #1d2226 0%, var(--ink-black) 62%);
+  color: #f4f7f7;
+  /* カードの中の強調（非相互の数字・リンク）は、黒の上で読める明るい青緑にする。 */
+  --accent: var(--teal-400);
+  --text-h: #ffffff;
+  --text-muted: rgba(244, 247, 247, 0.68);
+}
+
+.home-metrics :is(h1, h2, h3, .home-section__title) {
+  color: #ffffff;
+}
+
+.home-metrics .summary-stat__value {
+  color: #ffffff;
+  letter-spacing: -0.03em;
+}
+
+.home-metrics .summary-stat--accent .summary-stat__value {
+  color: var(--teal-400);
+}
+
+.home-metrics::after {
+  content: '';
+  position: absolute;
+  inset: -40% -60%;
+  z-index: -1;
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.09) 50%, transparent 60%);
+  transform: translateX(-60%);
+  pointer-events: none;
+  animation: teal-sheen 1600ms var(--ease-out-expo) 350ms both;
+}
+
+@keyframes teal-sheen {
+  from {
+    transform: translateX(-60%);
+  }
+  to {
+    transform: translateX(60%);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   3. 選んでいるものだけ黒く塗ったチップ（ボタンは1つずつ離したまま）
+   ------------------------------------------------------------------------ */
+.filter-tab {
+  font-weight: 700;
+  transition:
+    transform 380ms var(--spring),
+    background-color 260ms ease,
+    color 260ms ease,
+    box-shadow 260ms ease;
+}
+
+.filter-tab--active,
+.filter-tab--quiet.filter-tab--active {
+  background: var(--chip-on-bg);
+  color: var(--chip-on-text);
+  box-shadow: var(--shadow-rest);
+  animation: teal-chip-pop 460ms var(--spring);
+}
+
+@keyframes teal-chip-pop {
+  0% {
+    transform: scale(0.92);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   4. ボタン — 主ボタンは青緑。右下の＋とサイドバーの主な操作は黒い丸
+   ------------------------------------------------------------------------ */
+.btn {
+  transition:
+    background var(--dur) var(--ease),
+    border-color var(--dur) var(--ease),
+    opacity var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    transform 380ms var(--spring);
+}
+
+.btn--primary {
+  box-shadow: var(--shadow-rest);
+}
+
+/* サイドバーの主な操作は、手本の「＋追加」と同じ黒い丸。 */
+.side-nav__cta {
+  border-color: transparent;
+  background: var(--fab-bg);
+  color: var(--fab-text);
+  box-shadow: var(--shadow-rest);
+}
+
+.side-nav__cta:hover:not(:disabled) {
+  background: var(--fab-bg);
+  border-color: transparent;
+  box-shadow: var(--shadow-rest), 0 0 0 6px color-mix(in srgb, var(--teal-500) 16%, transparent);
+}
+
+.bottom-nav__fab {
+  width: 52px;
+  height: 52px;
+  background: var(--fab-bg);
+  color: var(--fab-text);
+  box-shadow: var(--shadow-float), 0 0 0 0 color-mix(in srgb, var(--teal-500) 40%, transparent);
+  transition:
+    transform 420ms var(--spring),
+    box-shadow 300ms ease,
+    opacity 0.15s;
+}
+
+.bottom-nav__fab:hover {
+  background: var(--fab-bg);
+  transform: rotate(90deg);
+  box-shadow: var(--shadow-float), 0 0 0 6px color-mix(in srgb, var(--teal-500) 16%, transparent);
+}
+
+.bottom-nav__fab:active {
+  transform: scale(0.94);
+}
+
+/* ---------------------------------------------------------------------------
+   5. ヘッダー・PCのサイドバー・スマホの下部バー
+   ------------------------------------------------------------------------ */
+.app-header {
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  border-bottom-color: transparent;
+}
+
+/* 手本のブランドの印: 黒い角丸の四角に、青緑の紙飛行機（CSS だけで描く。マークを足しても markup は変えない）。 */
+.app-header__logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+}
+
+.app-header__logo::before {
+  content: '';
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-tag);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233cbab2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 2 11 13'/%3E%3Cpath d='M22 2 15 22l-4-9-9-4 20-7z'/%3E%3C/svg%3E")
+      center / 18px 18px no-repeat,
+    var(--ink-black);
+}
+
+:root[data-theme='dark'] .app-header__logo::before {
+  background-color: var(--surface-2);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .app-header__logo::before {
+    background-color: var(--surface-2);
+  }
+}
+
+/* 検索欄は細い線の丸（手本と同じ）。 */
+.app-header__search,
+.home-search {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+}
+
+.app-header__search:focus-within {
+  border-color: var(--teal-500);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+/* PCのサイドバーは、浮いた白いカード。選んでいる所は薄い青緑の面と、左の細い線。 */
+@media (min-width: 1024px) {
+  .side-nav {
+    top: 84px;
+    width: 236px;
+    margin: 20px 0 20px 20px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-rest);
+  }
+}
+
+.side-nav__item {
+  position: relative;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+
+.side-nav__item:hover svg {
+  color: var(--accent);
+}
+
+.side-nav__item.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.side-nav__item.active::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 22%;
+  bottom: 22%;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--teal-500);
+  animation: teal-indicator-in 420ms var(--spring) both;
+}
+
+@keyframes teal-indicator-in {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* スマホの下部バーは、浮いた白い角丸の面。選んでいる所は薄い青緑の丸い面。 */
+.bottom-nav {
+  left: 12px;
+  right: 12px;
+  /* タブレット幅（〜1023px）で横に伸びきらないよう、幅を止めて中央に置く（左右を指定した固定要素は margin:auto で中央に寄る）。 */
+  max-width: 560px;
+  margin-inline: auto;
+  bottom: calc(10px + var(--safe-bottom));
+  min-height: 64px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: var(--shadow-float);
+}
+
+.bottom-nav__item {
+  border-radius: 20px;
+  font-weight: 600;
+  transition:
+    color 220ms ease,
+    background-color 220ms ease,
+    transform 380ms var(--spring);
+}
+
+.bottom-nav__item.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------------------
+   6. 画面の見出し — 見出しの上の小さな言葉は青緑の点つき
+   ------------------------------------------------------------------------ */
+.page-hero__overline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.page-hero__overline::before {
+  content: '';
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--teal-500);
+  box-shadow: 0 0 0 4px var(--accent-bg);
+}
+
+.page-hero__title {
+  letter-spacing: -0.02em;
+}
+
+/* 幅 380px 以下（iPhone SE など）。浮いたバーの左右の余白と、＋の左右の隙間を詰めて、
+   「フォロー整理」の文字が省略されないようにする（以前の全幅のバーより狭くなるぶん）。 */
+@media (max-width: 380px) {
+  .bottom-nav {
+    left: 8px;
+    right: 8px;
+    padding-inline: 4px;
+  }
+
+  .bottom-nav__fab {
+    width: 46px;
+    height: 46px;
+    margin-inline: 0;
+  }
+
+  .bottom-nav__item {
+    padding-inline: 0;
+    font-size: 9.5px;
+  }
+}
+
+/* 動きを減らす設定の人には、出現の動き・光沢・弾みをやめる。 */
+@media (prefers-reduced-motion: reduce) {
+  .home-metrics::after,
+  .filter-tab--active,
+  .side-nav__item.active::before {
+    animation: none;
+  }
+
+  .entry-card:hover,
+  .bottom-nav__fab:hover {
+    transform: none;
+  }
+}

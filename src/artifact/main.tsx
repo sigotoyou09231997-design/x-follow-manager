@@ -1,6 +1,8 @@
 import { createRoot } from 'react-dom/client'
 import '../index.css'
 import App from '../App.tsx'
+// 通常版（src/main.tsx）と同じ見た目にする。App.css のあとに読み込む。
+import '../theme-teal.css'
 
 function showFatalError(err: unknown): void {
   console.error('x-follow-manager: failed to start', err)
