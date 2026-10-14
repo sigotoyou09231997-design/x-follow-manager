@@ -71,6 +71,8 @@ const SAMPLES_PER_POST = 12
 /** 内容の重なりを調べる、直近の自動運転の投稿数と、ご本人の実際の投稿数。 */
 const RECENT_AUTOPILOT = 15
 const RECENT_HISTORY = 30
+/** 本人が取り消した投稿のうち、次に書くとき「こういうのは出さない」として見せる件数（新しい順）。 */
+const REJECTED_FOR_PROMPT = 10
 /** 読み込みの連打を止める間隔。 */
 const READ_INTERVAL_MS = 60_000
 /** 検査に落ちたとき、書き直させる回数（最初の1回を除く）。 */
@@ -200,6 +202,8 @@ interface GenerateContext {
   /** お手本の選び方を変えるための数（枠ごとに違う値）。 */
   seed: number
   recent: { text: string; at: string }[]
+  /** 本人が「取り消す」で外した投稿。同じ話題・型・言い回しを出さないために、AIにも見せ、似すぎの検査にも使う。 */
+  rejected: string[]
   plannedSameDay: string[]
 }
 
@@ -216,6 +220,7 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
 
   const against = [
     ...ctx.recent.map((r) => r.text),
+    ...ctx.rejected,
     ...ctx.plannedSameDay,
     ...row.history.slice(0, RECENT_HISTORY).map((p) => p.text),
   ]
@@ -232,6 +237,7 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
       profile: ctx.profile,
       samples: pickSamples(row.history, SAMPLES_PER_POST, ctx.seed + attempt),
       recent: recentForPrompt,
+      rejected: ctx.rejected,
       plannedSameDay: ctx.plannedSameDay,
       scheduledAt: ctx.slotAt,
       timeZone: row.settings.timeZone,
@@ -259,6 +265,7 @@ export async function previewPost(deps: EngineDeps, userId: string): Promise<Gen
   if (overBudget(usage, row.settings, onePostYen(row.settings.quality))) throw new EngineError(budgetMessage(row.settings))
 
   const recent = await deps.store.recentTexts(userId, RECENT_AUTOPILOT)
+  const rejected = await deps.store.rejectedTexts(userId, REJECTED_FOR_PROMPT)
   const slotAt = new Date(now.getTime() + 3600_000).toISOString()
   const result = await generateOne({
     deps,
@@ -268,6 +275,7 @@ export async function previewPost(deps: EngineDeps, userId: string): Promise<Gen
     slotAt,
     seed: now.getTime() >>> 10,
     recent,
+    rejected,
     plannedSameDay: [],
   })
   await deps.store.save(userId, { usage })
@@ -315,6 +323,7 @@ export async function topUp(
 
   const usage = usageFor(row, now)
   const recent = await deps.store.recentTexts(row.userId, RECENT_AUTOPILOT)
+  const rejected = await deps.store.rejectedTexts(row.userId, REJECTED_FOR_PROMPT)
   const createdToday: { text: string; at: string }[] = []
   let lastError: string | null = null
 
@@ -340,6 +349,7 @@ export async function topUp(
         slotAt: slot.at,
         seed: parseInt(slot.key.replace(/\D/g, '').slice(0, 9), 10) || 1,
         recent: [...createdToday, ...recent],
+        rejected,
         plannedSameDay: sameDay,
       })
     } catch (error) {

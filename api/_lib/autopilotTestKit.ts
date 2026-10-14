@@ -28,7 +28,8 @@ export function history(n: number, start = 1): HistoryPost[] {
 
 export function memoryStore(initial?: Partial<AutopilotRow>) {
   const rows = new Map<string, AutopilotRow>([[OWNER, { ...emptyRow(OWNER), ...initial }]])
-  const posts: { userId: string; at: string; text: string; slotKey: string; status: string }[] = []
+  // rejected: 本人が「取り消す」で外したもの（本物では error_message の印）。「自動運転を止める」での一括の取り消しには付かない
+  const posts: { userId: string; at: string; text: string; slotKey: string; status: string; rejected?: boolean }[] = []
   const account = { xUserId: '555', username: 'me' }
   const store: AutopilotStore & { rows: typeof rows; posts: typeof posts; hasAccount: boolean } = {
     rows,
@@ -58,6 +59,13 @@ export function memoryStore(initial?: Partial<AutopilotRow>) {
         .sort((a, b) => b.at.localeCompare(a.at))
         .slice(0, limit)
         .map((p) => ({ text: p.text, at: p.at }))
+    },
+    async rejectedTexts(userId, limit) {
+      return posts
+        .filter((p) => p.userId === userId && p.status === 'canceled' && p.rejected)
+        .reverse() // あとから取り消したものが新しい
+        .slice(0, limit)
+        .map((p) => p.text)
     },
     async activeSlotKeys(userId, sinceDate) {
       return posts

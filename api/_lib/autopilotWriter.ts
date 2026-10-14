@@ -115,6 +115,10 @@ export function buildPostSystemPrompt(): string {
 - 事実を作らない。数字・出来事・固有名詞・体験談・実績・約束・予定をでっち上げない。
   本人が過去に言っていない意見を代弁しない（毎日そのまま本人の名前で出るため、作り話が混ざると本人が嘘をついたことになる）
 - 【最近の投稿】と、同じ話題・同じ書き出し・同じ語尾の組み合わせを繰り返さない。言い換えただけの文も不可
+- 【最近の投稿】と、同じ文の型を続けない。話題が違っても、「問いかけ→皮肉→そう思いながら〜」のような同じ骨組みで
+  書くと、別の投稿に見えず飽きられる。長さ・書き出し・締め方も、毎回変える
+- 【本人が取り消した投稿】がある場合、それと同じ話題・同じ型・同じ言い回し・似た切り口は書かない。
+  取り消されたのは、本人が「これは要らない」と判断したため。言い換えただけの文も不可
 - 同じ日の【ほかの予約】と話題が重ならないようにする
 - URL・ハッシュタグ・メンション（@）を入れない
 - 過去の投稿の範囲を超えて過激にしない。露骨な描写は避け、お手本と同じ程度のほのめかしにとどめる
@@ -134,6 +138,8 @@ export interface PostPromptInput {
   samples: HistoryPost[]
   /** 最近の投稿（新しい順）。自動運転で作ったものと、ご本人の実際の投稿。 */
   recent: string[]
+  /** 本人が「取り消す」で外した投稿（新しい順）。同じ話題・型・言い回しを出さない。無ければ省略してよい。 */
+  rejected?: string[]
   /** 同じ日にすでに予約されている投稿。話題の重なりを避ける。 */
   plannedSameDay: string[]
   scheduledAt: string
@@ -191,6 +197,14 @@ export function buildPostUserMessage(input: PostPromptInput): string {
       ? `【最近の投稿】（新しい順。同じ話題・書き出し・語尾を繰り返さない）\n${recent.map((t, i) => `(${i + 1}) ${t}`).join('\n')}`
       : '【最近の投稿】まだない'
   )
+  const rejected = (input.rejected ?? []).map((t) => t.trim()).filter(Boolean)
+  if (rejected.length) {
+    sections.push(
+      `【本人が取り消した投稿】（新しい順。本人が「要らない」と判断したもの。同じ話題・型・言い回し・似た切り口は書かない）\n${rejected
+        .map((t, i) => `(${i + 1}) ${t}`)
+        .join('\n')}`
+    )
+  }
   const planned = input.plannedSameDay.map((t) => t.trim()).filter(Boolean)
   if (planned.length) sections.push(`【ほかの予約】（同じ日。話題が重ならないように）\n${planned.map((t) => `- ${t}`).join('\n')}`)
 

@@ -19,7 +19,7 @@ import {
   type Quality,
 } from '../../lib/xAutopilot/types'
 import { settingsProblems } from '../../lib/xAutopilot/slots'
-import { deleteScheduledPost } from '../../lib/schedule/postsStore'
+import { updateScheduledPost } from '../../lib/schedule/postsStore'
 import { Icon } from '../Icon'
 
 // 「自動投稿」タブの X。過去の投稿を読んで文体をまとめ、AIが新しい投稿を前もって予約に並べる。
@@ -182,7 +182,11 @@ export function XAutopilotPanel() {
     if (!post) return
     setNotice(undefined)
     try {
-      await deleteScheduledPost(post)
+      // 削除せず、「取り消した」印を付けて残す。消すと、AIに「これは要らない」が伝わらず、取り消しても
+      // 似た話題・同じ型の文が出続けた。残した文は、次に書くとき「こういうのは出さない」の材料になる。
+      // 取り消した枠は作り直されない（枠は x_autopilot.slots に覚えてある）。一覧には出ない。
+      await updateScheduledPost(post.id, { status: 'canceled', rejected: true })
+      setNotice({ text: '取り消しました。この文に似た話題・型は、これから作らないようにします', kind: 'ok' })
       await reloadPosts()
     } catch (err) {
       setNotice({ text: errorOf(err), kind: 'err' })
@@ -381,7 +385,9 @@ export function XAutopilotPanel() {
           </ul>
         )}
         {upcoming.length > 0 && (
-          <p className="xap__muted">文を直したいときは、「予約投稿」タブでこの予約を開いてください。取り消した枠は作り直されません。</p>
+          <p className="xap__muted">
+            文を直したいときは、「予約投稿」タブでこの予約を開いてください。取り消した枠は作り直されません。取り消した文は覚えておき、似た話題・型は作らないようにします。
+          </p>
         )}
       </section>
     </div>

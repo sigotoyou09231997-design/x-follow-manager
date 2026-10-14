@@ -60,6 +60,31 @@ describe('1本書く指示', () => {
     expect(message).not.toContain('直前の案は使えませんでした')
   })
 
+  // 実例: 取り消しても似た文が出続けた。取り消した文を渡し、同じ話題・型・言い回しを出さないよう頼む。
+  it('取り消された投稿があれば、「出さないもの」として渡す。無ければ欄ごと出さない', () => {
+    const base = {
+      profile: PROFILE,
+      samples: [],
+      recent: [],
+      plannedSameDay: [],
+      scheduledAt: '2026-10-10T03:00:00.000Z',
+      timeZone: 'Asia/Tokyo',
+    }
+    const message = buildPostUserMessage({ ...base, rejected: ['取り消した投稿A', '取り消した投稿B'] })
+    expect(message).toContain('【本人が取り消した投稿】')
+    expect(message).toContain('(1) 取り消した投稿A')
+    expect(message).toContain('(2) 取り消した投稿B')
+    expect(message).toContain('同じ話題・型・言い回し・似た切り口は書かない')
+    expect(buildPostUserMessage(base)).not.toContain('取り消した投稿')
+    expect(buildPostUserMessage({ ...base, rejected: [] })).not.toContain('取り消した投稿')
+    expect(buildPostUserMessage({ ...base, rejected: ['  ', ''] })).not.toContain('取り消した投稿')
+  })
+
+  it('指示に、取り消された投稿と同じものを書かない・同じ文の型を続けない、が書いてある', () => {
+    expect(system).toContain('【本人が取り消した投稿】がある場合、それと同じ話題・同じ型・同じ言い回し・似た切り口は書かない')
+    expect(system).toContain('同じ文の型を続けない')
+  })
+
   it('書き直しのときだけ、直前の案が使えなかった理由を渡す', () => {
     const message = buildPostUserMessage({
       profile: PROFILE,

@@ -1,4 +1,5 @@
 import { requireSupabase } from '../supabase'
+import { REJECTED_MARK } from '../xAutopilot/types'
 import type {
   PostSegment,
   RepeatRule,
@@ -118,6 +119,8 @@ export interface UpdatePostInput {
   repeatRule?: RepeatRule | null
   /** 再予約するときに前回の失敗理由を消すため。 */
   clearError?: boolean
+  /** 自動運転の予約を、本人が「取り消す」で外したとき。印を付けて残し、次に書くときの「出さないもの」にする。 */
+  rejected?: boolean
 }
 
 export async function updateScheduledPost(id: string, input: UpdatePostInput): Promise<void> {
@@ -131,6 +134,7 @@ export async function updateScheduledPost(id: string, input: UpdatePostInput): P
     patch.error_message = null
     patch.attempt_count = 0
   }
+  if (input.rejected) patch.error_message = REJECTED_MARK
   const { error } = await client.from(TABLE).update(patch).eq('id', id)
   if (error) throw new Error(`予約の更新に失敗しました: ${error.message}`)
 }

@@ -232,6 +232,70 @@ describe('枠の補充（topUp）', () => {
     expect(store.posts.some((p) => p.slotKey === first.slotKey)).toBe(false)
   })
 
+  // 実例: 取り消しても、似た話題・同じ型の文が出続けた。取り消した文が「最近の投稿」から消え、AIに伝わらなかったため。
+  describe('本人が取り消した投稿は、次に書くときの「出さないもの」にする', () => {
+    it('取り消した文を、AIに渡す（rejected）。取り消す前は渡さない', async () => {
+      const store = ready()
+      const { deps, writePost } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      const first = store.posts[0]
+      expect((writePost.mock.calls[0][0] as unknown as { rejected: string[] }).rejected).toEqual([])
+
+      first.status = 'canceled' // 画面の「取り消す」（削除せず、印を付けて残す）
+      first.rejected = true
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      const second = writePost.mock.calls[1][0] as unknown as { rejected: string[] }
+      expect(second.rejected).toEqual([first.text])
+    })
+
+    it('取り消した文とほぼ同じ文を書いてきたら、検査で弾いて、理由を伝えて書き直させる', async () => {
+      const store = ready()
+      const { deps, writePost } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      const first = store.posts[0]
+      first.status = 'canceled'
+      first.rejected = true
+      resetWritten() // 次に偽のAIが返すのは、取り消した文と同じ文
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      expect(writePost).toHaveBeenCalledTimes(3) // 最初の1本＋（取り消した文と同じ→書き直し）の2回
+      expect(store.posts[1].text).not.toBe(first.text)
+      expect(store.posts[1].status).toBe('scheduled')
+    })
+
+    it('取り消した枠は、作り直さない（枠を覚えているので）。取り消した行が残っていても同じ', async () => {
+      const store = ready()
+      const { deps } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      const first = store.posts[0]
+      first.status = 'canceled'
+      first.rejected = true
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      expect(store.posts.filter((p) => p.slotKey === first.slotKey && p.status === 'scheduled')).toHaveLength(0)
+    })
+
+    it('「自動運転を止める」での一括の取り消しは、本人が嫌がったわけではないので、材料に入れない', async () => {
+      const store = ready()
+      const { deps } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      await store.cancelUpcoming(OWNER) // 止めた
+      expect(store.posts.every((p) => p.status === 'canceled' && !p.rejected)).toBe(true)
+      expect(await store.rejectedTexts(OWNER, 10)).toEqual([])
+    })
+
+    it('件数は新しい順に絞る。試し書きにも渡す', async () => {
+      const store = ready()
+      for (let i = 0; i < 14; i++) {
+        store.posts.push({ userId: OWNER, at: `2026-10-0${(i % 9) + 1}T00:00:00.000Z`, text: `取り消した文その${i}`, slotKey: `x${i}`, status: 'canceled', rejected: true })
+      }
+      const texts = await store.rejectedTexts(OWNER, 10)
+      expect(texts).toHaveLength(10)
+      expect(texts[0]).toBe('取り消した文その13') // あとから取り消したものが先
+      const { deps, writePost } = makeDeps(store)
+      await previewPost(deps, OWNER)
+      expect((writePost.mock.calls[0][0] as unknown as { rejected: string[] }).rejected).toHaveLength(10)
+    })
+  })
+
   it('検査を通らない案は予約に入れず、止まって理由を記録する', async () => {
     const store = ready()
     const { deps, writePost } = makeDeps(store)

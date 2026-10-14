@@ -18,11 +18,11 @@ vi.mock('../../lib/xAutopilot/api', async (importOriginal) => ({
   ...api,
 }))
 
-const posts = vi.hoisted(() => ({ list: [] as unknown[], reload: vi.fn(), remove: vi.fn() }))
+const posts = vi.hoisted(() => ({ list: [] as unknown[], reload: vi.fn(), update: vi.fn() }))
 vi.mock('../../hooks/useScheduledPosts', () => ({
   useScheduledPosts: () => ({ posts: posts.list, loading: false, reload: posts.reload }),
 }))
-vi.mock('../../lib/schedule/postsStore', () => ({ deleteScheduledPost: posts.remove }))
+vi.mock('../../lib/schedule/postsStore', () => ({ updateScheduledPost: posts.update }))
 
 import { XAutopilotError } from '../../lib/xAutopilot/api'
 import { XAutopilotPanel } from './XAutopilotPanel'
@@ -68,7 +68,7 @@ beforeEach(() => {
   Object.values(api).forEach((fn) => fn.mockReset())
   posts.list = []
   posts.reload.mockReset().mockResolvedValue(undefined)
-  posts.remove.mockReset().mockResolvedValue(undefined)
+  posts.update.mockReset().mockResolvedValue(undefined)
   api.fetchAutopilot.mockResolvedValue({ state: state() })
 })
 
@@ -379,14 +379,17 @@ describe('XAutopilotPanel: これから投稿される予定', () => {
     expect(screen.queryByText('ふつうの予約')).not.toBeInTheDocument()
   })
 
-  it('取り消すと、その予約だけを消して一覧を取り直す', async () => {
+  // 削除すると、AIに「これは要らない」が伝わらず、取り消しても似た話題・同じ型の文が出続けた。
+  // 消さずに「取り消した」印を付けて残し、次に書くときの「出さないもの」にする。
+  it('取り消すと、その予約だけに「取り消した」印を付けて残し、一覧を取り直す（削除はしない）', async () => {
     posts.list = [post('a'), post('b')]
     render(<XAutopilotPanel />)
     const [first] = await screen.findAllByRole('button', { name: /取り消す/ })
     fireEvent.click(first)
-    await waitFor(() => expect(posts.remove).toHaveBeenCalledTimes(1))
-    expect(posts.remove.mock.calls[0][0]).toMatchObject({ id: 'a' })
+    await waitFor(() => expect(posts.update).toHaveBeenCalledTimes(1))
+    expect(posts.update).toHaveBeenCalledWith('a', { status: 'canceled', rejected: true })
     expect(posts.reload).toHaveBeenCalled()
+    expect(await screen.findByText(/似た話題・型は、これから作らないようにします/)).toBeInTheDocument()
   })
 
   it('予約が無ければ、始めると並ぶことを伝える', async () => {
