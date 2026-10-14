@@ -20,7 +20,7 @@ import {
   type Quality,
 } from '../../lib/xAutopilot/types'
 import { settingsProblems } from '../../lib/xAutopilot/slots'
-import { soonestApprovalTime } from '../../lib/xAutopilot/approve'
+import { REFILL_MIN_LEAD_MS, soonestApprovalTime } from '../../lib/xAutopilot/approve'
 import { whenParts } from '../../lib/xAutopilot/whenLabel'
 import { updateScheduledPost } from '../../lib/schedule/postsStore'
 import { Icon } from '../Icon'
@@ -287,10 +287,16 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
       // 似た話題・同じ型の文が出続けた。残した文は、次に書くとき「こういうのは出さない」の材料になる。
       // 取り消した枠は空きとして扱い、別の文で作り直す（下の queueRefill）。一覧には出ない。
       await updateScheduledPost(post.id, { status: 'canceled', rejected: true })
-      // 確認してから投稿する設定では、外したものは外したまま（作り直さない。サーバーの毎分の補充も作り直さない）。
-      const redo = !state?.settings.requireApproval
+      // 確認してから投稿する設定では、近い枠（いまから2時間以内・過ぎた枠）は、外したまま空けておく（消したのに、また同じ時間帯に
+      // 出てくるのを避ける）。遠い枠は作り直す（候補が減る一方にならないように）。サーバーの毎分の補充も同じ決まり。
+      const far = !!post.scheduledAt && new Date(post.scheduledAt).getTime() >= Date.now() + REFILL_MIN_LEAD_MS
+      const redo = !state?.settings.requireApproval || far
       setNotice({
-        text: redo ? '取り消しました。いちばん近い時刻の枠から、別の文を作り直します' : '取り消しました。この枠は、そのまま空けておきます',
+        text: !redo
+          ? '取り消しました。この枠は、近い時刻なので、そのまま空けておきます'
+          : state?.settings.requireApproval
+            ? '取り消しました。別の文を作り直します'
+            : '取り消しました。いちばん近い時刻の枠から、別の文を作り直します',
         kind: 'ok',
       })
       await reloadPosts()
@@ -405,10 +411,10 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
         <p className="xap__muted">
           {variant === 'summary'
             ? state.settings.requireApproval
-              ? '「編集」で本文と投稿時刻を直せます。取り消すと、その枠はそのまま空きます（作り直しません）。'
+              ? '「編集」で本文と投稿時刻を直せます。取り消すと、近い時刻の枠は空いたまま、遠い枠は別の文を作り直します。'
               : '「編集」で本文と投稿時刻を直せます。取り消すと、近い時刻の枠から別の文を作り直します（数十秒）。'
             : state.settings.requireApproval
-              ? '「編集」で本文と投稿時刻を直せます。取り消すと、その枠はそのまま空きます（作り直しません）。取り消した文は覚えておき、似た話題・型は作らないようにします。'
+              ? '「編集」で本文と投稿時刻を直せます。取り消すと、近い時刻（2時間以内）の枠は空いたまま、遠い枠は別の文を作り直します。取り消した文は覚えておき、似た話題・型は作らないようにします。'
               : '「編集」で本文と投稿時刻を直せます。取り消すと、いちばん近い時刻の枠から、別の文を作り直して並べます（数十秒）。取り消した文は覚えておき、似た話題・型は作らないようにします。'}
         </p>
       )}

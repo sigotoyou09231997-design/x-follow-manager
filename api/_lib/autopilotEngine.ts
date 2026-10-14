@@ -11,6 +11,7 @@ import {
   mergeCrowded,
   neglectedTopics,
 } from '../../src/lib/xAutopilot/recentStyle.js'
+import { REFILL_MIN_LEAD_MS } from '../../src/lib/xAutopilot/approve.js'
 import { localDate, localMonth, normalizeSettings, planSlots, settingsProblems, type Slot } from '../../src/lib/xAutopilot/slots.js'
 import {
   cleanHistory,
@@ -380,11 +381,18 @@ export async function topUp(
   // 以前は「取り消した枠は作り直さない」だったが、今日・明日の枠を取り消すと、その日の投稿が無くなり、
   // 自動運転を止めて始め直すまで戻らなかった（本人の指摘）。作り直すときは、取り消した文を AI に「出さない」として渡す。
   // 手で削除した枠（行ごと消えて印が無い）と、「止める」での一括の取り消し（印なし）は、いままでどおり作り直さない。
-  // ただし、確認してから投稿する設定（requireApproval）のときは作り直さない。確認待ちの中から、本人が選んで外したものなので、
-  // 外したら、そのまま外れたままにする（消したのに、また同じ枠に新しい文が出てくる、を作らない）。
-  // 近い時刻の枠が空いたままでも、「投稿可能にする」を押したあとの補充（refill）が、まだ作っていない枠を埋める。
-  const rejectedSlots = settings.requireApproval ? [] : await deps.store.rejectedSlotKeys(row.userId, sinceDate)
-  let missing: Slot[] = planSlots(now, settings).filter((s) => !row.slots.includes(s.key) || rejectedSlots.includes(s.key))
+  // ただし、確認してから投稿する設定（requireApproval）のときは、近い枠（いまから2時間以内・過ぎた枠）は作り直さない。
+  // 本人が選んで外したものなので、消したのにまた同じ時間帯に新しい文が出てくる、を作らない。
+  // 遠い枠（たとえば明日）は作り直す（作り直さないと、候補が減る一方で、AIの文章が止まったように見える）。
+  const planned = planSlots(now, settings)
+  const rejectedAll = await deps.store.rejectedSlotKeys(row.userId, sinceDate)
+  const refillable = (key: string) => {
+    if (!settings.requireApproval) return true
+    const slot = planned.find((s) => s.key === key)
+    return !!slot && Date.parse(slot.at) >= now.getTime() + REFILL_MIN_LEAD_MS
+  }
+  const rejectedSlots = rejectedAll.filter(refillable)
+  let missing: Slot[] = planned.filter((s) => !row.slots.includes(s.key) || rejectedSlots.includes(s.key))
   if (missing.length === 0) return result
 
   // 記録に無くても、予約として生きている枠は作り直さない。記録だけが空になる場面（設定を変えて作り直したとき）に、

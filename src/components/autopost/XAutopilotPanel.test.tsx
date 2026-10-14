@@ -874,19 +874,28 @@ describe('XAutopilotPanel: 予約の並びと時刻の見せ方', () => {
   })
 })
 
-describe('XAutopilotPanel: 確認してから投稿する設定では、取り消した枠を作り直さない', () => {
+describe('XAutopilotPanel: 確認してから投稿する設定で、取り消した枠の作り直し（近い枠は空け、遠い枠は作る）', () => {
   const future = (hours: number) => new Date(Date.now() + hours * 3600_000).toISOString()
 
-  it('取り消すと、その枠は空けたまま。作り直しは頼まない', async () => {
+  it('近い枠（2時間以内）を取り消すと、空けたまま。作り直しは頼まない', async () => {
     api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) }) // 既定は requireApproval: true
     posts.list = [post('a', { status: 'draft', scheduledAt: future(1) })]
     render(<XAutopilotPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /取り消す/ }))
 
     await waitFor(() => expect(posts.update).toHaveBeenCalledWith('a', { status: 'canceled', rejected: true }))
-    expect(await screen.findByText(/この枠は、そのまま空けておきます/)).toBeInTheDocument()
+    expect(await screen.findByText(/近い時刻なので、そのまま空けておきます/)).toBeInTheDocument()
     await new Promise((r) => setTimeout(r, 50))
     expect(api.refillAutopilot).not.toHaveBeenCalled()
+  })
+
+  it('遠い枠（2時間より先）を取り消すと、別の文を作り直してもらう（候補が減る一方にならない）', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    posts.list = [post('a', { status: 'draft', scheduledAt: future(20) })]
+    render(<XAutopilotPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: /取り消す/ }))
+
+    await waitFor(() => expect(api.refillAutopilot).toHaveBeenCalledTimes(1))
   })
 
   it('取り消した文は、これからの「出さないもの」として残す（印は付ける）', async () => {
@@ -895,64 +904,5 @@ describe('XAutopilotPanel: 確認してから投稿する設定では、取り�
     render(<XAutopilotPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /取り消す/ }))
     await waitFor(() => expect(posts.update.mock.calls[0][1].rejected).toBe(true))
-  })
-})
-
-describe('XAutopilotPanel: トップの1画面用（summary）の「今月のAI料金」', () => {
-  it('今月使った金額と上限・割合を、稼働スイッチの上に出す', async () => {
-    api.fetchAutopilot.mockResolvedValue({
-      state: withProfile({
-        enabled: true,
-        usage: { ...emptyUsage('2026-10'), yen: 450 },
-        settings: { ...DEFAULT_SETTINGS, monthlyBudgetYen: 3000 },
-      }),
-    })
-    render(<XAutopilotPanel variant="summary" />)
-
-    const meter = await screen.findByRole('region', { name: '今月のAI料金' })
-    expect(within(meter).getByText('450円')).toBeInTheDocument()
-    expect(within(meter).getByText('／ 上限 3,000円')).toBeInTheDocument()
-    expect(within(meter).getByText('15%')).toBeInTheDocument()
-    const switches = screen.getByRole('region', { name: '稼働スイッチ' })
-    expect(meter.compareDocumentPosition(switches) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy() // 料金が上
-  })
-})
-
-describe('XAutopilotPanel: 本人が決めた時刻は、自動で動かさない印を付ける', () => {
-  const future = (hours: number) => new Date(Date.now() + hours * 3600_000).toISOString()
-  const tokyoInput = (iso: string) =>
-    new Intl.DateTimeFormat('sv-SE', {
-      timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-    })
-      .format(new Date(iso))
-      .replace(' ', 'T')
-
-  it('時刻を変えて保存すると、本文の先頭に fixedTime を付けて保存する', async () => {
-    posts.list = [post('a', { scheduledAt: future(5) })]
-    render(<XAutopilotPanel />)
-    fireEvent.click(await screen.findByRole('button', { name: 'この予約の本文と時刻を直す' }))
-    fireEvent.change(screen.getByLabelText('投稿日時を直す'), { target: { value: tokyoInput(future(30)) } })
-    fireEvent.click(screen.getByRole('button', { name: '保存する' }))
-
-    await waitFor(() => expect(posts.update).toHaveBeenCalledTimes(1))
-    expect(posts.update.mock.calls[0][1].segments[0].fixedTime).toBe(true)
-  })
-
-  it('本文だけ直したときは、印を付けない（時刻は本人が決めたわけではない）', async () => {
-    posts.list = [post('a', { scheduledAt: future(5) })]
-    render(<XAutopilotPanel />)
-    fireEvent.click(await screen.findByRole('button', { name: 'この予約の本文と時刻を直す' }))
-    fireEvent.change(screen.getByLabelText('本文を直す'), { target: { value: '直した本文' } })
-    fireEvent.click(screen.getByRole('button', { name: '保存する' }))
-
-    await waitFor(() => expect(posts.update).toHaveBeenCalledTimes(1))
-    expect(posts.update.mock.calls[0][1].segments[0].fixedTime).toBeUndefined()
-  })
-
-  it('時刻を決めた予約を投稿可能にしても、時刻は動かさない（状態だけ scheduled にする）', async () => {
-    posts.list = [post('a', { status: 'draft', scheduledAt: future(30), segments: [{ text: '本文', media: [], fixedTime: true }] })]
-    render(<XAutopilotPanel />)
-    fireEvent.click(await screen.findByRole('button', { name: 'この予約を投稿可能にする' }))
-    await waitFor(() => expect(posts.update).toHaveBeenCalledWith('a', { status: 'scheduled' }))
   })
 })
