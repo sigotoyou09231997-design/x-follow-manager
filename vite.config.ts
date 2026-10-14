@@ -49,8 +49,8 @@ export default defineConfig({
         short_name: 'SNSアプリ',
         description: 'Xのフォロー整理・予約投稿と、掲示板・Yayの自動投稿',
         lang: 'ja',
-        theme_color: '#f5f5f7',
-        background_color: '#f5f5f7',
+        theme_color: '#f3f6f6',
+        background_color: '#f3f6f6',
         display: 'standalone',
         start_url: '/',
         icons: [
