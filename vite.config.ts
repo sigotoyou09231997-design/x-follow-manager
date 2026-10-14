@@ -36,7 +36,7 @@ export default defineConfig({
       // 開きっぱなしのタブが古いビルドを掴んだままになるので、登録は src/main.tsx で
       // 自前で行い、定期的に registration.update() を叩く。
       injectRegister: false,
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'],
       workbox: {
         // push / notificationclick の2イベントだけを、生成済みのService Workerへ
         // importScripts で足す。プリキャッシュ周りの仕組みには触らない。
@@ -54,8 +54,9 @@ export default defineConfig({
         display: 'standalone',
         start_url: '/',
         icons: [
-          { src: 'favicon.svg', sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
-          { src: 'favicon.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'any' },
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
         ],
       },
     }),

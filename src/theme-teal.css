@@ -281,7 +281,7 @@
   border-bottom-color: transparent;
 }
 
-/* 手本のブランドの印: 黒い角丸の四角に、青緑の紙飛行機（CSS だけで描く。マークを足しても markup は変えない）。 */
+/* ブランドの印: 黒い角丸の四角に、青緑の紙飛行機（public/favicon.svg と同じ形。CSS だけで描く）。 */
 .app-header__logo {
   display: inline-flex;
   align-items: center;
@@ -296,8 +296,8 @@
   height: 30px;
   border-radius: var(--r-tag);
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233cbab2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 2 11 13'/%3E%3Cpath d='M22 2 15 22l-4-9-9-4 20-7z'/%3E%3C/svg%3E")
-      center / 18px 18px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cmask id='m'%3E%3Crect width='512' height='512' fill='white'/%3E%3Cpath d='M426 65 254 297' stroke='black' stroke-width='28' stroke-linecap='round'/%3E%3C/mask%3E%3Cpath d='M90 234 426 65 318 424 254 297Z' fill='%233cbab2' mask='url(%23m)'/%3E%3C/svg%3E")
+      center / 20px 20px no-repeat,
     var(--ink-black);
 }
 
