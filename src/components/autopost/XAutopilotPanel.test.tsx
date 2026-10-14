@@ -582,3 +582,111 @@ describe('XAutopilotPanel: トップの1画面用（summary）', () => {
     expect(screen.queryByText('差し込み')).not.toBeInTheDocument()
   })
 })
+
+describe('XAutopilotPanel: 並んだ予約の本文と時刻を直す', () => {
+  const future = (hours: number) => new Date(Date.now() + hours * 3600_000).toISOString()
+
+  // 日時の入力欄の値（日本時間）を、テストの中で作る。
+  const tokyoInput = (iso: string) => {
+    const p = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).format(new Date(iso))
+    return p.replace(' ', 'T')
+  }
+
+  const open = async () => {
+    posts.list = [post('a', { scheduledAt: future(5) })]
+    render(<XAutopilotPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'この予約の本文と時刻を直す' }))
+  }
+
+  it('「編集」で、本文と投稿日時の欄が開く。いまの内容が入っている', async () => {
+    await open()
+    expect((screen.getByLabelText('本文を直す') as HTMLTextAreaElement).value).toBe('自動運転の本文 a')
+    expect(screen.getByLabelText('投稿日時を直す')).toBeInTheDocument()
+    // 直す前は保存できない
+    expect(button('保存する')).toBeDisabled()
+  })
+
+  it('本文を直して保存すると、その予約の本文だけ差し替える（時刻はそのまま・枠の印は触らない）', async () => {
+    await open()
+    fireEvent.change(screen.getByLabelText('本文を直す'), { target: { value: '直した本文' } })
+    fireEvent.click(button('保存する'))
+
+    await waitFor(() => expect(posts.update).toHaveBeenCalledTimes(1))
+    const [id, patch] = posts.update.mock.calls[0]
+    expect(id).toBe('a')
+    expect(patch.segments).toEqual([{ text: '直した本文', media: [] }])
+    expect(patch.scheduledAt).toBe((posts.list[0] as ScheduledPost).scheduledAt) // 秒まで元のまま
+    expect(patch.status).toBeUndefined()
+    expect(patch.rejected).toBeUndefined()
+    expect(await screen.findByText(/直しました/)).toBeInTheDocument()
+    expect(posts.reload).toHaveBeenCalled()
+  })
+
+  it('投稿日時を直して保存すると、日本時間の入力値を UTC にして保存する', async () => {
+    await open()
+    const target = future(30)
+    fireEvent.change(screen.getByLabelText('投稿日時を直す'), { target: { value: tokyoInput(target) } })
+    fireEvent.click(button('保存する'))
+
+    await waitFor(() => expect(posts.update).toHaveBeenCalledTimes(1))
+    const sent = posts.update.mock.calls[0][1].scheduledAt as string
+    // 入力は分まで。秒を切り捨てた値と一致する
+    expect(Math.abs(new Date(sent).getTime() - new Date(target).getTime())).toBeLessThan(60_000)
+  })
+
+  it('過去の時刻・空の本文・文字数の超過は保存できず、理由を出す', async () => {
+    await open()
+    fireEvent.change(screen.getByLabelText('投稿日時を直す'), { target: { value: tokyoInput(new Date(Date.now() - 3600_000).toISOString()) } })
+    expect(screen.getByRole('alert')).toHaveTextContent('いまより先の時刻')
+    expect(button('保存する')).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText('投稿日時を直す'), { target: { value: tokyoInput(future(30)) } })
+    fireEvent.change(screen.getByLabelText('本文を直す'), { target: { value: '   ' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('本文が空です')
+    expect(button('保存する')).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText('本文を直す'), { target: { value: 'あ'.repeat(141) } })
+    expect(screen.getByRole('alert')).toHaveTextContent('上限')
+    expect(button('保存する')).toBeDisabled()
+    expect(posts.update).not.toHaveBeenCalled()
+  })
+
+  it('時刻が過ぎている予約でも、時刻を変えずに本文だけなら直せる', async () => {
+    posts.list = [post('a')] // 既定の時刻は過去
+    render(<XAutopilotPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'この予約の本文と時刻を直す' }))
+    fireEvent.change(screen.getByLabelText('本文を直す'), { target: { value: '直した本文' } })
+    expect(button('保存する')).toBeEnabled()
+  })
+
+  it('保存に失敗したら、理由を出して欄は開いたまま（書いた内容は消えない）', async () => {
+    posts.update.mockRejectedValue(new Error('予約の更新に失敗しました: boom'))
+    await open()
+    fireEvent.change(screen.getByLabelText('本文を直す'), { target: { value: '直した本文' } })
+    fireEvent.click(button('保存する'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('予約の更新に失敗しました')
+    expect((screen.getByLabelText('本文を直す') as HTMLTextAreaElement).value).toBe('直した本文')
+    expect(button('保存する')).toBeEnabled() // もう一度押せる
+  })
+
+  it('「やめる」で閉じる。何も保存しない', async () => {
+    await open()
+    fireEvent.change(screen.getByLabelText('本文を直す'), { target: { value: '直した本文' } })
+    fireEvent.click(button('やめる'))
+
+    expect(screen.queryByLabelText('本文を直す')).not.toBeInTheDocument()
+    expect(screen.getByText('自動運転の本文 a')).toBeInTheDocument()
+    expect(posts.update).not.toHaveBeenCalled()
+  })
+
+  it('トップの1画面用（summary）でも、同じように直せる', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    posts.list = [post('a', { scheduledAt: future(5) })]
+    render(<XAutopilotPanel variant="summary" />)
+    fireEvent.click(await screen.findByRole('button', { name: 'この予約の本文と時刻を直す' }))
+    expect(screen.getByLabelText('本文を直す')).toBeInTheDocument()
+  })
+})

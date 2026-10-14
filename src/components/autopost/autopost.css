@@ -501,6 +501,27 @@
   order: 2;
 }
 
+/* 直している最中の1件。時刻の見出しの下に、本文と日時の入力欄を縦に並べる。 */
+.xap__upcoming li.xap__editing {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.xap__editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.xap__editor textarea {
+  width: 100%;
+  resize: vertical;
+  font-size: 16px; /* iOS で入力欄にふれたとき、画面が勝手に拡大されない大きさ */
+  line-height: 1.7;
+}
+
 .xap__upcoming .xap__upcoming-text {
   order: 3;
   flex: 1 1 100%;
