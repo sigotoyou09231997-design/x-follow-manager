@@ -8,6 +8,7 @@ import { anthropicApiKey } from './_lib/postWriter.js'
 import { RECENT_POSTS_TO_AVOID, writeDailyPost } from './_lib/dailyWriter.js'
 import { topUpAll } from './_lib/autopilotEngine.js'
 import { deletePreviousAutopilotPosts, type CleanupDeps } from './_lib/autopilotCleanup.js'
+import { pullForwardTime } from '../src/lib/xAutopilot/approve.js'
 import { supabaseAutopilotStore } from './_lib/autopilotStore.js'
 import { writeAutopilotPost, writeProfile } from './_lib/autopilotWriter.js'
 import { supabasePosterWatchDeps, watchPosters } from './_lib/posterWatch.js'
@@ -107,6 +108,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       else result.failed += 1
     }
 
+    // 確認してから投稿する設定の人は、先に投稿可能にした予約が出たあと、残りの投稿可能な予約を前に詰める
+    // （元の時刻のまま、何時間も待たされないように）。失敗しても、投稿そのものには影響させない。
+    await pullForwardApproved(startedAt)
+
     // 次回分の用意は投稿のあと。AIおまかせの繰り返しではここでAIを呼ぶので、
     // 先に走らせると、その待ち時間のぶん時刻を過ぎた投稿が遅れる。
     const materialized = await materializeRepeats(startedAt)
@@ -176,6 +181,48 @@ async function topUpAutopilots(startedAt: Date, allowance: number): Promise<numb
   } catch (error) {
     console.error('topUpAutopilots failed:', error)
     return 0
+  }
+}
+
+/**
+ * 確認してから投稿する設定（requireApproval）の人について、いちばん早い投稿可能な予約を、
+ * 「直前の投稿から最低間隔・いますぐ」の時刻まで前倒しする（決め方は src/lib/xAutopilot/approve.ts）。
+ * 確認なしの自動投稿の人は、時刻をばらして散らす決まりなので触らない。
+ */
+async function pullForwardApproved(now: Date): Promise<void> {
+  try {
+    const db = getSupabaseAdmin()
+    const users = await supabaseAutopilotStore().listEnabled(50)
+    for (const row of users) {
+      if (!row.settings.requireApproval) continue
+      const { data, error } = await db
+        .from('scheduled_posts')
+        .select('id, status, scheduled_at')
+        .eq('user_id', row.userId)
+        .like('ai_prompt', `${AUTOPILOT_PREFIX}%`)
+        .in('status', ['scheduled', 'publishing', 'posted'])
+        .order('scheduled_at', { ascending: false })
+        .limit(60)
+      if (error) {
+        console.error('pullForwardApproved failed:', error.message)
+        continue
+      }
+      const rows = ((data ?? []) as { id: string; status: string; scheduled_at: string }[]).map((r) => ({
+        id: r.id,
+        status: r.status,
+        scheduledAt: r.scheduled_at,
+      }))
+      const move = pullForwardTime(rows, now.getTime())
+      if (!move) continue
+      const { error: updateError } = await db
+        .from('scheduled_posts')
+        .update({ scheduled_at: move.scheduledAt, updated_at: now.toISOString() })
+        .eq('id', move.id)
+        .eq('status', 'scheduled')
+      if (updateError) console.error('pullForwardApproved update failed:', updateError.message)
+    }
+  } catch (error) {
+    console.error('pullForwardApproved failed:', (error as Error).message)
   }
 }
 

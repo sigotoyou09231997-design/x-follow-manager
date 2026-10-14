@@ -1,9 +1,19 @@
-// 「投稿可能にする」を押したとき、その予約の投稿時刻をどうするか。
-// 投稿可能な予約のうちで、これがいちばん早い（これより前の投稿可能な予約が無い）なら、待たせず、できるだけ早く出す。
-// これより前の投稿可能な予約があるなら、時刻はそのまま（その後ろに並ぶ）。
+// 「投稿可能」な予約の投稿時刻の決め方。確認してから投稿する設定（requireApproval）のときだけ使う
+// （確認なしの自動投稿は、時刻をばらして散らす決まりなので、動かさない）。
+//
+// 投稿可能な予約は、できるだけ早く出す。ただし、直前の自動運転の投稿から最低限の間隔はあける（連投に見えないため）。
+//   ・押したとき（画面）: 投稿可能な予約の中でいちばん早ければ、その時刻へ前倒しする。
+//   ・毎分（サーバー）: 先に投稿可能にした予約が出たあと、残りの予約が元の時刻のまま待たされないよう、
+//     いちばん早い投稿可能な予約を、同じ決まりで前倒しする。
 
 /** 押してから投稿までの猶予。押し間違いに気づいて「確認待ちに戻す」を押せるくらいは残す。 */
 export const APPROVE_LEAD_MS = 5 * 60_000
+
+/** 自動運転の投稿と投稿の、最低限の間隔。枠の最小間隔（LIMITS.minGapMinutes）と同じ。 */
+export const MIN_POST_GAP_MS = 30 * 60_000
+
+/** 毎分の前倒しで、動かすほどのずれ。数分の差で毎分書き換えない。 */
+const MOVE_THRESHOLD_MS = 2 * 60_000
 
 interface PostTime {
   id: string
@@ -11,18 +21,56 @@ interface PostTime {
   scheduledAt?: string
 }
 
+const at = (iso: string | undefined): number | undefined => {
+  if (!iso) return undefined
+  const ms = new Date(iso).getTime()
+  return Number.isFinite(ms) ? ms : undefined
+}
+
+/** 直前に出た（出している途中も含む）自動運転の投稿の時刻（ms）。無ければ undefined。 */
+export function lastPostedAt(autopilot: PostTime[]): number | undefined {
+  const times = autopilot
+    .filter((p) => p.status === 'posted' || p.status === 'publishing')
+    .map((p) => at(p.scheduledAt))
+    .filter((t): t is number => t !== undefined)
+  return times.length > 0 ? Math.max(...times) : undefined
+}
+
+/** いまから出せるいちばん早い時刻（ms）。直前の投稿から間隔をあける。 */
+export function earliestAllowed(now: number, lastPosted: number | undefined, lead: number): number {
+  const base = now + lead
+  return lastPosted === undefined ? base : Math.max(base, lastPosted + MIN_POST_GAP_MS)
+}
+
 /**
  * 投稿可能にするとき、投稿時刻を前倒しするなら、その新しい時刻（ISO8601）。前倒ししないなら undefined。
+ * `autopilot` は、同じ人の自動運転の予約すべて（投稿済みも含む）。
  * 他の投稿可能な予約（status が scheduled）の中に、この予約より前の時刻のものがあれば、前倒ししない。
- * すでに「いまから猶予ぶん」より前の時刻（時刻を過ぎている・すぐ出る）なら、これ以上は動かさない。
+ * 前倒し先は「いまから猶予ぶん」と「直前の投稿から最低間隔」の遅いほう。それより前の時刻なら、これ以上は動かさない。
  */
-export function soonestApprovalTime(post: PostTime, others: PostTime[], now: number): string | undefined {
-  if (!post.scheduledAt) return undefined
-  const current = new Date(post.scheduledAt).getTime()
-  const soonest = now + APPROVE_LEAD_MS
-  if (current <= soonest) return undefined
-  const earlierApproved = others.some(
-    (o) => o.id !== post.id && o.status === 'scheduled' && o.scheduledAt && new Date(o.scheduledAt).getTime() < current
-  )
-  return earlierApproved ? undefined : new Date(soonest).toISOString()
+export function soonestApprovalTime(post: PostTime, autopilot: PostTime[], now: number): string | undefined {
+  const current = at(post.scheduledAt)
+  if (current === undefined) return undefined
+  const target = earliestAllowed(now, lastPostedAt(autopilot), APPROVE_LEAD_MS)
+  if (current <= target) return undefined
+  const earlierApproved = autopilot.some((o) => {
+    const t = at(o.scheduledAt)
+    return o.id !== post.id && o.status === 'scheduled' && t !== undefined && t < current
+  })
+  return earlierApproved ? undefined : new Date(target).toISOString()
+}
+
+/**
+ * 毎分の前倒し。いちばん早い投稿可能な予約が、出せる時刻（直前の投稿から最低間隔・いますぐ）より遅く待たされていれば、
+ * その時刻へ前倒しする。動かさないときは undefined。ここでの猶予は1分（押した直後ではないので、長く待たせない）。
+ */
+export function pullForwardTime(autopilot: PostTime[], now: number): { id: string; scheduledAt: string } | undefined {
+  const approved = autopilot
+    .filter((p) => p.status === 'scheduled' && at(p.scheduledAt) !== undefined)
+    .sort((a, b) => (at(a.scheduledAt) as number) - (at(b.scheduledAt) as number))
+  const first = approved[0]
+  if (!first) return undefined
+  const target = earliestAllowed(now, lastPostedAt(autopilot), 60_000)
+  if ((at(first.scheduledAt) as number) <= target + MOVE_THRESHOLD_MS) return undefined
+  return { id: first.id, scheduledAt: new Date(target).toISOString() }
 }
