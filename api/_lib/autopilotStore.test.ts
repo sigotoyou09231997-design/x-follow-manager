@@ -225,3 +225,25 @@ describe('autopilot store が送る要求', () => {
     expect(sent[0].url.searchParams.get('select')).toBe('x_user_id,username')
   })
 })
+
+describe('自動運転が投稿した X の投稿の番号', () => {
+  it('自分の・自動運転の・投稿済みのものの番号を、新しい順に、並べて返す（本人の投稿から外すため）', async () => {
+    const { store, sent } = fakeStore(() => ({
+      status: 200,
+      body: [{ posted_tweet_ids: ['111', '112'] }, { posted_tweet_ids: ['113'] }, { posted_tweet_ids: null }],
+    }))
+    expect(await store.autopilotTweetIds('u1', 400)).toEqual(['111', '112', '113'])
+    const q = sent[0].url.searchParams
+    expect(q.get('user_id')).toBe('eq.u1')
+    expect(sent[0].url.search).toContain('ai_prompt=like.autopilot%3A%25')
+    expect(q.get('status')).toBe('eq.posted')
+    expect(q.get('posted_tweet_ids')).toBe('not.is.null')
+    expect(q.get('order')).toBe('scheduled_at.desc')
+    expect(q.get('limit')).toBe('400')
+  })
+
+  it('読めなくても止めない（空で返す。自動運転の文が学習に混ざりやすくなるだけ）', async () => {
+    const { store } = fakeStore(() => ({ status: 500, body: { message: 'boom' } }))
+    expect(await store.autopilotTweetIds('u1', 400)).toEqual([])
+  })
+})

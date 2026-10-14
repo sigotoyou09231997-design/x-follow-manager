@@ -110,6 +110,11 @@ export function buildPostSystemPrompt(): string {
 - 【この人らしさ】と【お手本】から、語調・一人称・語尾・文の長さ・改行・絵文字の使い方を読み取り、
   同じ書き手が書いたと感じられる文章にする
 - 話題は【この人らしさ】のよく書く話題から選び、毎回切り口を変える。お手本の内容や言い回しをそのまま流用しない
+- まず今回の話題を決めてから書く。話題は偏りやすい（同じ括りの話題が続くと、別の投稿に見えず飽きられる）ので、
+  【最近多すぎる話題】にある括りは選ばず、【最近少ない話題】があればその中から選ぶ。
+  括りは大きく見る（ハイボールもジンソーダも晩酌も、同じ「お酒」。その括りが挙がっていれば、別のお酒の話も不可）
+- 【最近の投稿の傾向】があるときは、長さ・句点・絵文字・「w」「草」などの割合は、その数字に合わせる
+  （本人の書き方は変わる。文章のルールにある書き方の説明より、毎回計算した最新の数字を優先する）
 
 書いてはいけないもの:
 - 事実を作らない。数字・出来事・固有名詞・体験談・実績・約束・予定をでっち上げない。
@@ -140,6 +145,12 @@ export interface PostPromptInput {
   recent: string[]
   /** 本人が「取り消す」で外した投稿（新しい順）。同じ話題・型・言い回しを出さない。無ければ省略してよい。 */
   rejected?: string[]
+  /** 直近の本人の投稿から毎回計算した、書き方の傾向（長さ・句点・絵文字などの割合）。describeRecentStyle。無ければ省略。 */
+  recentStyle?: string
+  /** 最近多すぎる話題（1行ずつ）。今回は選ばない。無ければ省略。describeCrowded。 */
+  crowded?: string[]
+  /** ふだん書くのに最近出ていない話題の括り。今回はここから選ぶ。無ければ省略。neglectedTopics。 */
+  neglected?: string[]
   /** 同じ日にすでに予約されている投稿。話題の重なりを避ける。 */
   plannedSameDay: string[]
   scheduledAt: string
@@ -183,6 +194,9 @@ function describeSlot(scheduledAt: string, timeZone: string): string {
 
 export function buildPostUserMessage(input: PostPromptInput): string {
   const sections: string[] = [`【この人らしさ】\n${describeProfile(input.profile)}`]
+  if (input.recentStyle?.trim()) {
+    sections.push(`【最近の投稿の傾向】（毎回、最新の履歴から計算した数字。長さ・割合はこれに合わせる）\n${input.recentStyle.trim()}`)
+  }
 
   if (input.samples.length) {
     sections.push(
@@ -203,6 +217,18 @@ export function buildPostUserMessage(input: PostPromptInput): string {
       `【本人が取り消した投稿】（新しい順。本人が「要らない」と判断したもの。同じ話題・型・言い回し・似た切り口は書かない）\n${rejected
         .map((t, i) => `(${i + 1}) ${t}`)
         .join('\n')}`
+    )
+  }
+  const crowded = (input.crowded ?? []).map((t) => t.trim()).filter(Boolean)
+  if (crowded.length) {
+    sections.push(
+      `【最近多すぎる話題】（最近の投稿を数えたもの。この括りの話題は、今回は書かない。同じ括りの別の話も不可）\n${crowded.map((t) => `- ${t}`).join('\n')}`
+    )
+  }
+  const neglected = (input.neglected ?? []).map((t) => t.trim()).filter(Boolean)
+  if (neglected.length) {
+    sections.push(
+      `【最近少ない話題】（本人がふだん書くのに、最近は出ていない括り。今回はここから選ぶとよい。事実は作らず、感想や考えとして書く）\n${neglected.map((t) => `- ${t}`).join('\n')}`
     )
   }
   const planned = input.plannedSameDay.map((t) => t.trim()).filter(Boolean)

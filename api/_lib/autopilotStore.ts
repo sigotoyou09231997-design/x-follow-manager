@@ -62,6 +62,12 @@ export interface AutopilotStore {
    * 「空いた枠」として数える（作り直した予約が生きていれば、activeSlotKeys のほうで空きではなくなる）。
    */
   rejectedSlotKeys(userId: string, sinceDate: string): Promise<string[]>
+  /**
+   * 自動運転が投稿した X の投稿の番号（新しい順、最大 limit 件）。履歴（本人の投稿）からこれを外して学習に使う。
+   * 外さないと、自動運転が出した文が履歴に戻って次のお手本になり、AI が好む話題（実例: ハイボールなどお酒）が
+   * 自分で自分を強めて、偏っていった。
+   */
+  autopilotTweetIds(userId: string, limit: number): Promise<string[]>
   /** まだ出ていない自動運転の予約を取り消す。取り消した件数を返す。 */
   cancelUpcoming(userId: string): Promise<number>
   /**
@@ -256,6 +262,25 @@ export function supabaseAutopilotStore(client: SupabaseClient = getSupabaseAdmin
         return []
       }
       return (data ?? []).map((r) => r.ai_prompt.slice(AUTOPILOT_PREFIX.length))
+    },
+
+    async autopilotTweetIds(userId, limit) {
+      const { data, error } = await client
+        .from('scheduled_posts')
+        .select('posted_tweet_ids')
+        .eq('user_id', userId)
+        .like('ai_prompt', `${AUTOPILOT_PREFIX}%`)
+        .eq('status', 'posted')
+        .not('posted_tweet_ids', 'is', null)
+        .order('scheduled_at', { ascending: false })
+        .limit(limit)
+        .returns<{ posted_tweet_ids: string[] | null }[]>()
+      if (error) {
+        // 読めなくても書ける。自動運転の文が学習に混ざる可能性が上がるだけなので止めない。
+        console.error('autopilot autopilotTweetIds failed:', error.message)
+        return []
+      }
+      return (data ?? []).flatMap((r) => r.posted_tweet_ids ?? [])
     },
 
     async cancelUpcoming(userId) {
