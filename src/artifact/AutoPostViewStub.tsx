@@ -12,3 +12,15 @@ export function AutoPostView() {
     </div>
   )
 }
+
+// トップの1画面（自動投稿）も、同じ理由で案内だけにする。フォロー整理など、ほかの機能は設定から開ける。
+export function AutoPostHome() {
+  return (
+    <div className="schedule-view schedule-view--notice">
+      <p>自動投稿はこのArtifact版では利用できません。</p>
+      <p className="schedule-view__hint">
+        フォロー整理などは、右上の設定から開けます。自動投稿は、デプロイ版のアプリでのみ使えます。
+      </p>
+    </div>
+  )
+}

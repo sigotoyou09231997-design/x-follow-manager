@@ -526,3 +526,63 @@
   }
 
 }
+
+/* トップの1画面（AutoPostHome）。X・ディスコード・Yay のスイッチを、1枚のカードに1行ずつ並べる。 */
+.switch-list {
+  padding: 0;
+  overflow: hidden;
+}
+
+.switch-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+/* 行の区切りは細い線だけ。アイコンの右（文字の頭）から引く。 */
+.switch-row + .switch-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 36px;
+  right: 0;
+  height: 1px;
+  background: var(--border);
+}
+
+/* 止まっている・見てほしい状態は、行の面を薄い色にして、止め忘れ・止まりっぱなしに気づけるようにする。 */
+.switch-row--off,
+.switch-row--warn {
+  background: var(--warning-bg);
+}
+
+.switch-row__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.switch-row__text strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.switch-row__action {
+  flex: none;
+}
+
+.autopost__dot {
+  flex: none;
+}
+
+.autopost__dot--warn {
+  background: var(--warning, #d98a00);
+}

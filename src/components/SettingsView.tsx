@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from 'react'
 import { FileDropZone } from './FileDropZone'
-import { Icon } from './Icon'
+import { Icon, type IconName } from './Icon'
 
 // 通知の設定はSupabase（ログイン状態と購読情報の保存）を必要とする。
 // 設定画面は起動時に読み込まれるので、ここで普通にimportすると
@@ -10,14 +10,21 @@ const PushSettings = lazy(() =>
   import('#push-settings').then((module) => ({ default: module.PushSettings }))
 )
 
+/** 設定から開ける、ほかの機能の画面。トップの1画面（自動投稿）に載せていないものは、すべてここから行く。 */
+export type FeatureTarget = 'autopost' | 'schedule' | 'tidy' | 'protected' | 'history'
+
 interface Props {
+  /** 機能の画面を開く。 */
+  onOpenFeature: (target: FeatureTarget) => void
+  /** フォロー整理の件数（アーカイブ読み込み前は undefined）。行の説明に出す。 */
+  tidyCounts?: { pending: number; protected: number }
   onReimport: (file: File) => void
   onClearAll: () => Promise<void>
   lastImportedAt?: number
   importing: boolean
 }
 
-export function SettingsView({ onReimport, onClearAll, lastImportedAt, importing }: Props) {
+export function SettingsView({ onOpenFeature, tidyCounts, onReimport, onClearAll, lastImportedAt, importing }: Props) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -31,8 +38,44 @@ export function SettingsView({ onReimport, onClearAll, lastImportedAt, importing
     }
   }
 
+  const features: { target: FeatureTarget; icon: IconName; label: string; desc: string }[] = [
+    { target: 'autopost', icon: 'send', label: '自動投稿の文と設定', desc: 'ディスコード・Yay の文、X の文体・1日の投稿数・費用' },
+    { target: 'schedule', icon: 'calendar', label: '予約投稿', desc: 'Xと連携すると、時間になったら自動で投稿されます' },
+    {
+      target: 'tidy',
+      icon: 'tasks',
+      label: 'フォロー整理',
+      desc: tidyCounts ? `非相互フォローの確認（未確認 ${tidyCounts.pending.toLocaleString()}人）` : 'アーカイブを読み込むと、非相互フォローを整理できます',
+    },
+    {
+      target: 'protected',
+      icon: 'bookmark',
+      label: '残すリスト',
+      desc: tidyCounts ? `残すと決めた ${tidyCounts.protected.toLocaleString()}人` : 'フォロー整理で「残す」にした人',
+    },
+    { target: 'history', icon: 'history', label: '履歴', desc: 'フォローを解除した人の記録' },
+  ]
+
   return (
     <div className="settings-view">
+      <section className="home-section" aria-label="機能">
+        <h2 className="home-section__title">機能</h2>
+        <div className="surface-card link-list">
+          {features.map((feature) => (
+            <button key={feature.target} type="button" className="link-row" onClick={() => onOpenFeature(feature.target)}>
+              <span className="link-row__icon">
+                <Icon name={feature.icon} size={18} />
+              </span>
+              <span className="link-row__body">
+                <span className="link-row__label">{feature.label}</span>
+                <span className="link-row__desc">{feature.desc}</span>
+              </span>
+              <Icon name="chevron-right" size={18} className="link-row__chevron" />
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section className="settings-section">
         <h2>
           <span className="settings-section__icon">

@@ -8,7 +8,7 @@
 // E2Eと同じ合成アーカイブを読ませてから撮る。空の状態で撮ると一覧も詳細も出ず、
 // 「位置を直したい当の要素が写っていない」画像ばかりが並ぶため。
 //
-// 予約投稿タブは preview に /api が無いので「接続情報が取れない」案内に落ちる。
+// トップ（自動投稿）と予約投稿は preview に /api が無いので「接続情報が取れない」案内に落ちる。
 // これは撮れる範囲での正しい姿なので、そのまま撮っている。
 
 import { chromium } from '@playwright/test'
@@ -35,9 +35,9 @@ const ONLY_VIEWPORTS = arg('--viewports', '')
   .filter(Boolean)
 
 const VIEWPORTS = [
-  // PC: ヘッダー＋左サイドバー＋中央＋右詳細の3カラム
+  // PC: ヘッダー＋中央（フォロー整理は一覧＋右詳細の2カラム）
   { name: 'pc', width: 1440, height: 960 },
-  // タブレット: サイドバーが消えて下部バーに変わる境目（1023px以下）
+  // タブレット: 詳細が一覧の上に被さる形に変わる境目（1023px以下）
   { name: 'tablet', width: 900, height: 1000 },
   // モバイル: iPhone 相当
   { name: 'mobile', width: 390, height: 844 },
@@ -46,18 +46,25 @@ const VIEWPORTS = [
 const THEMES = ['light', 'dark']
 
 // 撮る画面。open() が「その画面を出す」ところまでを担当する。
-// pcOnly は、狭い画面には入口が無い画面（サイドバーにしか項目が無いもの）。
+// 入口は自動投稿の1画面（home）。ほかの画面は、設定の「機能」から開く。
 const SCREENS = [
   {
     name: 'home',
     async open(page) {
-      await goHome(page)
+      await page.locator('.autopost, .schedule-view--notice').first().waitFor()
+    },
+  },
+  {
+    name: 'settings',
+    async open(page) {
+      await gotoSettings(page)
+      await page.locator('.settings-view').waitFor()
     },
   },
   {
     name: 'tidy',
     async open(page) {
-      await gotoTab(page, 'フォロー整理')
+      await gotoFeature(page, 'フォロー整理')
       await page.locator('.account-row').first().waitFor()
     },
   },
@@ -66,7 +73,7 @@ const SCREENS = [
     async open(page) {
       // 狭い画面では詳細が一覧の上に全画面で被さる。PCでは右カラムに出る。
       // 同じ操作で両方の姿が撮れるので、分岐は置かない。
-      await gotoTab(page, 'フォロー整理')
+      await gotoFeature(page, 'フォロー整理')
       await page.locator('.account-row').first().click()
       await page.locator('.review-panel').waitFor()
     },
@@ -74,82 +81,73 @@ const SCREENS = [
   {
     name: 'protected',
     async open(page) {
-      // 狭い画面の下部バーには項目が無く、ホームの「残す」カードが入口。
-      if (await sideNavVisible(page)) await gotoTab(page, '残すリスト')
-      else {
-        await goHome(page)
-        await page.locator('.entry-card', { hasText: '残す' }).click()
-      }
+      await gotoFeature(page, '残すリスト')
     },
   },
   {
     name: 'history',
-    pcOnly: true,
     async open(page) {
-      await gotoTab(page, '履歴')
+      await gotoFeature(page, '履歴')
     },
   },
   {
     name: 'schedule',
     async open(page) {
-      await gotoTab(page, '予約投稿')
+      await gotoFeature(page, '予約投稿')
       await page.locator('.schedule-view').waitFor()
     },
   },
   {
-    name: 'settings',
+    name: 'autopost-detail',
     async open(page) {
-      await gotoTab(page, '設定')
-      await page.locator('.settings-view').waitFor()
+      await gotoFeature(page, '自動投稿の文と設定')
+      await page.locator('.autopost').first().waitFor()
     },
   },
   {
     name: 'onboarding',
     async open(page) {
       // 読み込み前の姿。他の画面と違いデータを消してから撮るので、最後に回している。
-      await gotoTab(page, '設定')
+      await gotoSettings(page)
       await page.getByRole('button', { name: 'ローカルデータをすべて削除' }).click()
       await page.getByRole('button', { name: '削除を実行する' }).click()
-      await page.getByText('まだアーカイブがありません').waitFor()
+      await page.getByRole('button', { name: '設定を開く' }).waitFor()
+      await gotoFeature(page, 'フォロー整理')
+      await page.getByText('まずアーカイブを読み込みます').waitFor()
     },
   },
 ]
 
-function sideNavVisible(page) {
-  return page.locator('.side-nav').isVisible()
+// トップなら右上の設定ボタン、ほかの画面ならヘッダーの「‹ 設定」から設定へ入る。
+async function gotoSettings(page) {
+  const back = page.getByRole('button', { name: '設定へ戻る' })
+  if (await back.isVisible()) await back.click()
+  else await page.getByRole('button', { name: '設定を開く' }).click()
 }
 
-// ホームはサイドバーにも下部バーにも無い経路がある（PCはロゴだけが入口）。
-// ロゴはどの幅でも出ているので、こちらに寄せる。
-async function goHome(page) {
-  await page.getByRole('button', { name: 'SNSアプリ' }).click()
-}
-
-// PCは左サイドバー、狭い画面は下部バー。同じラベルでも出ている方を押す。
-async function gotoTab(page, label) {
-  if (await sideNavVisible(page)) {
-    await page.locator('.side-nav').getByRole('button', { name: label, exact: true }).click()
-    return
-  }
-  // 下部バーに設定の項目は無い。狭い画面ではヘッダー右上の人型ボタンが入口。
-  if (label === '設定') {
-    await page.getByRole('button', { name: '設定を開く' }).click()
-    return
-  }
-  await page.locator('.bottom-nav__item', { hasText: label }).click()
+async function gotoFeature(page, label) {
+  await gotoSettings(page)
+  await page
+    .getByRole('region', { name: '機能' })
+    .getByRole('button', { name: new RegExp(`^${label}`) })
+    .click()
 }
 
 async function seed(page) {
   await page.goto(BASE_URL)
-  // ホームは保存済みデータを読み終えてから描画されるので、まずそれを待つ。
-  // 待たずにファイル入力の有無を見ると、まだ何も描かれていない一瞬を
-  // 「読み込み済み」と誤読して、そのまま待ちぼうけになる。
-  await page.locator('.home-view').waitFor()
+  // トップ（自動投稿）は preview では接続情報の案内になる。描画を待ってから、フォロー整理でアーカイブを入れる。
+  await page.locator('.app-header__logo').waitFor()
   // 同じcontextの中ではIndexedDBが共有されるので、2枚目以降は既に読み込み済み。
-  // 読み込みボタン（＝ファイル入力）が出ているときだけ入れ直す。
-  const input = page.locator('input[type="file"]').first()
-  if ((await input.count()) > 0) await input.setInputFiles(ARCHIVE)
+  // 読み込みの案内（＝ファイル入力）が出ているときだけ入れ直す。
+  await gotoFeature(page, 'フォロー整理')
+  await page.locator('.onboarding, .summary-stat__value').first().waitFor()
+  if ((await page.locator('.onboarding input[type="file"]').count()) > 0) {
+    await page.locator('.onboarding input[type="file"]').setInputFiles(ARCHIVE)
+  }
   await page.locator('.summary-stat__value').first().waitFor()
+  // 撮る画面は、トップから開き直す（画面の状態を引きずらない）。
+  await page.goto(BASE_URL)
+  await page.locator('.app-header__logo').waitFor()
 }
 
 async function main() {
@@ -176,7 +174,6 @@ async function main() {
       })
 
       for (const screen of SCREENS) {
-        if (screen.pcOnly && viewport.width < 1024) continue
         if (ONLY_SCREENS.length && !ONLY_SCREENS.includes(screen.name)) continue
         const page = await context.newPage()
         // テーマは data-theme が @media より強い。CSSの2系統が食い違っていても
@@ -200,8 +197,8 @@ async function main() {
 
         const base = path.join(OUT_DIR, `${viewport.name}-${theme}-${screen.name}`)
         // 画面ぴったりの1枚と、下まで伸ばした1枚の両方を撮る。
-        // fullPage だと position: fixed の下部バーがページの途中に写り込み、
-        // 実際の見え方とは違う位置に見えてしまうため、判断はぴったりの方でする。
+        // fullPage だと position: sticky のヘッダーなどが実際とは違う位置に写ることがあるため、
+        // 判断はぴったりの方でする。
         await page.screenshot({ path: `${base}.png` })
         await page.screenshot({ path: `${base}-full.png`, fullPage: true })
         shots += 2

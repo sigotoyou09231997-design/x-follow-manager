@@ -1,13 +1,13 @@
 /* ============================================================
-   シェル: ヘッダー ＋（PCのみ）左サイドバー ＋ 本文 ＋（狭い画面のみ）下部バー
+   シェル: ヘッダー ＋ 本文
+   画面は「自動投稿の1画面」が入口。ほかの機能は設定から開き、ヘッダーの戻るボタンで1つ前へ戻る。
    ============================================================ */
 
 .app-shell {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  /* 下部バー(72px)に隠れないよう、本文の下にバー分＋24pxを積む */
-  padding-bottom: calc(96px + var(--safe-bottom));
+  padding-bottom: calc(24px + var(--safe-bottom));
 }
 
 /* 地を透かして、背後でスクロールする内容をぼかす（Apple のナビゲーションバーと同じ見え方）。
@@ -16,7 +16,9 @@
   position: sticky;
   top: 0;
   z-index: 40;
-  display: flex;
+  /* 左: 戻る（トップではロゴ）／中: 画面名／右: 設定（トップのみ）。画面名が真ん中に来るよう両側を同じ幅にする。 */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 10px;
   padding: calc(10px + var(--safe-top)) 20px 10px;
@@ -28,7 +30,7 @@
 }
 
 .app-header__logo {
-  margin-right: auto;
+  justify-self: start;
   padding: 0;
   border: none;
   background: none;
@@ -39,33 +41,37 @@
   white-space: nowrap;
 }
 
-/* PCではヘッダーの検索が本体。狭い画面では一覧側の検索欄を使う。 */
-.app-header__search {
-  display: none;
-  flex: 1 1 auto;
-  max-width: 460px;
-  margin: 0 auto;
+/* iOS のナビゲーションバーと同じ「‹ 前の画面名」。青の文字だけで、面は付けない。 */
+.app-header__back {
+  justify-self: start;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 12px;
+  gap: 2px;
+  min-height: 40px;
+  margin-left: -8px;
+  padding: 0 10px 0 4px;
   border: none;
-  border-radius: 10px;
-  background: var(--fill);
-  color: var(--text-muted);
-}
-
-.app-header__search input[type='search'] {
-  min-height: 36px;
-  padding: 0;
-  border: none;
+  border-radius: var(--radius-sm);
   background: none;
-  border-radius: 0;
+  color: var(--accent);
+  font-size: 16px;
+  white-space: nowrap;
 }
 
-.app-header__search input[type='search']:focus {
-  outline: none;
-  box-shadow: none;
-  border: none;
+.app-header__back:hover {
+  background: var(--fill);
+}
+
+.app-header__title {
+  grid-column: 2;
+  max-width: 52vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-h);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 .privacy-badge {
@@ -82,6 +88,8 @@
 }
 
 .app-header__avatar {
+  grid-column: 3;
+  justify-self: end;
   flex: none;
   width: 34px;
   height: 34px;
@@ -102,58 +110,6 @@
   align-items: flex-start;
 }
 
-.side-nav {
-  display: none;
-  flex-direction: column;
-  gap: 2px;
-  width: 220px;
-  flex: none;
-  position: sticky;
-  top: 68px;
-  padding: 20px 12px;
-}
-
-/* macOS のサイドバーと同じく、選択中は面を薄い青で敷き、文字と記号を青にする。 */
-.side-nav__item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 40px;
-  padding: 0 12px;
-  border: none;
-  border-radius: 10px;
-  background: none;
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 500;
-  text-align: left;
-  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
-}
-
-.side-nav__item svg {
-  color: var(--text-muted);
-  transition: color var(--dur) var(--ease);
-}
-
-.side-nav__item:hover {
-  background: var(--fill);
-}
-
-.side-nav__item.active {
-  background: var(--accent-bg);
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.side-nav__item.active svg {
-  color: var(--accent);
-}
-
-.side-nav__cta {
-  margin-top: 14px;
-  width: 100%;
-}
-
 .main-content {
   flex: 1;
   min-width: 0;
@@ -171,88 +127,6 @@
   font-size: 11px;
   line-height: 1.7;
   text-align: center;
-}
-
-/* ============================================================
-   下部バー（狭い画面）
-   ============================================================ */
-
-/* iOS のタブバーと同じ作り。地を透かしてぼかし、選択中は色だけで示す。
-   最初の background は color-mix に未対応の古いブラウザ向けの保険。 */
-.bottom-nav {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 70;
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  gap: 2px;
-  min-height: calc(64px + var(--safe-bottom));
-  padding: 6px 8px calc(6px + var(--safe-bottom));
-  background: var(--bg);
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-top: 1px solid var(--border);
-}
-
-.bottom-nav__item {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  min-height: 52px;
-  padding: 4px 2px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: color var(--dur) var(--ease);
-}
-
-/* 選択中は青にするだけ。太さや面は変えない（タブバーの中で文字が動いて見えるため）。
-   色だけに頼らず、記号の塗りと文字の太さの差は付けないが、
-   現在地は上のヘッダーと画面の見出しでも分かる。 */
-.bottom-nav__item.active {
-  color: var(--accent);
-}
-
-/* 中央の＋。ナビ項目ではなく「次の◯人を確認する」の操作なので、
-   タブの記号より一回り大きい青い丸にして区別する。 */
-.bottom-nav__fab {
-  flex: none;
-  width: 48px;
-  height: 48px;
-  margin: 0 6px;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--on-accent);
-  box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 35%, transparent);
-  transition: transform 0.1s, opacity 0.15s, background var(--dur) var(--ease);
-}
-
-.bottom-nav__fab:hover {
-  background: var(--accent-hover);
-}
-
-.bottom-nav__fab:active {
-  transform: scale(0.94);
-}
-
-.bottom-nav__fab:disabled {
-  opacity: 0.4;
 }
 
 /* ============================================================
@@ -546,40 +420,6 @@ input[type='checkbox'] {
   margin-top: 14px;
 }
 
-.page-hero__trust {
-  /* 主ボタンと同じ行に並ぶと「ボタンの付属物」に見えてしまう。
-     必ず改行させて、見出しの下に置く注記として読ませる。 */
-  flex-basis: 100%;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0 14px;
-}
-
-.trust-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--text-muted);
-  font-size: 13px;
-}
-
-.page-hero__trust-link {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--accent);
-  font-size: 13px;
-}
-
-.page-hero__trust-link:hover {
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
 /* ============================================================
    一覧の行としてのリンク（カードの中に積む）
    ============================================================ */
@@ -861,23 +701,6 @@ input[type='checkbox'] {
   font-size: 13px;
 }
 
-/* ============================================================
-   ホーム
-   ============================================================ */
-
-.home-view {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-}
-
-/* 見出しと、その下のカード。見出しの下は .home-view の gap より詰める。 */
-.home-top {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
 .home-metrics {
   display: flex;
   flex-direction: column;
@@ -899,35 +722,6 @@ input[type='checkbox'] {
   white-space: nowrap;
 }
 
-.home-empty {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 18px;
-}
-
-.home-empty__desc {
-  font-size: 13px;
-  line-height: 1.8;
-  color: var(--text-muted);
-}
-
-/* iOS の検索欄。地の上に直接置くので、枠ではなく半透明の灰で面を作る。 */
-.home-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 44px;
-  padding: 0 14px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: var(--fill);
-  color: var(--text-muted);
-  font-size: 15px;
-  text-align: left;
-}
-
 .home-section {
   display: flex;
   flex-direction: column;
@@ -938,131 +732,6 @@ input[type='checkbox'] {
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.01em;
-}
-
-.home-cards {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.entry-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 18px 20px;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  color: var(--text);
-  text-align: left;
-  transition: background var(--dur) var(--ease), transform 0.1s;
-}
-
-.entry-card:hover {
-  background: var(--surface-2);
-}
-
-.entry-card:active {
-  transform: scale(0.98);
-}
-
-.entry-card__value {
-  font-size: 34px;
-  font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: -0.03em;
-  color: var(--text-h);
-}
-
-.entry-card__label {
-  font-weight: 600;
-  color: var(--text-h);
-}
-
-.entry-card__desc {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.entry-card__chevron {
-  position: absolute;
-  top: 20px;
-  right: 16px;
-  color: var(--border-strong);
-}
-
-/* 今日のタスク: 保存しない疑似チェックリスト（開いた時点の状態から作る）。
-   リンクの行と同じ「グループ化リスト」にして、区切りは細い線だけにする。 */
-.task-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-}
-
-.task-item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-}
-
-.task-item + .task-item::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 50px;
-  right: 0;
-  height: 1px;
-  background: var(--border);
-}
-
-.task-item__check {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border: 1.5px solid var(--border-strong);
-  border-radius: 50%;
-  color: var(--on-accent);
-}
-
-.task-item--done .task-item__check {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.task-item__body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.task-item__label {
-  font-weight: 600;
-  color: var(--text-h);
-}
-
-.task-item--done .task-item__label {
-  color: var(--text-muted);
-  text-decoration: line-through;
-}
-
-.task-item__meta {
-  font-size: 12px;
-  color: var(--text-muted);
 }
 
 /* ============================================================
@@ -1717,22 +1386,6 @@ input[type='checkbox'] {
     padding-bottom: 0;
   }
 
-  .bottom-nav {
-    display: none;
-  }
-
-  .side-nav {
-    display: flex;
-  }
-
-  .app-header__search {
-    display: flex;
-  }
-
-  .tidy-view__search {
-    display: none;
-  }
-
   .tidy-layout__detail {
     display: block;
     position: sticky;
@@ -1765,14 +1418,15 @@ input[type='checkbox'] {
   }
 
   /* 一覧＋詳細の2カラム以外は、横に伸びきると読みにくいので幅を止める。 */
-  .home-greeting,
-  .home-view,
+  .autopost,
   .history-view,
   .settings-view,
   .schedule-view,
   .onboarding {
     width: 100%;
     max-width: 720px;
+    /* 左のメニューが無くなったので、狭い画面は中央に置く */
+    margin-inline: auto;
   }
 }
 

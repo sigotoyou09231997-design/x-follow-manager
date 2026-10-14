@@ -486,3 +486,99 @@ describe('XAutopilotPanel: 準備と失敗', () => {
     expect(screen.getByRole('button', { name: /もう一度ためす/ })).toBeInTheDocument()
   })
 })
+
+describe('XAutopilotPanel: トップの1画面用（summary）', () => {
+  it('スイッチと「これから投稿される予定」だけを出し、文体・試し書き・細かい設定は出さない', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    posts.list = [post('a')]
+    render(<XAutopilotPanel variant="summary" />)
+
+    expect(await screen.findByText('自動運転中')).toBeInTheDocument()
+    expect(button('自動運転を止める')).toBeEnabled()
+    expect(screen.getByRole('heading', { name: 'Xの、これから投稿される予定' })).toBeInTheDocument()
+    expect(screen.getByText('自動運転の本文 a')).toBeInTheDocument()
+
+    expect(screen.queryByText('あなたの文体')).not.toBeInTheDocument()
+    expect(screen.queryByText('試しに1本書いてみる')).not.toBeInTheDocument()
+    expect(screen.queryByText('1日の投稿数')).not.toBeInTheDocument()
+  })
+
+  it('ここからも取り消せて、取り消すと別の文を作り直してもらう', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    posts.list = [post('a')]
+    render(<XAutopilotPanel variant="summary" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /取り消す/ }))
+
+    await waitFor(() => expect(posts.update).toHaveBeenCalledWith('a', { status: 'canceled', rejected: true }))
+    await waitFor(() => expect(api.refillAutopilot).toHaveBeenCalledTimes(1))
+  })
+
+  it('始められる状態なら、ここから始められる', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: false }) })
+    api.startAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    render(<XAutopilotPanel variant="summary" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '自動運転を始める' }))
+
+    await waitFor(() => expect(api.startAutopilot).toHaveBeenCalledTimes(1))
+  })
+
+  it('文体がまだなら始められず、代わりに詳細の画面へ行く入口を出す', async () => {
+    const open = vi.fn()
+    render(<XAutopilotPanel variant="summary" onOpenDetail={open} />)
+
+    expect(await screen.findByText('先に、Xとの連携と文体のまとめが必要です')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '自動運転を始める' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Xとの連携と文体を設定する' }))
+    expect(open).toHaveBeenCalledTimes(1)
+  })
+
+  it('入口が渡されていなければ、押せない「始める」を出す', async () => {
+    render(<XAutopilotPanel variant="summary" />)
+
+    expect(await screen.findByRole('button', { name: '自動運転を始める' })).toBeDisabled()
+  })
+
+  it('スイッチの下に差し込んだ部分（ディスコード・Yay）が出る。X が読み込み中・失敗・未準備でも出る', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile() })
+    const { unmount } = render(
+      <XAutopilotPanel variant="summary">
+        <p>差し込み</p>
+      </XAutopilotPanel>
+    )
+    expect(screen.getByText('差し込み')).toBeInTheDocument() // 読み込み中でも
+    await screen.findByText('自動運転は止まっています')
+    expect(screen.getByText('差し込み')).toBeInTheDocument()
+    unmount()
+
+    api.fetchAutopilot.mockRejectedValue(new Error('サーバーに接続できません'))
+    const failed = render(
+      <XAutopilotPanel variant="summary">
+        <p>差し込み</p>
+      </XAutopilotPanel>
+    )
+    expect(await screen.findByText('サーバーに接続できません')).toBeInTheDocument()
+    expect(screen.getByText('差し込み')).toBeInTheDocument()
+    failed.unmount()
+
+    api.fetchAutopilot.mockRejectedValue(new XAutopilotError('準備がまだです', 503, true))
+    render(
+      <XAutopilotPanel variant="summary">
+        <p>差し込み</p>
+      </XAutopilotPanel>
+    )
+    expect(await screen.findByText('自動運転の保存先がまだ用意されていません')).toBeInTheDocument()
+    expect(screen.getByText('差し込み')).toBeInTheDocument()
+  })
+
+  it('完全版（full）では差し込みを出さない', async () => {
+    render(
+      <XAutopilotPanel>
+        <p>差し込み</p>
+      </XAutopilotPanel>
+    )
+    await screen.findByText('あなたの文体')
+    expect(screen.queryByText('差し込み')).not.toBeInTheDocument()
+  })
+})
