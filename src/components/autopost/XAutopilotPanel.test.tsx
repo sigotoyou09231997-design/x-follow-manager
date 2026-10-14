@@ -738,14 +738,45 @@ describe('XAutopilotPanel: 投稿可能（確認してから投稿する）', ()
     expect(screen.getByText(/「投稿可能」を押したものだけが、時刻になると投稿されます/)).toBeInTheDocument()
   })
 
-  it('「投稿可能にする」で、その予約の状態だけを scheduled にし、前の時刻の空き枠を作り直してもらう', async () => {
+  it('「投稿可能にする」で scheduled にし、投稿可能な予約の中でいちばん早ければ、5分後に前倒しする。前の時刻の空き枠も作り直してもらう', async () => {
     posts.list = [post('a', { status: 'draft', scheduledAt: future(3) })]
+    render(<XAutopilotPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'この予約を投稿可能にする' }))
+
+    await waitFor(() => expect(posts.update).toHaveBeenCalledTimes(1))
+    const [id, patch] = posts.update.mock.calls[0]
+    expect(id).toBe('a')
+    expect(patch.status).toBe('scheduled')
+    const lead = new Date(patch.scheduledAt).getTime() - Date.now()
+    expect(lead).toBeGreaterThan(4 * 60_000)
+    expect(lead).toBeLessThanOrEqual(5 * 60_000)
+    expect(await screen.findByText(/いちばん早い投稿可能な予約なので、.*（5分後）に投稿されます/)).toBeInTheDocument()
+    await waitFor(() => expect(api.refillAutopilot).toHaveBeenCalledTimes(1))
+  })
+
+  it('これより前に投稿可能な予約があるときは、時刻は動かさず、状態だけ scheduled にする', async () => {
+    posts.list = [
+      post('early', { scheduledAt: future(2) }), // 投稿可能（scheduled）で、前にある
+      post('a', { status: 'draft', scheduledAt: future(30) }),
+    ]
     render(<XAutopilotPanel />)
     fireEvent.click(await screen.findByRole('button', { name: 'この予約を投稿可能にする' }))
 
     await waitFor(() => expect(posts.update).toHaveBeenCalledWith('a', { status: 'scheduled' }))
     expect(await screen.findByText(/投稿可能にしました。時刻になると投稿されます/)).toBeInTheDocument()
-    await waitFor(() => expect(api.refillAutopilot).toHaveBeenCalledTimes(1))
+  })
+
+  it('前にあるのが確認待ちだけなら、前倒しする（確認待ちは順番を塞がない）', async () => {
+    posts.list = [
+      post('early', { status: 'draft', scheduledAt: future(2) }),
+      post('a', { status: 'draft', scheduledAt: future(30) }),
+    ]
+    render(<XAutopilotPanel />)
+    fireEvent.click((await screen.findAllByRole('button', { name: 'この予約を投稿可能にする' }))[1])
+
+    await waitFor(() => expect(posts.update).toHaveBeenCalledTimes(1))
+    expect(posts.update.mock.calls[0][0]).toBe('a')
+    expect(posts.update.mock.calls[0][1].scheduledAt).toBeDefined()
   })
 
   it('時刻を過ぎた確認待ちは、その旨を出し、投稿可能にすると1分以内に投稿されると伝える', async () => {
