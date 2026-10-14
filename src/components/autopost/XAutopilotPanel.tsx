@@ -21,6 +21,7 @@ import {
 } from '../../lib/xAutopilot/types'
 import { settingsProblems } from '../../lib/xAutopilot/slots'
 import { soonestApprovalTime } from '../../lib/xAutopilot/approve'
+import { whenParts } from '../../lib/xAutopilot/whenLabel'
 import { updateScheduledPost } from '../../lib/schedule/postsStore'
 import { Icon } from '../Icon'
 import { SwitchRow } from './ChannelControls'
@@ -39,6 +40,19 @@ const whenLabel = (iso: string | undefined, timeZone: string) =>
   iso
     ? new Date(iso).toLocaleString('ja-JP', { timeZone, month: 'numeric', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' })
     : '日時未設定'
+
+/** 投稿時刻。「今日／明日／日付」と大きな時刻、あと何時間かを並べる（ひと目で、いつ出るかが分かるように）。 */
+function WhenLabel({ iso, timeZone }: { iso: string | undefined; timeZone: string }) {
+  const parts = whenParts(iso, timeZone, Date.now())
+  if (!parts) return <span className="xap__when">日時未設定</span>
+  return (
+    <span className="xap__when">
+      <span className="xap__day">{parts.day}</span>
+      <span className="xap__time">{parts.time}</span>
+      {parts.rel && <span className="xap__rel">{parts.rel}</span>}
+    </span>
+  )
+}
 
 const zoneName = (timeZone: string) => (timeZone === 'Asia/Tokyo' ? '日本時間' : timeZone)
 
@@ -84,7 +98,11 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
     () =>
       posts
         .filter((p) => isAutopilotPost(p.aiPrompt) && (p.status === 'scheduled' || p.status === 'draft'))
-        .sort((a, b) => (a.scheduledAt ?? '').localeCompare(b.scheduledAt ?? '')),
+        // 投稿可能（scheduled）を上に、確認待ち（draft）を下に。それぞれの中は、投稿時刻の早い順。
+        .sort(
+          (a, b) =>
+            Number(a.status === 'draft') - Number(b.status === 'draft') || (a.scheduledAt ?? '').localeCompare(b.scheduledAt ?? '')
+        ),
     [posts]
   )
 
@@ -316,7 +334,7 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
               </li>
             ) : (
               <li key={post.id}>
-                <span className="xap__when">{whenLabel(post.scheduledAt, state.settings.timeZone)}</span>
+                <WhenLabel iso={post.scheduledAt} timeZone={state.settings.timeZone} />
                 <span className={`xap__badge xap__badge--${post.status === 'draft' ? 'draft' : 'ok'}`}>
                   {post.status === 'draft'
                     ? post.scheduledAt && new Date(post.scheduledAt).getTime() <= Date.now()

@@ -151,6 +151,19 @@ describe('AutoPostHome（アプリを開いて最初の1画面）', () => {
     expect(api.fetchSnapshots).not.toHaveBeenCalled()
   })
 
+  it('ディスコード・Yay の、いま投稿されている文と、過去の文のドロップダウンも出す', async () => {
+    api.fetchSnapshots.mockResolvedValue({
+      discord: channel({ channel: 'discord', messages: ['ディスコードの文'], archive: ['ディスコードの昔の文'] }),
+      yay: channel({ channel: 'yay', messages: ['Yayの文'], archive: ['Yayの昔の文'] }),
+    })
+    render(<AutoPostHome onOpenDetail={() => {}} />)
+
+    expect(await screen.findByText('ディスコードの文')).toBeInTheDocument()
+    expect(screen.getByText('Yayの文')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'ディスコードの過去の文' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Yayの過去の文' })).toBeInTheDocument()
+  })
+
   it('「文や回数を変える」で、詳細の画面を開く', async () => {
     const open = vi.fn()
     render(<AutoPostHome onOpenDetail={open} />)

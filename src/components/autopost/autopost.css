@@ -491,10 +491,34 @@
 .xap__upcoming .xap__when {
   order: 1;
   flex: 1 1 auto;
-  font-size: 13px;
-  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
   color: var(--text-h);
   font-variant-numeric: tabular-nums;
+}
+
+/* いつ出るかを、ひと目で。日にち（今日・明日・日付）は小さな札、時刻は大きく、「あと◯時間」は控えめに。 */
+.xap__day {
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--fill);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.xap__time {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.xap__rel {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .xap__upcoming li > .xap__badge {
@@ -674,4 +698,69 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* トップの、ディスコード・Yay の「いま投稿されている文」。1つずつのカード。 */
+.channel-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.channel-text {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.channel-text__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.channel-text__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.channel-text__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.channel-text__no {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.channel-text__body {
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.channel-text__pick {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.channel-text__pick .btn {
+  align-self: flex-start;
+}
+
+.channel-text__pick select {
+  width: 100%;
+  min-width: 0;
+  font-size: 16px; /* iOS で入力欄にふれたとき、画面が勝手に拡大されない大きさ */
 }

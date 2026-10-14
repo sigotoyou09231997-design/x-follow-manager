@@ -8,11 +8,12 @@ import { livenessOf } from '../../lib/autopost/draft'
 import { Icon } from '../Icon'
 import { PageHero } from '../PageHero'
 import { ChannelSwitchRow, SwitchRow } from './ChannelControls'
+import { ChannelTextCard } from './ChannelTextCard'
 import { RestartControl } from './RestartControl'
 import { XAutopilotPanel } from './XAutopilotPanel'
 
 // アプリを開いて最初に出る1画面。自動投稿の「いま」だけを並べる:
-//   X の自動運転のスイッチ → ディスコード・Yay のスイッチ → X のこれから投稿される予定。
+//   X の自動運転のスイッチ → ディスコード・Yay のスイッチ → X のこれから投稿される予定 → ディスコード・Yay の投稿文（過去の文を選べる）。
 // 文を書き換える・文体・回数・予約投稿・フォロー整理など、ほかの機能は設定から開く。
 
 interface Props {
@@ -83,6 +84,15 @@ export function AutoPostHome({ onOpenDetail }: Props) {
       <XAutopilotPanel variant="summary" onOpenDetail={onOpenDetail}>
         {channelRows}
       </XAutopilotPanel>
+
+      {snapshots && (
+        <section className="channel-texts" aria-label="ディスコード・Yayの投稿文">
+          <h2 className="autopost__sub">ディスコード・Yay の、いま投稿されている文</h2>
+          {CHANNEL_NAMES.map((name) => (
+            <ChannelTextCard key={name} snapshot={snapshots[name]} onChanged={applySnapshot} />
+          ))}
+        </section>
+      )}
 
       <div className="surface-card link-list">
         <button type="button" className="link-row" onClick={onOpenDetail}>
