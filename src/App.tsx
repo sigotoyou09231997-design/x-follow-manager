@@ -164,7 +164,7 @@ function App() {
   const parent = screen.parent
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-screen={tab}>
       <UpdateBanner />
 
       <header className="app-header">

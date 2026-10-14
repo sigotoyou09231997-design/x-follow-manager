@@ -607,3 +607,35 @@
 .autopost__dot--warn {
   background: var(--warning, #d98a00);
 }
+
+/* トップ（自動投稿）の見た目: 地は白ベース。カードは、地の色の違いではなく、枠線と影で浮かせる。
+   （ほかの画面は、これまでどおり薄い青緑の地に白いカード。）
+   予約の1件ずつも、同じカードにする。以前は地よりわずかに濃い灰の面だけで、1件ずつの区切りが分からなかった。 */
+.app-shell[data-screen='home'] {
+  --bg: var(--surface);
+  background: var(--surface);
+}
+
+.app-shell[data-screen='home'] .surface-card {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-rest);
+}
+
+.app-shell[data-screen='home'] .xap__upcoming {
+  gap: 12px;
+}
+
+.app-shell[data-screen='home'] .xap__upcoming li {
+  padding: 14px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-rest);
+}
+
+/* 見出し・カード・補足の間を空ける（カードが見出しや補足の文にくっつかないように）。 */
+.app-shell[data-screen='home'] section[aria-label='これから投稿される予定'] {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
