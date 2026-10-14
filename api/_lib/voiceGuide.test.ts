@@ -26,6 +26,17 @@ describe('本人の「いまの書き方」', () => {
     expect(VOICE_GUIDE).toContain('PUBG')
   })
 
+  // 実例: ガイドに言い回しの例（〜なんかな？・〜やん）を並べたら、自動運転の文が「〜なんかな？ 〜やん。そう思いながら〜」の
+  // 同じ型ばかりになり、本人が取り消しても似た文が出続けた。例は挙げすぎず、毎回使わないこと・型を変えることを書く。
+  it('言い回しや型を固定しない（例を並べすぎない・毎回は使わない・骨組みを続けない）', () => {
+    expect(VOICE_GUIDE).not.toContain('なんかな')
+    expect(VOICE_GUIDE).toContain('使うのは1本に1つまで')
+    expect(VOICE_GUIDE).toContain('毎回は使わず')
+    expect(VOICE_GUIDE).toContain('同じ骨組み')
+    expect(VOICE_GUIDE).toContain('続けない')
+    expect(VOICE_GUIDE).toContain('会社や仕事の不満が続かない')
+  })
+
   it('依頼の指定が優先される・お手本と食い違うときはこの書き方に合わせる', () => {
     expect(VOICE_GUIDE).toContain('依頼に長さ・口調・スレッドなどの指定があれば、それを優先する')
     expect(VOICE_GUIDE).toContain('この書き方に合わせる')

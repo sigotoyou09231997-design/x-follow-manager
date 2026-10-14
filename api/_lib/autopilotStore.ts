@@ -3,6 +3,7 @@ import {
   AUTOPILOT_PREFIX,
   DEFAULT_SETTINGS,
   emptyUsage,
+  REJECTED_MARK,
   type AutopilotSettings,
   type AutopilotUsage,
   type HistoryPost,
@@ -51,6 +52,11 @@ export interface AutopilotStore {
   insertPost(input: { userId: string; at: string; text: string; slotKey: string }): Promise<'inserted' | 'duplicate'>
   /** 自動運転で作った（予約中・投稿済み）本文を、投稿時刻の新しい順に。内容の重なりを避けるため。 */
   recentTexts(userId: string, limit: number): Promise<{ text: string; at: string }[]>
+  /**
+   * 本人が「取り消す」で外した自動運転の本文を、取り消した順（新しい順）に。次に書くときの「こういうのは出さない」の材料。
+   * 「自動運転を止める」での一括の取り消しは含めない（本人が嫌がったわけではないため。印は REJECTED_MARK）。
+   */
+  rejectedTexts(userId: string, limit: number): Promise<string[]>
   /** まだ出ていない自動運転の予約を取り消す。取り消した件数を返す。 */
   cancelUpcoming(userId: string): Promise<number>
   /**
@@ -207,6 +213,25 @@ export function supabaseAutopilotStore(client: SupabaseClient = getSupabaseAdmin
       return (data ?? [])
         .map((r) => ({ text: (r.segments ?? []).map((s) => s.text).join('\n'), at: r.scheduled_at }))
         .filter((r) => r.text.trim())
+    },
+
+    async rejectedTexts(userId, limit) {
+      const { data, error } = await client
+        .from('scheduled_posts')
+        .select('segments, updated_at')
+        .eq('user_id', userId)
+        .like('ai_prompt', `${AUTOPILOT_PREFIX}%`)
+        .eq('status', 'canceled')
+        .eq('error_message', REJECTED_MARK)
+        .order('updated_at', { ascending: false })
+        .limit(limit)
+        .returns<{ segments: { text: string }[]; updated_at: string }[]>()
+      if (error) {
+        // 読めなくても投稿は作れる。取り消した文に似たものが出やすくなるだけなので止めない。
+        console.error('autopilot rejectedTexts failed:', error.message)
+        return []
+      }
+      return (data ?? []).map((r) => (r.segments ?? []).map((s) => s.text).join('\n')).filter((text) => text.trim())
     },
 
     async cancelUpcoming(userId) {

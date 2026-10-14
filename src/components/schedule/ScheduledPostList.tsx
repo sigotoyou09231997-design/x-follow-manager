@@ -54,7 +54,9 @@ export function ScheduledPostList({ posts, onChanged, onEdit }: Props) {
   // 投稿済みは一覧に出さない（本人の指示 2026-10-13）。出たあとの投稿が積み上がって、これからの予約が埋もれるため。
   // データは消さない（Supabase にそのまま残り、上部の集計の「投稿済み」にも数えられる）。
   // 繰り返しの親も、終わると status が posted になるので、ここで一緒に外れる。
-  const listed = useMemo(() => posts.filter((post) => post.status !== 'posted'), [posts])
+  // 取り消したものも出さない。自動運転の「取り消す」は、消さずに印を付けて残す（次に書くときの「出さないもの」にするため）ので、
+  // 出すと、取り消した投稿が一覧に積み上がる。
+  const listed = useMemo(() => posts.filter((post) => post.status !== 'posted' && post.status !== 'canceled'), [posts])
 
   const counts = useMemo(() => {
     const result: Record<Filter, number> = {

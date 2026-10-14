@@ -41,9 +41,12 @@ describe('ScheduledPostList: 自動運転の印', () => {
 })
 
 // 投稿済みは一覧に出さない。出たあとの投稿が積み上がって、これからの予約が埋もれるため（本人の指示）。
-describe('ScheduledPostList: 投稿済みは一覧に出さない', () => {
+describe('ScheduledPostList: 投稿済み・取り消したものは一覧に出さない', () => {
   const dailyRule: RepeatRule = { freq: 'daily', interval: 1, time: '09:00', timeZone: 'Asia/Tokyo' }
   const posts = [
+    // 自動運転の「取り消す」は、消さずに印を付けて残す（次に書くときの「出さないもの」にするため）。一覧に積み上げない
+    post('rejected', { status: 'canceled', errorMessage: '本人が取り消した', aiPrompt: 'autopilot:2026-10-15#0' }),
+    post('stopped', { status: 'canceled', aiPrompt: 'autopilot:2026-10-15#1' }), // 「自動運転を止める」での一括の取り消し
     post('next', { status: 'scheduled' }),
     post('memo', { status: 'draft' }),
     post('ng', { status: 'failed', errorMessage: '失敗の理由' }),
@@ -62,7 +65,9 @@ describe('ScheduledPostList: 投稿済みは一覧に出さない', () => {
   it('「すべて」に投稿済みの投稿は出ない（予約中・下書き・失敗・続いている繰り返しは出る）', () => {
     renderList()
     for (const id of ['next', 'memo', 'ng', 'series-live']) expect(screen.getByText(`本文 ${id}`)).toBeInTheDocument()
-    for (const id of ['gone1', 'gone2', 'series-done']) expect(screen.queryByText(`本文 ${id}`)).not.toBeInTheDocument()
+    for (const id of ['gone1', 'gone2', 'series-done', 'rejected', 'stopped']) {
+      expect(screen.queryByText(`本文 ${id}`)).not.toBeInTheDocument()
+    }
     // 投稿済みの印も、「Xで見る」リンクも、一覧には残らない
     expect(screen.queryByText('投稿済み')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Xで見る/ })).not.toBeInTheDocument()
@@ -72,7 +77,7 @@ describe('ScheduledPostList: 投稿済みは一覧に出さない', () => {
     renderList()
     const filters = screen.getByRole('navigation')
     expect(filters).not.toHaveTextContent('投稿済み')
-    expect(filters).toHaveTextContent('すべて4') // next / memo / ng / series-live
+    expect(filters).toHaveTextContent('すべて4') // next / memo / ng / series-live（取り消したものも数えない）
     expect(filters).toHaveTextContent('繰り返し1') // 終わった親は数えない
   })
 })

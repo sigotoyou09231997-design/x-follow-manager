@@ -7,6 +7,13 @@ export const AUTOPILOT_PREFIX = 'autopilot:'
 export const isAutopilotPost = (aiPrompt: string | null | undefined): boolean =>
   !!aiPrompt && aiPrompt.startsWith(AUTOPILOT_PREFIX)
 
+/**
+ * 本人が「取り消す」で外した自動運転の予約の印（scheduled_posts.error_message に入れる）。
+ * 取り消した文は消さずに残し、次に書くときの「こういうのは出さない」の材料にする。
+ * 「自動運転を止める」での一括の取り消しは、本人が嫌がったわけではないので、この印を付けない（材料に入らない）。
+ */
+export const REJECTED_MARK = '本人が取り消した'
+
 /** 文章の質。標準＝高い精度、節約＝費用を抑える（短い投稿なら差は小さい）。使うAIと料金は cost.ts。 */
 export type Quality = 'standard' | 'saver'
 

@@ -148,6 +148,29 @@ describe('autopilot store が送る要求', () => {
     expect(q.get('limit')).toBe('15')
   })
 
+  it('取り消した本文: 自分の・自動運転の・本人が取り消した印つきのものだけ、取り消した順に（一括の取り消しは含めない）', async () => {
+    const { store, sent } = fakeStore(() => ({
+      status: 200,
+      body: [
+        { segments: [{ text: '最近取り消した文' }], updated_at: '2026-10-14T09:00:00Z' },
+        { segments: [{ text: '' }], updated_at: '2026-10-13T09:00:00Z' },
+      ],
+    }))
+    expect(await store.rejectedTexts('u1', 10)).toEqual(['最近取り消した文'])
+    const q = sent[0].url.searchParams
+    expect(q.get('user_id')).toBe('eq.u1')
+    expect(q.get('ai_prompt')).toBe('like.autopilot:%')
+    expect(q.get('status')).toBe('eq.canceled')
+    expect(q.get('error_message')).toBe('eq.本人が取り消した') // 一括の取り消し（印なし）は拾わない
+    expect(q.get('order')).toBe('updated_at.desc')
+    expect(q.get('limit')).toBe('10')
+  })
+
+  it('取り消した本文が読めなくても止めない（空で返す。似た文が出やすくなるだけ）', async () => {
+    const { store } = fakeStore(() => ({ status: 500, body: { message: 'boom' } }))
+    expect(await store.rejectedTexts('u1', 10)).toEqual([])
+  })
+
   it('生きている枠: 自分の・自動運転の・予約中か投稿済みのものの印を、昨日以降ぶんだけ', async () => {
     const { store, sent } = fakeStore(() => ({
       status: 200,
