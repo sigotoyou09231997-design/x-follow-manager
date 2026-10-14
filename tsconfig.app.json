@@ -24,8 +24,7 @@
       "#csv": ["./src/lib/csv.ts"],
       "#schedule-view": ["./src/components/schedule/ScheduleView.tsx"],
       "#push-settings": ["./src/components/PushSettings.tsx"],
-      "#autopost-view": ["./src/components/autopost/AutoPostView.tsx"],
-      "#home-activity": ["./src/components/home/HomeActivity.tsx"]
+      "#autopost-view": ["./src/components/autopost/AutoPostView.tsx"]
     },
 
     /* Linting */

@@ -7,6 +7,9 @@ export type ChannelName = 'discord' | 'yay'
 
 export const CHANNEL_NAMES: ChannelName[] = ['discord', 'yay']
 
+/** 画面に出す投稿先の名前。 */
+export const CHANNEL_LABELS: Record<ChannelName, string> = { discord: 'ディスコード', yay: 'Yay' }
+
 export interface PosterStatus {
   lastPost: { t: string; text: string } | null
   today: number

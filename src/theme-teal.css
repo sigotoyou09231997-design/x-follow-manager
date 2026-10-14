@@ -156,38 +156,9 @@
 .composer,
 .x-connect,
 .post-item,
-.schedule-view--notice,
-.entry-card {
+.schedule-view--notice {
   border-color: var(--border);
   box-shadow: var(--shadow-rest);
-}
-
-.entry-card {
-  transition:
-    transform 420ms var(--ease-out-expo),
-    box-shadow 420ms var(--ease-out-expo),
-    border-color 300ms ease;
-}
-
-.entry-card:hover {
-  background: var(--surface);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .entry-card:hover {
-    border-color: color-mix(in srgb, var(--teal-500) 28%, transparent);
-    box-shadow: var(--shadow-float);
-    transform: translateY(-3px);
-  }
-}
-
-.entry-card__chevron {
-  color: var(--text-muted);
-  transition: transform 300ms var(--spring);
-}
-
-.entry-card:hover .entry-card__chevron {
-  transform: translateX(3px);
 }
 
 .link-row__chevron {
@@ -302,42 +273,6 @@
   box-shadow: var(--shadow-rest);
 }
 
-/* サイドバーの主な操作は、手本の「＋追加」と同じ黒い丸。 */
-.side-nav__cta {
-  border-color: transparent;
-  background: var(--fab-bg);
-  color: var(--fab-text);
-  box-shadow: var(--shadow-rest);
-}
-
-.side-nav__cta:hover:not(:disabled) {
-  background: var(--fab-bg);
-  border-color: transparent;
-  box-shadow: var(--shadow-rest), 0 0 0 6px color-mix(in srgb, var(--teal-500) 16%, transparent);
-}
-
-.bottom-nav__fab {
-  width: 52px;
-  height: 52px;
-  background: var(--fab-bg);
-  color: var(--fab-text);
-  box-shadow: var(--shadow-float), 0 0 0 0 color-mix(in srgb, var(--teal-500) 40%, transparent);
-  transition:
-    transform 420ms var(--spring),
-    box-shadow 300ms ease,
-    opacity 0.15s;
-}
-
-.bottom-nav__fab:hover {
-  background: var(--fab-bg);
-  transform: rotate(90deg);
-  box-shadow: var(--shadow-float), 0 0 0 6px color-mix(in srgb, var(--teal-500) 16%, transparent);
-}
-
-.bottom-nav__fab:active {
-  transform: scale(0.94);
-}
-
 /* ---------------------------------------------------------------------------
    5. ヘッダー・PCのサイドバー・スマホの下部バー
    ------------------------------------------------------------------------ */
@@ -376,60 +311,6 @@
   }
 }
 
-/* 検索欄は細い線の丸（手本と同じ）。 */
-.app-header__search,
-.home-search {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-}
-
-.app-header__search:focus-within {
-  border-color: var(--teal-500);
-  box-shadow: 0 0 0 3px var(--accent-bg);
-}
-
-/* PCのサイドバーは、浮いた白いカード。選んでいる所は薄い青緑の面と、左の細い線。 */
-@media (min-width: 1024px) {
-  .side-nav {
-    top: 84px;
-    width: 236px;
-    margin: 20px 0 20px 20px;
-    padding: 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow-rest);
-  }
-}
-
-.side-nav__item {
-  position: relative;
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-}
-
-.side-nav__item:hover svg {
-  color: var(--accent);
-}
-
-.side-nav__item.active {
-  background: var(--accent-bg);
-  color: var(--accent);
-  font-weight: 700;
-}
-
-.side-nav__item.active::before {
-  content: '';
-  position: absolute;
-  left: 4px;
-  top: 22%;
-  bottom: 22%;
-  width: 3px;
-  border-radius: var(--radius-pill);
-  background: var(--teal-500);
-  animation: teal-indicator-in 420ms var(--spring) both;
-}
-
 @keyframes teal-indicator-in {
   from {
     transform: scaleY(0);
@@ -437,37 +318,6 @@
   to {
     transform: scaleY(1);
   }
-}
-
-/* スマホの下部バーは、浮いた白い角丸の面。選んでいる所は薄い青緑の丸い面。 */
-.bottom-nav {
-  left: 12px;
-  right: 12px;
-  /* タブレット幅（〜1023px）で横に伸びきらないよう、幅を止めて中央に置く（左右を指定した固定要素は margin:auto で中央に寄る）。 */
-  max-width: 560px;
-  margin-inline: auto;
-  bottom: calc(10px + var(--safe-bottom));
-  min-height: 64px;
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 28px;
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  box-shadow: var(--shadow-float);
-}
-
-.bottom-nav__item {
-  border-radius: 20px;
-  font-weight: 600;
-  transition:
-    color 220ms ease,
-    background-color 220ms ease,
-    transform 380ms var(--spring);
-}
-
-.bottom-nav__item.active {
-  background: var(--accent-bg);
-  color: var(--accent);
-  font-weight: 700;
 }
 
 /* ---------------------------------------------------------------------------
@@ -495,37 +345,10 @@
   letter-spacing: -0.02em;
 }
 
-/* 幅 380px 以下（iPhone SE など）。浮いたバーの左右の余白と、＋の左右の隙間を詰めて、
-   「フォロー整理」の文字が省略されないようにする（以前の全幅のバーより狭くなるぶん）。 */
-@media (max-width: 380px) {
-  .bottom-nav {
-    left: 8px;
-    right: 8px;
-    padding-inline: 4px;
-  }
-
-  .bottom-nav__fab {
-    width: 46px;
-    height: 46px;
-    margin-inline: 0;
-  }
-
-  .bottom-nav__item {
-    padding-inline: 0;
-    font-size: 9.5px;
-  }
-}
-
 /* 動きを減らす設定の人には、出現の動き・光沢・弾みをやめる。 */
 @media (prefers-reduced-motion: reduce) {
   .home-metrics::after,
-  .filter-tab--active,
-  .side-nav__item.active::before {
+  .filter-tab--active {
     animation: none;
-  }
-
-  .entry-card:hover,
-  .bottom-nav__fab:hover {
-    transform: none;
   }
 }

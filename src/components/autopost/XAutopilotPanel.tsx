@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useScheduledPosts } from '../../hooks/useScheduledPosts'
 import { useXAutopilot } from '../../hooks/useXAutopilot'
 import {
@@ -22,6 +22,7 @@ import {
 import { settingsProblems } from '../../lib/xAutopilot/slots'
 import { updateScheduledPost } from '../../lib/schedule/postsStore'
 import { Icon } from '../Icon'
+import { SwitchRow } from './ChannelControls'
 
 // 「自動投稿」タブの X。過去の投稿を読んで文体をまとめ、AIが新しい投稿を前もって予約に並べる。
 // 費用が出る操作（読み込み・まとめ・試し書き）は、押す前にボタンの横へ金額の目安を出す。
@@ -49,7 +50,22 @@ interface Notice {
 
 const errorOf = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
-export function XAutopilotPanel() {
+interface PanelProps {
+  /**
+   * 'summary' はトップの1画面用。自動運転のスイッチと「これから投稿される予定」だけを出し、
+   * 文体・試し書き・細かい設定は、設定から開く自動投稿の詳細（'full'）に任せる。
+   */
+  variant?: 'full' | 'summary'
+  /** summary のとき、細かい設定へ行く導線（設定が済んでいないときの案内に使う）。 */
+  onOpenDetail?: () => void
+  /**
+   * summary のとき、X のスイッチの下に差し込む部分（ディスコード・Yay のスイッチ）。
+   * X の読み込みが終わっていなくても・失敗していても出す（どちらかが読めなくても、もう一方は使えるように）。
+   */
+  children?: ReactNode
+}
+
+export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: PanelProps = {}) {
   const { state, loading, error, setupNeeded, busy, reload, run } = useXAutopilot(true)
   const { posts, reload: reloadPosts } = useScheduledPosts(true)
   const [edits, setEdits] = useState<Partial<AutopilotSettings>>({})
@@ -68,8 +84,19 @@ export function XAutopilotPanel() {
     [posts]
   )
 
+  // summary のときは、読み込み中・失敗・未準備でも、下に差し込む部分（ディスコード・Yay）は出す。
+  const beforeReady = (node: ReactNode) =>
+    variant === 'summary' ? (
+      <div className="xap xap--summary">
+        {node}
+        {children && <section className="surface-card switch-list" aria-label="稼働スイッチ">{children}</section>}
+      </div>
+    ) : (
+      node
+    )
+
   if (setupNeeded) {
-    return (
+    return beforeReady(
       <div className="surface-card xap__card">
         <h2 className="xap__title">自動運転の保存先がまだ用意されていません</h2>
         <p className="xap__muted">
@@ -84,7 +111,7 @@ export function XAutopilotPanel() {
     )
   }
   if (error && !state) {
-    return (
+    return beforeReady(
       <div className="surface-card xap__card">
         <p>自動運転の読み込みに失敗しました。</p>
         <p className="xap__muted">{error}</p>
@@ -95,7 +122,7 @@ export function XAutopilotPanel() {
       </div>
     )
   }
-  if (loading || !state) return <p className="loading-indicator">読み込み中…</p>
+  if (loading || !state) return beforeReady(<p className="loading-indicator">読み込み中…</p>)
 
   const form: AutopilotSettings = { ...state.settings, ...edits }
   const dirty = (Object.keys(edits) as (keyof AutopilotSettings)[]).some((k) => edits[k] !== state.settings[k])
@@ -216,6 +243,86 @@ export function XAutopilotPanel() {
         void reload()
       }
     })
+  }
+
+  const upcomingSection = (
+    <section aria-label="これから投稿される予定">
+      <h2 className="autopost__sub">{variant === 'summary' ? 'Xの、これから投稿される予定' : 'これから投稿される予定'}</h2>
+      {upcoming.length === 0 ? (
+        <p className="autopost__empty">まだありません。自動運転を始めると、ここに並びます。</p>
+      ) : (
+        <ul className="autopost__history xap__upcoming">
+          {upcoming.map((post) => (
+            <li key={post.id}>
+              <span className="xap__when">{whenLabel(post.scheduledAt, state.settings.timeZone)}</span>
+              <span className="autopost__history-text xap__upcoming-text">{post.segments[0]?.text}</span>
+              <button type="button" className="btn btn--ghost btn--small btn--danger" onClick={() => void cancelOne(post.id)}>
+                <Icon name="trash" size={14} />
+                取り消す
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {upcoming.length > 0 && (
+        <p className="xap__muted">
+          {variant === 'summary'
+            ? '取り消すと、近い時刻の枠から別の文を作り直します（数十秒）。文を直したいときは、設定の「予約投稿」から。'
+            : '文を直したいときは、設定の「予約投稿」でこの予約を開いてください。取り消すと、いちばん近い時刻の枠から、別の文を作り直して並べます（数十秒）。取り消した文は覚えておき、似た話題・型は作らないようにします。'}
+        </p>
+      )}
+    </section>
+  )
+
+  if (variant === 'summary') {
+    const ready = hasProfile && connected
+    const stopButton = (
+      <button type="button" className="btn btn--small autopost__pause-stop" onClick={() => void doStop()} disabled={working} aria-label="自動運転を止める">
+        {busy === 'stop' ? '止めています…' : '止める'}
+      </button>
+    )
+    const startButton = (
+      <button
+        type="button"
+        className="btn btn--small btn--primary"
+        onClick={() => void doStart()}
+        disabled={!ready || working || blocked}
+        aria-label="自動運転を始める"
+      >
+        {busy === 'start' ? '始めています…' : '始める'}
+      </button>
+    )
+    // 連携や文体がまだなら、押せない「始める」より、それを済ませる画面への入口を出す。
+    const setupButton = (
+      <button type="button" className="btn btn--ghost btn--small" onClick={onOpenDetail} aria-label="Xとの連携と文体を設定する">
+        設定する
+      </button>
+    )
+    return (
+      <div className="xap xap--summary">
+        {notice && (
+          <p className={`autopost__msg autopost__msg--${notice.kind}`} role={notice.kind === 'err' ? 'alert' : 'status'}>
+            {notice.text}
+          </p>
+        )}
+        {refilling > 0 && (
+          <p className="xap__muted" role="status">
+            別の文を作り直しています…（数十秒かかります）
+          </p>
+        )}
+        <section className="surface-card switch-list" aria-label="稼働スイッチ">
+          <SwitchRow
+            name="X"
+            tone={state.enabled ? (state.lastError ? 'warn' : 'on') : 'off'}
+            status={state.enabled ? '自動運転中' : ready ? '自動運転は止まっています' : '先に、Xとの連携と文体のまとめが必要です'}
+            note={state.enabled && state.lastError ? `補充を止めています: ${state.lastError}` : undefined}
+            action={state.enabled ? stopButton : !ready && onOpenDetail ? setupButton : startButton}
+          />
+          {children}
+        </section>
+        {upcomingSection}
+      </div>
+    )
   }
 
   return (
@@ -396,31 +503,7 @@ export function XAutopilotPanel() {
         />
       </section>
 
-      <section aria-label="これから投稿される予定">
-        <h2 className="autopost__sub">これから投稿される予定</h2>
-        {upcoming.length === 0 ? (
-          <p className="autopost__empty">まだありません。自動運転を始めると、ここに並びます。</p>
-        ) : (
-          <ul className="autopost__history xap__upcoming">
-            {upcoming.map((post) => (
-              <li key={post.id}>
-                <span className="xap__when">{whenLabel(post.scheduledAt, state.settings.timeZone)}</span>
-                <span className="autopost__history-text xap__upcoming-text">{post.segments[0]?.text}</span>
-                <button type="button" className="btn btn--ghost btn--small btn--danger" onClick={() => void cancelOne(post.id)}>
-                  <Icon name="trash" size={14} />
-                  取り消す
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {upcoming.length > 0 && (
-          <p className="xap__muted">
-            文を直したいときは、「予約投稿」タブでこの予約を開いてください。取り消すと、いちばん近い時刻の枠から、別の文を作り直して並べます（数十秒）。
-            取り消した文は覚えておき、似た話題・型は作らないようにします。
-          </p>
-        )}
-      </section>
+      {upcomingSection}
     </div>
   )
 }

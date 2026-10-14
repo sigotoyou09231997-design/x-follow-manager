@@ -68,7 +68,6 @@ export default defineConfig({
       '#schedule-view': path.resolve(import.meta.dirname, 'src/components/schedule/ScheduleView.tsx'),
       '#push-settings': path.resolve(import.meta.dirname, 'src/components/PushSettings.tsx'),
       '#autopost-view': path.resolve(import.meta.dirname, 'src/components/autopost/AutoPostView.tsx'),
-      '#home-activity': path.resolve(import.meta.dirname, 'src/components/home/HomeActivity.tsx'),
     },
   },
   test: {

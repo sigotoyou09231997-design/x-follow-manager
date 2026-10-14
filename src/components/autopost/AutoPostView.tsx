@@ -2,32 +2,33 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import './autopost.css'
 import { signInWithGoogle, signOut, useSupabaseAuth } from '../../hooks/useSupabaseAuth'
 import { useAutopost } from '../../hooks/useAutopost'
+import { useNow } from '../../hooks/useNow'
 import { registerEditingGuard } from '../../lib/editingGuard'
 import {
+  CHANNEL_LABELS,
   CHANNEL_NAMES,
   SaveConflictError,
   saveMessages,
   setPaused,
   type ChannelName,
-  type ChannelSnapshot,
 } from '../../lib/autopost/api'
 import {
-  agoLabel,
   flat,
   isDirty,
   isValid,
   livenessOf,
   normalize,
   notYetPosted,
-  pauseStateOf,
   withArchived,
 } from '../../lib/autopost/draft'
 import { readAutopostTab, rememberAutopostTab, type AutopostTab } from '../../lib/autopost/tab'
 import { Icon } from '../Icon'
+import { PauseControl, PosterStatusLine } from './ChannelControls'
 import { RestartControl } from './RestartControl'
 import { XAutopilotPanel } from './XAutopilotPanel'
 
-const CHANNEL_LABELS: Record<ChannelName, string> = { discord: 'ディスコード', yay: 'Yay' }
+// トップの1画面も同じ入口（#autopost-view）から読み込む。Artifact 版のスタブも同じ2つを持つ。
+export { AutoPostHome } from './AutoPostHome'
 
 const CHANNEL_INFO: Record<ChannelName, string> = {
   discord: 'discord-ch.site の募集掲示板に、約10分おきに投稿される文です。',
@@ -44,16 +45,6 @@ function without(edits: Partial<Record<ChannelName, Edit>>, channel: ChannelName
   const next = { ...edits }
   delete next[channel]
   return next
-}
-
-/** 今の時刻。「◯分前」の表示を、開いたままでも古くしないための時計。 */
-function useNow(intervalMs: number): number {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), intervalMs)
-    return () => clearInterval(timer)
-  }, [intervalMs])
-  return now
 }
 
 function AutoTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -437,109 +428,5 @@ function Box({ index, total, value, maxLength, onChange, onRemove }: BoxProps) {
       />
       <div className={`autopost__count${length > maxLength ? ' over' : ''}`}>{length}文字</div>
     </div>
-  )
-}
-
-function PosterStatusLine({ snapshot, now }: { snapshot: ChannelSnapshot; now: number }) {
-  const { status } = snapshot
-  const liveness = livenessOf(status, now)
-  if (!status) {
-    return <p className="autopost__status">投稿側(Mac)からの報告はまだありません</p>
-  }
-  const last = status.lastPost
-  return (
-    <p className="autopost__status">
-      <span className="autopost__live">
-        <span className={`autopost__dot autopost__dot--${liveness === 'alive' ? 'on' : 'off'}`} aria-hidden="true" />
-        {liveness === 'alive'
-          ? `Macは動いています（${agoLabel(status.at, now)}に確認）`
-          : `Macから応答がありません（最後は${agoLabel(status.at, now)}）`}
-      </span>
-      {last && (
-        <span>
-          最後の投稿 {new Date(last.t).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}（
-          {agoLabel(last.t, now)}）・今日{status.today}件
-        </span>
-      )}
-    </p>
-  )
-}
-
-const PAUSE_DETAIL: Record<ChannelName, string> = {
-  discord: '止めても Mac の投稿役は動いたままで、投稿だけを見合わせます。',
-  yay: '止めても Mac の投稿役は動いたままで、投稿だけを見合わせます。いま出ている投稿は消えずに残ります。',
-}
-
-interface PauseControlProps {
-  snapshot: ChannelSnapshot
-  now: number
-  busy: boolean
-  error?: string
-  onChange: (paused: boolean) => void
-}
-
-/**
- * 投稿を止める／再開するスイッチ。押しただけでは Mac はまだ知らないので、
- * 投稿役が「止まっています」と報告するまでは「停止を依頼しました」と出し、本当に止まったかを見分けられるようにする。
- */
-function PauseControl({ snapshot, now, busy, error, onChange }: PauseControlProps) {
-  if (!snapshot.pauseReady) {
-    return (
-      <section className="surface-card autopost__pause" aria-label="投稿の停止">
-        <div className="autopost__pause-text">
-          <strong>止める機能は準備中です</strong>
-          <span>Supabase の SQL Editor で supabase/sql/006_autopost_pause.sql を実行すると使えます。</span>
-        </div>
-      </section>
-    )
-  }
-
-  const state = pauseStateOf(snapshot)
-  const macSilent = livenessOf(snapshot.status, now) !== 'alive'
-  const since = snapshot.pausedAt
-    ? new Date(snapshot.pausedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : null
-
-  const text: Record<typeof state, { title: string; detail: string }> = {
-    running: { title: '自動で投稿しています', detail: PAUSE_DETAIL[snapshot.channel] },
-    pausing: {
-      title: '停止を依頼しました',
-      detail: macSilent
-        ? 'Macから応答がありません。投稿役が止まっているか、止める機能に対応していない古い版かもしれません。'
-        : 'Macが受け取るまで、投稿が続くことがあります（数十秒ほど）。',
-    },
-    paused: {
-      title: since ? `停止中（${since}から）` : '停止中',
-      detail:
-        snapshot.channel === 'yay'
-          ? '新しい投稿は見合わせています。いま出ている投稿は、そのまま残っています。'
-          : '新しい投稿は見合わせています。',
-    },
-    resuming: { title: '再開を依頼しました', detail: 'Macが受け取ると、投稿が再開されます。' },
-  }
-
-  const stopping = state === 'running' || state === 'resuming'
-  const label = state === 'pausing' ? '停止を取り消す' : state === 'paused' ? '投稿を再開する' : '投稿を止める'
-
-  return (
-    <section className={`surface-card autopost__pause autopost__pause--${state}`} aria-label="投稿の停止">
-      <div className="autopost__pause-text">
-        <strong>{text[state].title}</strong>
-        <span>{text[state].detail}</span>
-        {error && (
-          <span className="autopost__pause-error" role="alert">
-            {error}
-          </span>
-        )}
-      </div>
-      <button
-        type="button"
-        className={`btn ${stopping ? 'autopost__pause-stop' : state === 'paused' ? 'btn--primary' : 'btn--secondary'}`}
-        onClick={() => onChange(stopping)}
-        disabled={busy}
-      >
-        {busy ? '送っています…' : label}
-      </button>
-    </section>
   )
 }

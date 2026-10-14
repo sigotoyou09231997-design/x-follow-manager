@@ -1,16 +1,14 @@
-import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { FileDropZone } from './components/FileDropZone'
 import { ErrorBanner } from './components/ErrorBanner'
-import { HomeView } from './components/HomeView'
 import { HistoryView } from './components/HistoryView'
 import { FollowTidyView, type FilterKey } from './components/FollowTidyView'
-import { SettingsView } from './components/SettingsView'
+import { SettingsView, type FeatureTarget } from './components/SettingsView'
+import { SummaryBar } from './components/SummaryBar'
 import { UpdateBanner } from './components/UpdateBanner'
-import { Icon, type IconName } from './components/Icon'
+import { Icon } from './components/Icon'
 import { X_CALLBACK_PATH } from './lib/schedule/constants'
-import { rememberAutopostTab } from './lib/autopost/tab'
-import type { ActivityTarget } from './lib/home/activity'
 import { useAccounts, useCurrentBatchKeys, useSummary } from '#accounts-hook'
 import { parseArchiveFile } from './lib/archiveParser'
 import { computeNonMutual } from './lib/nonMutual'
@@ -31,30 +29,27 @@ const ScheduleView = lazy(() =>
 )
 
 // 掲示板・Yay の自動投稿（Macで動く投稿役の文と状態）。サーバー前提なので、これも開いたときに読み込む。
+// AutoPostHome はアプリを開いて最初に出る1画面、AutoPostView は文や設定を変える詳細（設定から開く）。
+const AutoPostHome = lazy(() =>
+  import('#autopost-view').then((module) => ({ default: module.AutoPostHome }))
+)
 const AutoPostView = lazy(() =>
   import('#autopost-view').then((module) => ({ default: module.AutoPostView }))
 )
 
 type Tab = 'home' | 'tidy' | 'protected' | 'history' | 'schedule' | 'autopost' | 'settings'
 
-// モバイル下部バー。中央の＋（FAB）はナビ項目ではなく操作なので、この配列には含めない。
-// 設定はヘッダー右上の人型ボタンから開ける（自動投稿を足すと、5項目では文字が収まらないため）。
-const BOTTOM_NAV: { id: Tab; label: string; icon: IconName }[] = [
-  { id: 'home', label: 'ホーム', icon: 'home' },
-  { id: 'tidy', label: 'フォロー整理', icon: 'tasks' },
-  { id: 'schedule', label: '予約投稿', icon: 'calendar' },
-  { id: 'autopost', label: '自動投稿', icon: 'send' },
-]
-
-// PC左サイドバー。
-const SIDE_NAV: { id: Tab; label: string; icon: IconName }[] = [
-  { id: 'tidy', label: 'フォロー整理', icon: 'tasks' },
-  { id: 'protected', label: '残すリスト', icon: 'bookmark' },
-  { id: 'history', label: '履歴', icon: 'history' },
-  { id: 'schedule', label: '予約投稿', icon: 'calendar' },
-  { id: 'autopost', label: '自動投稿', icon: 'send' },
-  { id: 'settings', label: '設定', icon: 'settings' },
-]
+// 画面は「自動投稿の1画面（home）」が入口で、ほかの機能は設定から開く。
+// 戻るボタンの行き先と、ヘッダーに出す画面名はここで決める。
+const SCREEN: Record<Tab, { title: string; parent: Tab | null }> = {
+  home: { title: '自動投稿', parent: null },
+  settings: { title: '設定', parent: 'home' },
+  autopost: { title: '自動投稿の文と設定', parent: 'settings' },
+  schedule: { title: '予約投稿', parent: 'settings' },
+  tidy: { title: 'フォロー整理', parent: 'settings' },
+  protected: { title: '残すリスト', parent: 'settings' },
+  history: { title: '履歴', parent: 'settings' },
+}
 
 function buildFingerprint(file: File): string {
   return `${file.name}:${file.size}:${file.lastModified}`
@@ -65,15 +60,9 @@ function App() {
   const summary = useSummary(accounts)
   const batchKeys = useCurrentBatchKeys()
 
-  // Xの認可画面から戻ってきた直後は、そのまま予約投稿タブを開く。
-  // 「自動投稿が止まっているかもしれません」の通知から開いたとき（?open=autopost）は、再起動のボタンがある自動投稿タブから始める。
-  const [tab, setTab] = useState<Tab>(() =>
-    window.location.pathname === X_CALLBACK_PATH
-      ? 'schedule'
-      : new URLSearchParams(window.location.search).get('open') === 'autopost'
-        ? 'autopost'
-        : 'home'
-  )
+  // Xの認可画面から戻ってきた直後は、そのまま予約投稿を開く。
+  // 「自動投稿が止まっているかもしれません」の通知から開いたとき（?open=autopost）も、再起動のボタンがある1画面（home）から始まる。
+  const [tab, setTab] = useState<Tab>(() => (window.location.pathname === X_CALLBACK_PATH ? 'schedule' : 'home'))
   const [filter, setFilter] = useState<FilterKey>('all')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -82,17 +71,6 @@ function App() {
   const [warnings, setWarnings] = useState<string[]>([])
   const [errorMessage, setErrorMessage] = useState<string[]>([])
   const [detectedFiles, setDetectedFiles] = useState<string[]>([])
-  // 中央の＋・ホームの「AIで下書きを作る」を押した回数。ScheduleViewはnonceが増えたらコンポーザーを開く。
-  // startWithAiをnonceと同じstateにまとめているのは、2つの入口を区別する値が
-  // nonceと必ず同時に・ずれなく更新されるようにするため。
-  const [composeRequest, setComposeRequest] = useState<{ nonce: number; startWithAi: boolean }>({
-    nonce: 0,
-    startWithAi: false,
-  })
-
-  const headerSearchRef = useRef<HTMLInputElement>(null)
-  const listSearchRef = useRef<HTMLInputElement>(null)
-
   const hasData = (summary?.total ?? 0) > 0
   const accountList = useMemo(() => accounts ?? [], [accounts])
 
@@ -120,7 +98,7 @@ function App() {
 
       setWarnings(parsed.warnings)
       setSelectedKey(null)
-      setTab((current) => (current === tabAtStart ? 'home' : current))
+      setTab((current) => (current === tabAtStart ? 'tidy' : current))
     } catch (error) {
       setErrorMessage([
         'アーカイブZIPの読み込みに失敗しました。ファイルが破損していないか確認してください。',
@@ -163,133 +141,62 @@ function App() {
     setSelectedKey(keys[0] ?? null)
   }
 
-  // FAB とサイドバーのCTA。「押しても何も起きない」を作らないための入口で、
-  // 進行中のバッチがあれば再開し、未確認が無いときはその事実が分かる画面に送る。
-  async function openNextReview() {
-    const unfinished = batchAccounts.find((account) => account.status === 'pending')
-    if (unfinished) {
-      setFilter('all')
-      setTab('tidy')
-      setSelectedKey(unfinished.key)
-      return
-    }
-
-    if ((summary?.pending ?? 0) === 0) {
-      // 未確認0件。空の一覧を出して「すべて確認済み」だと分かるようにする。
-      setFilter('pending')
-      setTab('tidy')
-      setSelectedKey(null)
-      return
-    }
-
-    await startNextBatch()
-  }
-
-  // 中央の＋（FAB）とホームの「AIで下書きを作る」。予約投稿の作成画面を直接開く。
-  // フォロー整理の「次の◯人を確認」は、ホームの今日のタスクとフォロー整理の
-  // ツールバーから始められるので、モバイルでも入口は失われない。
-  // startWithAi: trueならAI下書き支援を開いた状態で始める（「AIで下書きを作る」から）。
-  // ＋の方は「とにかく書く」なので、何も開いていない状態（本文欄フォーカス）のまま。
-  function openCompose(startWithAi = false) {
-    setTab('schedule')
-    setComposeRequest((prev) => ({ nonce: prev.nonce + 1, startWithAi }))
-  }
-
-  // ScheduleView が頼みを受けて開いたら、使い切ったことにする。nonce を 0 へ戻すだけで、次に押せば 1 から数え直す。
-  // 戻さないと、別のタブへ行って予約投稿に戻るたびに、残った頼みで作成画面が勝手にまた開く。
-  // useCallback にしているのは、ScheduleView の effect の依存に入っていて、毎回新しい関数だと毎回走り直すため。
-  const handleComposeHandled = useCallback(() => {
-    setComposeRequest((prev) => (prev.nonce === 0 ? prev : { nonce: 0, startWithAi: false }))
-  }, [])
-
-  // 「残すリスト」はフォロー整理の派生画面なので、下部バーでは同じ項目を現在地として扱う。
-  function isCurrent(id: Tab): boolean {
-    return id === tab || (id === 'tidy' && tab === 'protected')
-  }
-
   function goto(next: Tab, nextFilter?: FilterKey) {
     setTab(next)
     setSelectedKey(null)
     if (nextFilter) setFilter(nextFilter)
   }
 
-  // ホームの「いまの動き」から開く。自動投稿は、押した投稿先（ディスコード / Yay）を開いた状態にしてから切り替える。
-  function openActivity(target: ActivityTarget) {
-    if (target.tab === 'autopost') rememberAutopostTab(target.channel)
-    goto(target.tab)
-  }
+  // 画面が変わったら先頭から見せる（設定を下までスクロールしてから開いた画面が、途中から始まらないように）。
+  useEffect(() => {
+    window.scrollTo?.(0, 0)
+  }, [tab])
 
-  // 画面幅によってヘッダー側かリスト側のどちらかしか出ていないので、見えている方に合わせる。
-  function focusSearch() {
-    setTab('tidy')
-    requestAnimationFrame(() => {
-      const target = [headerSearchRef.current, listSearchRef.current].find(
-        (el) => el && el.offsetParent !== null
-      )
-      target?.focus()
-    })
+  function openFeature(target: FeatureTarget) {
+    goto(target, target === 'protected' ? 'protected' : undefined)
   }
 
   // ホームは未読込でも自分で読み込み導線を出すので、案内が要るのは
   // 「一覧を見に来たのに中身が無い」画面だけ。
   const needsArchive = !hasData && !importing && (tab === 'tidy' || tab === 'protected' || tab === 'history')
 
+  const screen = SCREEN[tab]
+  const parent = screen.parent
+
   return (
     <div className="app-shell">
       <UpdateBanner />
 
       <header className="app-header">
-        <button type="button" className="app-header__logo" onClick={() => goto('home')}>
-          SNSアプリ
-        </button>
+        {parent ? (
+          <button
+            type="button"
+            className="app-header__back"
+            onClick={() => goto(parent)}
+            aria-label={`${SCREEN[parent].title}へ戻る`}
+          >
+            <Icon name="chevron-left" size={22} />
+            <span>{SCREEN[parent].title}</span>
+          </button>
+        ) : (
+          <span className="app-header__logo">SNSアプリ</span>
+        )}
 
-        <div className="app-header__search">
-          <Icon name="search" size={16} />
-          <input
-            ref={headerSearchRef}
-            type="search"
-            placeholder="アカウントを検索"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onFocus={() => {
-              if (tab !== 'tidy' && tab !== 'protected') setTab('tidy')
-            }}
-          />
-        </div>
+        {parent && <span className="app-header__title">{screen.title}</span>}
 
-        <button
-          type="button"
-          className="app-header__avatar"
-          onClick={() => goto('settings')}
-          aria-label="設定を開く"
-        >
-          <Icon name="user" size={18} />
-        </button>
+        {tab === 'home' && (
+          <button
+            type="button"
+            className="app-header__avatar"
+            onClick={() => goto('settings')}
+            aria-label="設定を開く"
+          >
+            <Icon name="settings" size={18} />
+          </button>
+        )}
       </header>
 
       <div className="app-body">
-        <nav className="side-nav" aria-label="メインメニュー">
-          {SIDE_NAV.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`side-nav__item${tab === item.id ? ' active' : ''}`}
-              onClick={() => goto(item.id, item.id === 'protected' ? 'protected' : undefined)}
-            >
-              <Icon name={item.icon} size={20} />
-              <span>{item.label}</span>
-            </button>
-          ))}
-          <button
-            type="button"
-            className="btn btn--primary side-nav__cta"
-            onClick={openNextReview}
-          >
-            <Icon name="plus" size={18} />
-            次の{batchSize}人を確認
-          </button>
-        </nav>
-
         <main className="main-content">
           {errorMessage.length > 0 && (
             <ErrorBanner
@@ -310,20 +217,18 @@ function App() {
             />
           )}
 
-          {/* ホームはHeroのボタン自体が「解析しています…」に変わるので、
-              同じことを二重に出さない。 */}
-          {importing && tab !== 'home' && (
-            <p className="loading-indicator">アーカイブを解析しています…</p>
+          {importing && <p className="loading-indicator">アーカイブを解析しています…</p>}
+
+          {tab === 'home' && (
+            <Suspense fallback={<p className="loading-indicator">読み込み中…</p>}>
+              <AutoPostHome onOpenDetail={() => goto('autopost')} />
+            </Suspense>
           )}
 
           {/* 予約投稿はアーカイブの読み込みと無関係に使えるので、hasDataで閉じない。 */}
           {tab === 'schedule' && (
             <Suspense fallback={<p className="loading-indicator">読み込み中…</p>}>
-              <ScheduleView
-                composeRequest={composeRequest.nonce}
-                composeStartWithAi={composeRequest.startWithAi}
-                onComposeHandled={handleComposeHandled}
-              />
+              <ScheduleView />
             </Suspense>
           )}
 
@@ -335,6 +240,8 @@ function App() {
 
           {tab === 'settings' && (
             <SettingsView
+              onOpenFeature={openFeature}
+              tidyCounts={hasData && summary ? { pending: summary.pending, protected: summary.protected } : undefined}
               onReimport={handleFile}
               onClearAll={handleClearAll}
               lastImportedAt={summary?.lastImportedAt}
@@ -343,7 +250,7 @@ function App() {
           )}
 
           {/* 一覧を見に来たのに中身が無いとき。ここで読み込みまで済ませられると
-              「ホームへ戻ってやり直す」手間が無くなる。 */}
+              「設定へ戻ってやり直す」手間が無くなる。 */}
           {needsArchive && (
             <div className="surface-card onboarding">
               <h2 className="onboarding__title">まずアーカイブを読み込みます</h2>
@@ -355,32 +262,23 @@ function App() {
             </div>
           )}
 
-          {/* ホームは未読込でも出す。読み込み導線そのものがHeroの主役なので、
-              「データが無いとホームが空になる」状態を作らない。 */}
-          {tab === 'home' && summary && (
-            <HomeView
-              summary={summary}
-              accounts={accountList}
-              batchAccounts={batchAccounts}
-              batchSize={batchSize}
-              hasData={hasData}
-              importing={importing}
-              importFailed={errorMessage.length > 0}
-              lastImportedAt={summary.lastImportedAt}
-              onFile={handleFile}
-              onSearchFocus={focusSearch}
-              onGotoPending={() => goto('tidy', 'pending')}
-              onGotoProtected={() => goto('protected', 'protected')}
-              onGotoSchedule={() => goto('schedule')}
-              onGotoSettings={() => goto('settings')}
-              onCompose={openCompose}
-              onReview={openNextReview}
-              onOpenActivity={openActivity}
-            />
-          )}
-
           {hasData && summary && (
             <>
+              {tab === 'tidy' && (
+                <section className="surface-card home-metrics" aria-label="フォローの数">
+                  <header className="home-metrics__head">
+                    <h2 className="home-section__title">フォローの数</h2>
+                    {summary.lastImportedAt && (
+                      <span className="home-metrics__stamp">
+                        {new Date(summary.lastImportedAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
+                        に読み込み
+                      </span>
+                    )}
+                  </header>
+                  <SummaryBar summary={summary} />
+                </section>
+              )}
+
               {(tab === 'tidy' || tab === 'protected') && (
                 <FollowTidyView
                   accounts={accountList}
@@ -395,7 +293,6 @@ function App() {
                   showFilters={tab !== 'protected'}
                   search={search}
                   onSearchChange={setSearch}
-                  searchRef={listSearchRef}
                   selectedKey={selectedKey}
                   onSelect={setSelectedKey}
                   batchAccounts={batchAccounts}
@@ -418,41 +315,6 @@ function App() {
           </footer>
         </main>
       </div>
-
-      <nav className="bottom-nav" aria-label="メインメニュー">
-        {BOTTOM_NAV.slice(0, 2).map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={`bottom-nav__item${isCurrent(item.id) ? ' active' : ''}`}
-            onClick={() => goto(item.id)}
-          >
-            <Icon name={item.icon} size={22} />
-            <span>{item.label}</span>
-          </button>
-        ))}
-
-        <button
-          type="button"
-          className="bottom-nav__fab"
-          onClick={() => openCompose()}
-          aria-label="投稿を作る"
-        >
-          <Icon name="plus" size={24} />
-        </button>
-
-        {BOTTOM_NAV.slice(2).map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={`bottom-nav__item${isCurrent(item.id) ? ' active' : ''}`}
-            onClick={() => goto(item.id)}
-          >
-            <Icon name={item.icon} size={22} />
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </nav>
     </div>
   )
 }
