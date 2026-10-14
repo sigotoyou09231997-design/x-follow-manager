@@ -49,7 +49,14 @@ export interface AutopilotStore {
   /** 連携中の X アカウント（トークンは返さない）。 */
   xAccount(userId: string): Promise<{ xUserId: string; username: string } | null>
   /** 予約に1本入れる。同じ枠がすでにあれば 'duplicate'（同時に走った別の実行が先に入れた）。 */
-  insertPost(input: { userId: string; at: string; text: string; slotKey: string }): Promise<'inserted' | 'duplicate'>
+  insertPost(input: {
+    userId: string
+    at: string
+    text: string
+    slotKey: string
+    /** 'draft' は確認待ち（本人が「投稿可能」を押すまで投稿されない）。省略は 'scheduled'（時刻になれば投稿）。 */
+    status?: 'scheduled' | 'draft'
+  }): Promise<'inserted' | 'duplicate'>
   /** 自動運転で作った（予約中・投稿済み）本文を、投稿時刻の新しい順に。内容の重なりを避けるため。 */
   recentTexts(userId: string, limit: number): Promise<{ text: string; at: string }[]>
   /**
@@ -68,8 +75,10 @@ export interface AutopilotStore {
    * 自分で自分を強めて、偏っていった。
    */
   autopilotTweetIds(userId: string, limit: number): Promise<string[]>
-  /** まだ出ていない自動運転の予約を取り消す。取り消した件数を返す。 */
+  /** まだ出ていない自動運転の予約（確認待ちも含む）を取り消す。取り消した件数を返す。 */
   cancelUpcoming(userId: string): Promise<number>
+  /** 確認待ちの自動運転の予約を、すべて「投稿可能」にする（確認してから投稿する設定をオフにしたとき）。件数を返す。 */
+  approveUpcoming(userId: string): Promise<number>
   /**
    * いま予約として生きている（予約中・投稿処理中・投稿済み）自動運転の枠の印。昨日以降ぶん。
    * 設定の作り直しで「作った枠の記録」だけが空になっても、今日すでに投稿した枠を、AIに書かせてから
@@ -189,11 +198,11 @@ export function supabaseAutopilotStore(client: SupabaseClient = getSupabaseAdmin
       return data ? { xUserId: data.x_user_id, username: data.username } : null
     },
 
-    async insertPost({ userId, at, text, slotKey }) {
+    async insertPost({ userId, at, text, slotKey, status = 'scheduled' }) {
       const { error } = await client.from('scheduled_posts').insert({
         id: crypto.randomUUID(),
         user_id: userId,
-        status: 'scheduled',
+        status,
         scheduled_at: at,
         segments: [{ text, media: [] }],
         ai_prompt: `${AUTOPILOT_PREFIX}${slotKey}`,
@@ -212,7 +221,7 @@ export function supabaseAutopilotStore(client: SupabaseClient = getSupabaseAdmin
         .select('segments, scheduled_at')
         .eq('user_id', userId)
         .like('ai_prompt', `${AUTOPILOT_PREFIX}%`)
-        .in('status', ['scheduled', 'publishing', 'posted'])
+        .in('status', ['scheduled', 'draft', 'publishing', 'posted'])
         .order('scheduled_at', { ascending: false })
         .limit(limit)
         .returns<{ segments: { text: string }[]; scheduled_at: string }[]>()
@@ -289,10 +298,23 @@ export function supabaseAutopilotStore(client: SupabaseClient = getSupabaseAdmin
         .update({ status: 'canceled', updated_at: new Date().toISOString() })
         .eq('user_id', userId)
         .like('ai_prompt', `${AUTOPILOT_PREFIX}%`)
-        .eq('status', 'scheduled')
+        .in('status', ['scheduled', 'draft'])
         .select('id')
         .returns<{ id: string }[]>()
       if (error) throw new Error(`予約の取り消しに失敗しました: ${error.message}`)
+      return data?.length ?? 0
+    },
+
+    async approveUpcoming(userId) {
+      const { data, error } = await client
+        .from('scheduled_posts')
+        .update({ status: 'scheduled', updated_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .like('ai_prompt', `${AUTOPILOT_PREFIX}%`)
+        .eq('status', 'draft')
+        .select('id')
+        .returns<{ id: string }[]>()
+      if (error) throw new Error(`予約の更新に失敗しました: ${error.message}`)
       return data?.length ?? 0
     },
 
@@ -303,7 +325,7 @@ export function supabaseAutopilotStore(client: SupabaseClient = getSupabaseAdmin
         .select('ai_prompt')
         .eq('user_id', userId)
         .like('ai_prompt', `${AUTOPILOT_PREFIX}%`)
-        .in('status', ['scheduled', 'publishing', 'posted'])
+        .in('status', ['scheduled', 'draft', 'publishing', 'posted'])
         .gte('ai_prompt', `${AUTOPILOT_PREFIX}${sinceDate}`)
         .returns<{ ai_prompt: string }[]>()
       if (error) {

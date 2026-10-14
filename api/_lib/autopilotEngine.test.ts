@@ -154,7 +154,7 @@ describe('枠の補充（topUp）', () => {
   describe('今日のぶん（時刻が過ぎた枠も、今日の残りに入れる）', () => {
     // 2026-10-10 20:46 JST。1日2回の午前・午後の時刻はとうに過ぎている。
     const EVENING = () => new Date('2026-10-10T11:46:00.000Z')
-    const twice = { ...DEFAULT_SETTINGS, postsPerDay: 2, horizonDays: 1 }
+    const twice = { ...DEFAULT_SETTINGS, requireApproval: false, postsPerDay: 2, horizonDays: 1 }
     const hm = (iso: string) => {
       const d = new Date(new Date(iso).getTime() + 9 * 3600_000)
       return d.getUTCHours() * 60 + d.getUTCMinutes()
@@ -601,6 +601,67 @@ describe('ON / OFF / 設定', () => {
     // もう一度オンにすれば、その時刻からになる
     const again = await saveSettings(later, OWNER, { deletePrevious: true })
     expect(again.settings.deletePreviousFrom).toBe(later.now().toISOString())
+  })
+
+  describe('確認してから投稿する（requireApproval）', () => {
+    const withApproval = { ...DEFAULT_SETTINGS, requireApproval: true }
+
+    it('オンのあいだ、並べる投稿は確認待ち（draft）。時刻が来ても投稿されない状態で入る', async () => {
+      const store = ready({ settings: withApproval })
+      const { deps } = makeDeps(store)
+      const r = await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      expect(r.created).toBe(2)
+      expect(store.posts.map((p) => p.status)).toEqual(['draft', 'draft'])
+    })
+
+    it('オフなら、これまでどおり確認なしの予約中（scheduled）で入る', async () => {
+      const store = ready({ settings: { ...DEFAULT_SETTINGS, requireApproval: false } })
+      const { deps } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      expect(store.posts.map((p) => p.status)).toEqual(['scheduled', 'scheduled'])
+    })
+
+    it('確認待ちの枠も、埋まっている枠に数える（枠の記録が空に戻っても、同じ枠に別の文を重ねて作らない）', async () => {
+      const store = ready({ settings: { ...withApproval, postsPerDay: 1, horizonDays: 1 }, slots: [] })
+      const { deps } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      const first = store.posts.map((p) => p.slotKey)
+      expect(first).toHaveLength(1)
+
+      store.rows.get(OWNER)!.slots = []
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      // 1日1回・1日先まで → 枠は今日の1つだけ。確認待ちがあるので、2本目は作らない
+      expect(store.posts.map((p) => p.slotKey)).toEqual(first)
+    })
+
+    it('止めると、確認待ちの予約も取り消す', async () => {
+      const store = ready({ settings: withApproval })
+      const { deps } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      const r = await disable(deps, OWNER)
+      expect(r.canceled).toBe(2)
+      expect(store.posts.every((p) => p.status === 'canceled')).toBe(true)
+    })
+
+    it('オフに切り替えたら、確認待ちだった予約はすべて投稿可能（scheduled）になる。オンに戻しても、すでに投稿可能のものは動かさない', async () => {
+      const store = ready({ settings: withApproval })
+      const { deps } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+
+      await saveSettings(deps, OWNER, { requireApproval: false })
+      expect(store.posts.map((p) => p.status)).toEqual(['scheduled', 'scheduled'])
+
+      await saveSettings(deps, OWNER, { requireApproval: true })
+      expect(store.posts.map((p) => p.status)).toEqual(['scheduled', 'scheduled'])
+    })
+
+    it('ほかの設定を保存しただけでは、確認待ちは動かない', async () => {
+      const store = ready({ settings: withApproval })
+      const { deps } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      await saveSettings(deps, OWNER, { quality: 'saver' })
+      expect(store.posts.map((p) => p.status)).toEqual(['draft', 'draft'])
+    })
   })
 
   it('作り直しの最初の1本が作れなくても、設定の保存は成功のまま（理由は補充が記録する）', async () => {

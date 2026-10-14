@@ -453,6 +453,7 @@ export async function topUp(
         at: slot.at,
         text: generated.text,
         slotKey: slot.key,
+        status: row.settings.requireApproval ? 'draft' : 'scheduled',
       })
       if (outcome === 'inserted') {
         usage.yen += PRICE.xPostUsd * USD_JPY
@@ -565,6 +566,9 @@ export async function saveSettings(
   merged.deletePreviousFrom =
     merged.deletePrevious === true ? (wasOn ? row.settings.deletePreviousFrom : deps.now().toISOString()) : null
   const settings = normalizeSettings(merged)
+  // 「確認してから投稿する」をオフにしたら、確認待ちだった予約は、確認したものとして投稿可能にする
+  // （オフにしたのに、確認待ちが残って投稿されない、を作らない）。
+  if (row.settings.requireApproval && !settings.requireApproval) await deps.store.approveUpcoming(userId)
   const rebuilt = row.enabled && slotShapeChanged(row.settings, settings)
   if (rebuilt) {
     await deps.store.cancelUpcoming(userId)

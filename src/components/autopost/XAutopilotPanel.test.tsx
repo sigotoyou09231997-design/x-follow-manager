@@ -723,3 +723,76 @@ describe('XAutopilotPanel: 前の投稿を X から消す（スイッチ）', ()
     expect(screen.getByText(/2026\/10\/15にオンにしました。それ以降の投稿が対象です/)).toBeInTheDocument()
   })
 })
+
+describe('XAutopilotPanel: 投稿可能（確認してから投稿する）', () => {
+  const future = (hours: number) => new Date(Date.now() + hours * 3600_000).toISOString()
+
+  it('確認待ち（draft）の予約には「確認待ち」と「投稿可能にする」が出る。投稿可能（scheduled）には「投稿可能」と「確認待ちに戻す」', async () => {
+    posts.list = [post('a', { status: 'draft', scheduledAt: future(3) }), post('b', { scheduledAt: future(6) })]
+    render(<XAutopilotPanel />)
+
+    expect(await screen.findByText('確認待ち')).toBeInTheDocument()
+    expect(screen.getByText('投稿可能')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'この予約を投稿可能にする' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'この予約を確認待ちに戻す' })).toHaveLength(1)
+    expect(screen.getByText(/「投稿可能」を押したものだけが、時刻になると投稿されます/)).toBeInTheDocument()
+  })
+
+  it('「投稿可能にする」で、その予約の状態だけを scheduled にし、前の時刻の空き枠を作り直してもらう', async () => {
+    posts.list = [post('a', { status: 'draft', scheduledAt: future(3) })]
+    render(<XAutopilotPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'この予約を投稿可能にする' }))
+
+    await waitFor(() => expect(posts.update).toHaveBeenCalledWith('a', { status: 'scheduled' }))
+    expect(await screen.findByText(/投稿可能にしました。時刻になると投稿されます/)).toBeInTheDocument()
+    await waitFor(() => expect(api.refillAutopilot).toHaveBeenCalledTimes(1))
+  })
+
+  it('時刻を過ぎた確認待ちは、その旨を出し、投稿可能にすると1分以内に投稿されると伝える', async () => {
+    posts.list = [post('a', { status: 'draft' })] // 既定の時刻は過去
+    render(<XAutopilotPanel />)
+    expect(await screen.findByText('確認待ち（時刻を過ぎています）')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'この予約を投稿可能にする' }))
+    expect(await screen.findByText(/時刻を過ぎているので、1分以内に投稿されます/)).toBeInTheDocument()
+  })
+
+  it('「確認待ちに戻す」で draft に戻す。このときは作り直しを頼まない', async () => {
+    posts.list = [post('a', { scheduledAt: future(3) })]
+    render(<XAutopilotPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'この予約を確認待ちに戻す' }))
+
+    await waitFor(() => expect(posts.update).toHaveBeenCalledWith('a', { status: 'draft' }))
+    expect(await screen.findByText(/確認待ちに戻しました/)).toBeInTheDocument()
+    expect(api.refillAutopilot).not.toHaveBeenCalled()
+  })
+
+  it('更新に失敗したら理由を出し、作り直しは頼まない', async () => {
+    posts.update.mockRejectedValue(new Error('予約の更新に失敗しました: boom'))
+    posts.list = [post('a', { status: 'draft', scheduledAt: future(3) })]
+    render(<XAutopilotPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'この予約を投稿可能にする' }))
+
+    expect(await screen.findByText(/予約の更新に失敗しました/)).toBeInTheDocument()
+    expect(api.refillAutopilot).not.toHaveBeenCalled()
+  })
+
+  it('設定: 「投稿する前に確認する」は既定でオン。オフにして保存すると requireApproval: false だけを送る', async () => {
+    api.saveAutopilotSettings.mockResolvedValue({ state: state({ settings: { ...DEFAULT_SETTINGS, requireApproval: false } }) })
+    render(<XAutopilotPanel />)
+    await screen.findByText('自動運転')
+    const box = screen.getByRole('checkbox', { name: /投稿する前に、自分で確認して/ }) as HTMLInputElement
+    expect(box.checked).toBe(true)
+    fireEvent.click(box)
+    fireEvent.click(button('設定を保存する'))
+    await waitFor(() => expect(api.saveAutopilotSettings).toHaveBeenCalledWith({ requireApproval: false }))
+  })
+
+  it('トップの1画面（summary）では、確認待ちの件数を稼働スイッチの行に出し、同じように投稿可能にできる', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    posts.list = [post('a', { status: 'draft', scheduledAt: future(3) }), post('b', { status: 'draft', scheduledAt: future(6) })]
+    render(<XAutopilotPanel variant="summary" />)
+
+    expect(await screen.findByText('自動運転中・確認待ち2件')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'この予約を投稿可能にする' })).toHaveLength(2)
+  })
+})

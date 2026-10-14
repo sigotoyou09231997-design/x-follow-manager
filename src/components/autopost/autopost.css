@@ -497,8 +497,44 @@
   font-variant-numeric: tabular-nums;
 }
 
-.xap__upcoming li > button {
+.xap__upcoming li > .xap__badge {
   order: 2;
+}
+
+.xap__badge {
+  flex: none;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 確認待ちは薄いオレンジ（まだ投稿されない）、投稿可能は薄い緑（時刻になると投稿される）。 */
+.xap__badge--draft {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.xap__badge--ok {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.xap__upcoming .xap__card-actions {
+  order: 4;
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 主な操作（投稿可能にする／確認待ちに戻す）は1段目に横いっぱい、編集・取り消しは2段目に並べる。 */
+.xap__upcoming .xap__card-actions > :first-child {
+  flex: 1 1 100%;
+}
+
+.xap__upcoming .xap__card-actions > :not(:first-child) {
+  flex: 1 1 0;
 }
 
 /* 直している最中の1件。時刻の見出しの下に、本文と日時の入力欄を縦に並べる。 */
