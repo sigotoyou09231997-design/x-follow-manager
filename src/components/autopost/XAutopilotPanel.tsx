@@ -256,7 +256,7 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
     setNotice(undefined)
     try {
       // 投稿可能な予約の中で、これがいちばん早いなら、待たせずに前倒しする（5分後）。前に投稿可能な予約があれば、時刻はそのまま。
-      const moved = approved ? soonestApprovalTime(post, posts, Date.now()) : undefined
+      const moved = approved ? soonestApprovalTime(post, posts.filter((p) => isAutopilotPost(p.aiPrompt)), Date.now()) : undefined
       await updateScheduledPost(id, { status: approved ? 'scheduled' : 'draft', ...(moved ? { scheduledAt: moved } : {}) })
       const late = !!post.scheduledAt && new Date(post.scheduledAt).getTime() <= Date.now()
       const text = approved
