@@ -283,6 +283,21 @@ export async function createPost(
   return data.data.id
 }
 
+/**
+ * 自分の投稿を1件、X から消す（元に戻せない）。
+ * すでに無い（404）は「消えた」と同じなので成功として返す。そうしないと、手で消した投稿の記録が永久に消し残りになる。
+ */
+export async function deletePost(accessToken: string, tweetId: string): Promise<void> {
+  const response = await fetch(`${TWEETS_ENDPOINT}/${encodeURIComponent(tweetId)}`, {
+    method: 'DELETE',
+    headers: { authorization: `Bearer ${accessToken}` },
+  })
+  if (response.ok || response.status === 404) return
+  const text = await response.text()
+  const retryable = response.status === 429 || response.status >= 500
+  throw new XApiError(`投稿の削除に失敗しました (${response.status}): ${text.replace(/\s+/g, ' ').slice(0, 200)}`, response.status, retryable)
+}
+
 /** 自分のタイムラインから読んだ投稿1件（必要な項目だけ）。 */
 export interface OwnPost {
   id: string

@@ -1,17 +1,19 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { requireCronSecret, UnauthorizedError } from './_lib/auth.js'
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
-import { createPost, fetchOwnPosts, setMediaAltText, uploadMedia, XApiError } from './_lib/xClient.js'
+import { createPost, deletePost, fetchOwnPosts, setMediaAltText, uploadMedia, XApiError } from './_lib/xClient.js'
 import { getAccessToken } from './_lib/xToken.js'
 import { nextOccurrence } from '../src/lib/schedule/repeat.js'
 import { anthropicApiKey } from './_lib/postWriter.js'
 import { RECENT_POSTS_TO_AVOID, writeDailyPost } from './_lib/dailyWriter.js'
 import { topUpAll } from './_lib/autopilotEngine.js'
+import { deletePreviousAutopilotPosts, type CleanupDeps } from './_lib/autopilotCleanup.js'
 import { supabaseAutopilotStore } from './_lib/autopilotStore.js'
 import { writeAutopilotPost, writeProfile } from './_lib/autopilotWriter.js'
 import { supabasePosterWatchDeps, watchPosters } from './_lib/posterWatch.js'
 import { isOverLimit } from '../src/lib/schedule/textLength.js'
 import type { PostSegment, RepeatRule } from '../src/lib/schedule/types.js'
+import { AUTOPILOT_PREFIX, DELETED_MARK } from '../src/lib/xAutopilot/types.js'
 
 // Supabase の pg_cron から毎分呼ばれ、投稿時刻を過ぎた予約をXへ送る。
 // ブラウザが閉じていても動くよう、処理は完全にサーバー側で完結する。
@@ -44,6 +46,7 @@ interface PostRow {
   scheduled_at: string
   attempt_count: number
   repeat_parent_id: string | null
+  ai_prompt: string | null
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -80,7 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { data, error } = await db
       .from('scheduled_posts')
-      .select('id, user_id, segments, scheduled_at, attempt_count, repeat_parent_id')
+      .select('id, user_id, segments, scheduled_at, attempt_count, repeat_parent_id, ai_prompt')
       .eq('status', 'scheduled')
       .lte('scheduled_at', startedAt.toISOString())
       .order('scheduled_at', { ascending: true })
@@ -439,6 +442,9 @@ async function publishOne(post: PostRow, tokenCache: Map<string, string>): Promi
       // 二重投稿しかねない。ここは必ず声を上げる（復旧側でも投稿済みは除外している）。
       console.error(`投稿は成功したが状態の保存に失敗: ${post.id}`, saveError.message)
     }
+    // X の自動運転の投稿なら、前に自動運転が出した投稿を X から消す（いつも最新の1本だけが残る）。
+    // 投稿そのものは出せているので、ここの失敗は結果に影響させない。
+    if (post.ai_prompt?.startsWith(AUTOPILOT_PREFIX)) await removePreviousAutopilotPosts(post, accessToken)
     return 'posted'
   } catch (error) {
     const attempts = post.attempt_count + 1
@@ -458,6 +464,46 @@ async function publishOne(post: PostRow, tokenCache: Map<string, string>): Promi
 
     console.error(`publish failed for ${post.id} (attempt ${attempts}):`, error)
     return willRetry ? 'retrying' : 'failed'
+  }
+}
+
+/**
+ * 今出した自動運転の投稿より前の、自動運転の投稿を X から消す（中身は _lib/autopilotCleanup.ts）。
+ * 消すのは、自動運転の予約（ai_prompt が autopilot:）として出し、投稿 ID が記録されている行だけ。
+ * 本人が自分で書いたツイートやふつうの予約は、ここには入ってこない。
+ */
+async function removePreviousAutopilotPosts(post: PostRow, accessToken: string): Promise<void> {
+  const db = getSupabaseAdmin()
+  const deps: CleanupDeps = {
+    async listPrevious(userId, exceptId) {
+      const { data, error } = await db
+        .from('scheduled_posts')
+        .select('id, posted_tweet_ids, error_message')
+        .eq('user_id', userId)
+        .eq('status', 'posted')
+        .like('ai_prompt', `${AUTOPILOT_PREFIX}%`)
+        .not('posted_tweet_ids', 'is', null)
+        .neq('id', exceptId)
+        .order('scheduled_at', { ascending: true })
+        .limit(200)
+      if (error) throw new Error(`前の投稿の取得に失敗しました: ${error.message}`)
+      return ((data ?? []) as { id: string; posted_tweet_ids: string[] | null; error_message: string | null }[])
+        .filter((row) => row.error_message !== DELETED_MARK)
+        .map((row) => ({ id: row.id, tweetIds: row.posted_tweet_ids ?? [] }))
+    },
+    deleteTweet: (tweetId) => deletePost(accessToken, tweetId),
+    async markDeleted(id) {
+      const { error } = await db
+        .from('scheduled_posts')
+        .update({ error_message: DELETED_MARK, updated_at: new Date().toISOString() })
+        .eq('id', id)
+      if (error) throw new Error(error.message)
+    },
+  }
+  try {
+    await deletePreviousAutopilotPosts(deps, post.user_id, post.id)
+  } catch (error) {
+    console.error('removePreviousAutopilotPosts failed:', (error as Error).message)
   }
 }
 

@@ -14,6 +14,13 @@ export const isAutopilotPost = (aiPrompt: string | null | undefined): boolean =>
  */
 export const REJECTED_MARK = '本人が取り消した'
 
+/**
+ * 自動運転の投稿は、次の投稿が出たときに前のものを X から消す。消した投稿の予約の行（status が posted のまま）に、
+ * この印を error_message へ入れる。印が付いた行は、もう一度消そうとしない。
+ * 行そのものは消さない（posted_tweet_ids を残し、自動運転の投稿を文体の学習から外す判定に使い続けるため）。
+ */
+export const DELETED_MARK = 'Xから削除済み'
+
 /** 文章の質。標準＝高い精度、節約＝費用を抑える（短い投稿なら差は小さい）。使うAIと料金は cost.ts。 */
 export type Quality = 'standard' | 'saver'
 
