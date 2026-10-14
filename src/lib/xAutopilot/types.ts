@@ -37,6 +37,11 @@ export interface AutopilotSettings {
   monthlyBudgetYen: number
   quality: Quality
   /**
+   * 投稿する前に、本人が「投稿可能」を押して確認するか。オンのあいだ、自動運転が並べる投稿は「確認待ち」（下書き）で、
+   * 押したものだけが、時刻になると投稿される。オフなら、確認なしで時刻になれば投稿される（これまでの動き）。
+   */
+  requireApproval: boolean
+  /**
    * 次の自動運転の投稿が出たとき、前に自動運転が出した投稿を X から消すか。消すと元に戻せないので、既定はオフ。
    * 消すのは自動運転が出した投稿だけ（本人が書いたツイートには触れない）。
    */
@@ -56,6 +61,7 @@ export const DEFAULT_SETTINGS: AutopilotSettings = {
   horizonDays: 2,
   monthlyBudgetYen: 3000,
   quality: 'standard',
+  requireApproval: true,
   deletePrevious: false,
   deletePreviousFrom: null,
 }

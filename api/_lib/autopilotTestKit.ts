@@ -27,7 +27,11 @@ export function history(n: number, start = 1): HistoryPost[] {
 }
 
 export function memoryStore(initial?: Partial<AutopilotRow>) {
-  const rows = new Map<string, AutopilotRow>([[OWNER, { ...emptyRow(OWNER), ...initial }]])
+  // 既定は「確認なしで、時刻になれば投稿」（requireApproval: false）。確認ありの動きは、そのテストで initial に指定する。
+  const base = emptyRow(OWNER)
+  const rows = new Map<string, AutopilotRow>([
+    [OWNER, { ...base, settings: { ...base.settings, requireApproval: false }, ...initial }],
+  ])
   // rejected: 本人が「取り消す」で外したもの（本物では error_message の印）。「自動運転を止める」での一括の取り消しには付かない
   // postedTweetIds: 投稿済みになったときの X の投稿の番号（本物では posted_tweet_ids）
   const posts: {
@@ -59,7 +63,7 @@ export function memoryStore(initial?: Partial<AutopilotRow>) {
     async insertPost(input) {
       // 本物の索引（007）と同じく、取り消した予約は数えない。数えると、設定を変えて作り直すときに同じ枠が重複扱いになる。
       if (posts.some((p) => p.userId === input.userId && p.slotKey === input.slotKey && p.status !== 'canceled')) return 'duplicate'
-      posts.push({ ...input, status: 'scheduled' })
+      posts.push({ ...input, status: input.status ?? 'scheduled' })
       return 'inserted'
     },
     async recentTexts(userId, limit) {
@@ -96,8 +100,17 @@ export function memoryStore(initial?: Partial<AutopilotRow>) {
     async cancelUpcoming(userId) {
       let n = 0
       for (const p of posts) {
-        if (p.userId !== userId || p.status !== 'scheduled') continue
+        if (p.userId !== userId || (p.status !== 'scheduled' && p.status !== 'draft')) continue
         p.status = 'canceled'
+        n++
+      }
+      return n
+    },
+    async approveUpcoming(userId) {
+      let n = 0
+      for (const p of posts) {
+        if (p.userId !== userId || p.status !== 'draft') continue
+        p.status = 'scheduled'
         n++
       }
       return n

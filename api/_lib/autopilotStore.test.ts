@@ -143,7 +143,7 @@ describe('autopilot store が送る要求', () => {
     const q = sent[0].url.searchParams
     expect(q.get('user_id')).toBe('eq.u1')
     expect(q.get('ai_prompt')).toBe('like.autopilot:%')
-    expect(q.get('status')).toBe('in.(scheduled,publishing,posted)')
+    expect(q.get('status')).toBe('in.(scheduled,draft,publishing,posted)')
     expect(q.get('order')).toBe('scheduled_at.desc')
     expect(q.get('limit')).toBe('15')
   })
@@ -199,7 +199,7 @@ describe('autopilot store が送る要求', () => {
     expect(await store.activeSlotKeys('u1', '2026-10-09')).toEqual(['2026-10-10#0', '2026-10-10#1'])
     const q = sent[0].url.searchParams
     expect(q.get('user_id')).toBe('eq.u1')
-    expect(q.get('status')).toBe('in.(scheduled,publishing,posted)')
+    expect(q.get('status')).toBe('in.(scheduled,draft,publishing,posted)')
     expect(q.getAll('ai_prompt')).toEqual(['like.autopilot:%', 'gte.autopilot:2026-10-09'])
   })
 
@@ -215,8 +215,28 @@ describe('autopilot store が送る要求', () => {
     expect(req.method).toBe('PATCH')
     expect(req.url.searchParams.get('user_id')).toBe('eq.u1')
     expect(req.url.searchParams.get('ai_prompt')).toBe('like.autopilot:%')
-    expect(req.url.searchParams.get('status')).toBe('eq.scheduled')
+    // 確認待ち（draft）の予約も、まだ出ていない予約として取り消す
+    expect(req.url.searchParams.get('status')).toBe('in.(scheduled,draft)')
     expect(req.body.status).toBe('canceled')
+  })
+
+  it('確認待ちを投稿可能にする: 自分の・自動運転の・確認待ち（draft）だけを、scheduled にする', async () => {
+    const { store, sent } = fakeStore(() => ({ status: 200, body: [{ id: 'a' }] }))
+    expect(await store.approveUpcoming('u1')).toBe(1)
+    const req = sent[0]
+    expect(req.method).toBe('PATCH')
+    expect(req.url.searchParams.get('user_id')).toBe('eq.u1')
+    expect(req.url.searchParams.get('ai_prompt')).toBe('like.autopilot:%')
+    expect(req.url.searchParams.get('status')).toBe('eq.draft')
+    expect(req.body.status).toBe('scheduled')
+  })
+
+  it('予約に入れるとき、状態を指定できる（確認待ち=draft）。指定が無ければ scheduled', async () => {
+    const { store, sent } = fakeStore(() => ({ status: 201, body: [] }))
+    await store.insertPost({ userId: 'u1', at: '2026-10-15T03:00:00Z', text: 'あ', slotKey: '2026-10-15#0', status: 'draft' })
+    await store.insertPost({ userId: 'u1', at: '2026-10-15T03:00:00Z', text: 'あ', slotKey: '2026-10-15#1' })
+    expect(sent[0].body.status).toBe('draft')
+    expect(sent[1].body.status).toBe('scheduled')
   })
 
   it('連携中の X アカウントは、トークンを読まずに番号と名前だけ', async () => {

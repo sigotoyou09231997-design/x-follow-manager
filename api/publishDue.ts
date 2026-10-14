@@ -36,6 +36,11 @@ const AI_BUDGET_MS = 30_000
 const AI_TIMEOUT_MS = 20_000
 /** 生成に失敗したテンプレートをやり直す間隔（分）。 */
 const AI_RETRY_INTERVAL_MINUTES = 15
+/**
+ * 「確認待ち」のまま、投稿時刻からこの時間が過ぎた自動運転の予約は、取り消す（確認されずに古くなった文を、
+ * いつまでも一覧に残さない。押してもすでに時機を逃した投稿になるため）。本人が嫌がったわけではないので、取り消しの印は付けない。
+ */
+const STALE_DRAFT_HOURS = 6
 /** X の自動運転で、前回うまくいかなかった人をやり直す間隔（分）。 */
 const AUTOPILOT_RETRY_INTERVAL_MINUTES = 5
 
@@ -80,6 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     result.recovered = await recoverStalePosts()
+    await expireStaleAutopilotDrafts(startedAt)
 
     const { data, error } = await db
       .from('scheduled_posts')
@@ -171,6 +177,18 @@ async function topUpAutopilots(startedAt: Date, allowance: number): Promise<numb
     console.error('topUpAutopilots failed:', error)
     return 0
   }
+}
+
+/** 確認されないまま古くなった自動運転の「確認待ち」を取り消す。失敗しても、予約の投稿は止めない。 */
+async function expireStaleAutopilotDrafts(now: Date): Promise<void> {
+  const threshold = new Date(now.getTime() - STALE_DRAFT_HOURS * 3_600_000).toISOString()
+  const { error } = await getSupabaseAdmin()
+    .from('scheduled_posts')
+    .update({ status: 'canceled', updated_at: now.toISOString() })
+    .eq('status', 'draft')
+    .like('ai_prompt', `${AUTOPILOT_PREFIX}%`)
+    .lt('scheduled_at', threshold)
+  if (error) console.error('expireStaleAutopilotDrafts failed:', error.message)
 }
 
 /**

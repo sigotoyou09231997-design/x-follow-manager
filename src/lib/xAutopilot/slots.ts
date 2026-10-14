@@ -77,6 +77,8 @@ export function normalizeSettings(input: Partial<AutopilotSettings> | null | und
       LIMITS.monthlyBudgetYen.max
     ),
     quality: raw.quality === 'saver' ? 'saver' : 'standard',
+    // 明示的に false のときだけオフ。未設定（これまでの保存）は、確認してから投稿する側に倒す。
+    requireApproval: raw.requireApproval !== false,
     deletePrevious,
     // オフのあいだ、オンにした時刻は持たない。オンなのに時刻が無い・読めないときは null（＝何も消さない。下の deletesFrom）
     deletePreviousFrom:

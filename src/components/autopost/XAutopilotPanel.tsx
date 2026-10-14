@@ -82,7 +82,7 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
   const upcoming = useMemo(
     () =>
       posts
-        .filter((p) => isAutopilotPost(p.aiPrompt) && p.status === 'scheduled')
+        .filter((p) => isAutopilotPost(p.aiPrompt) && (p.status === 'scheduled' || p.status === 'draft'))
         .sort((a, b) => (a.scheduledAt ?? '').localeCompare(b.scheduledAt ?? '')),
     [posts]
   )
@@ -228,6 +228,30 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
     }
   }
 
+  // 「投稿可能」: 確認待ち（draft）を予約中（scheduled）にする。時刻になると投稿される（時刻を過ぎていれば、1分以内に）。
+  // 「確認待ちに戻す」はその逆。投稿可能にしたあとは、その予約より前の時刻に、まだ作っていない枠が残っていないかを
+  // 調べて、あればいちばん近い枠から別の文を作る（取り消したあとの作り直しと同じ仕組み。空きが無ければ何も作らない）。
+  async function setApproved(id: string, approved: boolean) {
+    const post = posts.find((p) => p.id === id)
+    if (!post) return
+    setNotice(undefined)
+    try {
+      await updateScheduledPost(id, { status: approved ? 'scheduled' : 'draft' })
+      const late = !!post.scheduledAt && new Date(post.scheduledAt).getTime() <= Date.now()
+      const text = approved
+        ? late
+          ? '投稿可能にしました。時刻を過ぎているので、1分以内に投稿されます'
+          : '投稿可能にしました。時刻になると投稿されます'
+        : '確認待ちに戻しました。投稿可能にするまで、投稿されません'
+      setNotice({ text, kind: 'ok' })
+      await reloadPosts()
+      // 作り直しで空き枠に文を並べたときも、「投稿可能にした」知らせは消さずに、並べたことを足して伝える。
+      if (approved) queueRefill(`${text}。前の時刻の空き枠にも、別の文を並べました`)
+    } catch (err) {
+      setNotice({ text: errorOf(err), kind: 'err' })
+    }
+  }
+
   async function cancelOne(id: string) {
     const post = posts.find((p) => p.id === id)
     if (!post) return
@@ -247,14 +271,14 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
 
   // 取り消した枠（いちばん近い時刻から）を、いますぐ別の文で作り直す。毎分の補充も同じ空きを拾うので、
   // これが失敗しても、このあと数分で自動で作り直される。続けて取り消しても、順番に1つずつ頼む。
-  function queueRefill() {
+  function queueRefill(createdText = '取り消した枠に、別の文を並べました') {
     setRefilling((n) => n + 1)
     refillQueue.current = refillQueue.current.then(async () => {
       try {
         const reply = await refillAutopilot()
         const r = reply.result as { created: number; error?: string } | undefined
         if (r?.error) setNotice({ text: `${r.error}。このあと数分で、自動で作り直します`, kind: 'err' })
-        else if (r && r.created > 0) setNotice({ text: '取り消した枠に、別の文を並べました', kind: 'ok' })
+        else if (r && r.created > 0) setNotice({ text: createdText, kind: 'ok' })
       } catch (err) {
         setNotice({ text: `${errorOf(err)}。このあと数分で、自動で作り直します`, kind: 'err' })
       } finally {
@@ -288,15 +312,34 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
             ) : (
               <li key={post.id}>
                 <span className="xap__when">{whenLabel(post.scheduledAt, state.settings.timeZone)}</span>
+                <span className={`xap__badge xap__badge--${post.status === 'draft' ? 'draft' : 'ok'}`}>
+                  {post.status === 'draft'
+                    ? post.scheduledAt && new Date(post.scheduledAt).getTime() <= Date.now()
+                      ? '確認待ち（時刻を過ぎています）'
+                      : '確認待ち'
+                    : '投稿可能'}
+                </span>
                 <span className="autopost__history-text xap__upcoming-text">{post.segments[0]?.text}</span>
-                <button type="button" className="btn btn--ghost btn--small" onClick={() => setEditing({ id: post.id, saving: false })} aria-label="この予約の本文と時刻を直す">
-                  <Icon name="edit" size={14} />
-                  編集
-                </button>
-                <button type="button" className="btn btn--ghost btn--small btn--danger" onClick={() => void cancelOne(post.id)}>
-                  <Icon name="trash" size={14} />
-                  取り消す
-                </button>
+                <div className="xap__card-actions">
+                  {post.status === 'draft' ? (
+                    <button type="button" className="btn btn--primary btn--small" onClick={() => void setApproved(post.id, true)} aria-label="この予約を投稿可能にする">
+                      <Icon name="check" size={14} />
+                      投稿可能にする
+                    </button>
+                  ) : (
+                    <button type="button" className="btn btn--ghost btn--small" onClick={() => void setApproved(post.id, false)} aria-label="この予約を確認待ちに戻す">
+                      確認待ちに戻す
+                    </button>
+                  )}
+                  <button type="button" className="btn btn--ghost btn--small" onClick={() => setEditing({ id: post.id, saving: false })} aria-label="この予約の本文と時刻を直す">
+                    <Icon name="edit" size={14} />
+                    編集
+                  </button>
+                  <button type="button" className="btn btn--ghost btn--small btn--danger" onClick={() => void cancelOne(post.id)}>
+                    <Icon name="trash" size={14} />
+                    取り消す
+                  </button>
+                </div>
               </li>
             )
           ))}
@@ -304,6 +347,7 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
       )}
       {upcoming.length > 0 && (
         <p className="xap__muted">
+          {state.settings.requireApproval ? '「投稿可能」を押したものだけが、時刻になると投稿されます（確認待ちのままだと投稿されません）。' : ''}
           {variant === 'summary'
             ? '「編集」で本文と投稿時刻を直せます。取り消すと、近い時刻の枠から別の文を作り直します（数十秒）。'
             : '「編集」で本文と投稿時刻を直せます。取り消すと、いちばん近い時刻の枠から、別の文を作り直して並べます（数十秒）。取り消した文は覚えておき、似た話題・型は作らないようにします。'}
@@ -314,6 +358,7 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
 
   if (variant === 'summary') {
     const ready = hasProfile && connected
+    const waitingCount = upcoming.filter((p) => p.status === 'draft').length
     const stopButton = (
       <button type="button" className="btn btn--small autopost__pause-stop" onClick={() => void doStop()} disabled={working} aria-label="自動運転を止める">
         {busy === 'stop' ? '止めています…' : '止める'}
@@ -352,7 +397,7 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
           <SwitchRow
             name="X"
             tone={state.enabled ? (state.lastError ? 'warn' : 'on') : 'off'}
-            status={state.enabled ? '自動運転中' : ready ? '自動運転は止まっています' : '先に、Xとの連携と文体のまとめが必要です'}
+            status={state.enabled ? (waitingCount > 0 ? `自動運転中・確認待ち${waitingCount}件` : '自動運転中') : ready ? '自動運転は止まっています' : '先に、Xとの連携と文体のまとめが必要です'}
             note={state.enabled && state.lastError ? `補充を止めています: ${state.lastError}` : undefined}
             action={state.enabled ? stopButton : !ready && onOpenDetail ? setupButton : startButton}
           />
@@ -497,6 +542,21 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
             value={form.monthlyBudgetYen}
             onChange={(e) => setEdits((p) => ({ ...p, monthlyBudgetYen: Number(e.target.value) }))}
           />
+        </label>
+
+        <label className={`xap__option${form.requireApproval ? ' xap__option--on' : ''}`}>
+          <input
+            type="checkbox"
+            checked={form.requireApproval}
+            onChange={(e) => setEdits((p) => ({ ...p, requireApproval: e.target.checked }))}
+          />
+          <span className="xap__option-body">
+            <strong>投稿する前に、自分で確認して「投稿可能」を押す</strong>
+            <span>
+              オンのあいだ、AIが並べる投稿は「確認待ち」で、押したものだけが時刻になると投稿されます。
+              オフにすると、確認なしで、時刻になれば投稿されます（確認待ちだった分も、投稿可能になります）。
+            </span>
+          </span>
         </label>
 
         <label className={`xap__option${form.deletePrevious ? ' xap__option--on' : ''}`}>
