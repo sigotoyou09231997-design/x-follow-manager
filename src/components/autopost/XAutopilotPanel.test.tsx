@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   previewAutopilotPost: vi.fn(),
   startAutopilot: vi.fn(),
   stopAutopilot: vi.fn(),
+  refillAutopilot: vi.fn(),
 }))
 vi.mock('../../lib/xAutopilot/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/xAutopilot/api')>()),
@@ -70,9 +71,10 @@ beforeEach(() => {
   posts.reload.mockReset().mockResolvedValue(undefined)
   posts.update.mockReset().mockResolvedValue(undefined)
   api.fetchAutopilot.mockResolvedValue({ state: state() })
+  api.refillAutopilot.mockResolvedValue({ state: state(), result: { created: 1, generated: 1 } })
 })
 
-const button = (name: RegExp | string) => screen.getByRole('button', { name })
+const button =(name: RegExp | string) => screen.getByRole('button', { name })
 
 describe('XAutopilotPanel: 文体', () => {
   it('最初は、過去の投稿を読んで文体をまとめるボタンに費用の目安が付く', async () => {
@@ -383,13 +385,84 @@ describe('XAutopilotPanel: これから投稿される予定', () => {
   // 消さずに「取り消した」印を付けて残し、次に書くときの「出さないもの」にする。
   it('取り消すと、その予約だけに「取り消した」印を付けて残し、一覧を取り直す（削除はしない）', async () => {
     posts.list = [post('a'), post('b')]
+    // 作り直しはまだ終わらない状態にする（終わると、最初のお知らせは「並べました」に置き換わるため）
+    api.refillAutopilot.mockReturnValue(new Promise(() => {}))
     render(<XAutopilotPanel />)
     const [first] = await screen.findAllByRole('button', { name: /取り消す/ })
     fireEvent.click(first)
     await waitFor(() => expect(posts.update).toHaveBeenCalledTimes(1))
     expect(posts.update).toHaveBeenCalledWith('a', { status: 'canceled', rejected: true })
     expect(posts.reload).toHaveBeenCalled()
-    expect(await screen.findByText(/似た話題・型は、これから作らないようにします/)).toBeInTheDocument()
+    expect(await screen.findByText(/いちばん近い時刻の枠から、別の文を作り直します/)).toBeInTheDocument()
+  })
+
+  // 実例: 今日・明日の枠を取り消すと、その日の投稿が無くなり、自動運転を止めて始め直すまで戻らなかった。
+  // 取り消したら、いちばん近い時刻の枠から、いますぐ（毎分の補充を待たずに）別の文を作り直す。
+  it('取り消したあと、いますぐ作り直しを頼み、作り直している間は知らせ、できたら伝えて一覧を取り直す', async () => {
+    posts.list = [post('a')]
+    let release!: () => void
+    api.refillAutopilot.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ state: state(), result: { created: 1, generated: 1 } })
+        })
+    )
+    render(<XAutopilotPanel />)
+    fireEvent.click((await screen.findAllByRole('button', { name: /取り消す/ }))[0])
+    await waitFor(() => expect(api.refillAutopilot).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText(/別の文を作り直しています/)).toBeInTheDocument()
+    const reloadsBefore = posts.reload.mock.calls.length
+
+    release()
+    expect(await screen.findByText('取り消した枠に、別の文を並べました')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText(/別の文を作り直しています/)).not.toBeInTheDocument())
+    expect(posts.reload.mock.calls.length).toBeGreaterThan(reloadsBefore)
+  })
+
+  it('続けて何本取り消しても、作り直しは1つずつ順番に頼む（同じ枠を同時に作って費用が無駄にならないように）', async () => {
+    posts.list = [post('a'), post('b')]
+    let running = 0
+    let peak = 0
+    api.refillAutopilot.mockImplementation(async () => {
+      running++
+      peak = Math.max(peak, running)
+      await new Promise((r) => setTimeout(r, 20))
+      running--
+      return { state: state(), result: { created: 1, generated: 1 } }
+    })
+    render(<XAutopilotPanel />)
+    const [first, second] = await screen.findAllByRole('button', { name: /取り消す/ })
+    fireEvent.click(first)
+    fireEvent.click(second)
+    await waitFor(() => expect(api.refillAutopilot).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByText(/別の文を作り直しています/)).not.toBeInTheDocument())
+    expect(peak).toBe(1)
+  })
+
+  it('作り直しが失敗しても、取り消し自体は済んでいる。理由と「このあと自動で作り直す」ことを伝える', async () => {
+    posts.list = [post('a')]
+    api.refillAutopilot.mockRejectedValue(new Error('AIが応答しません'))
+    render(<XAutopilotPanel />)
+    fireEvent.click((await screen.findAllByRole('button', { name: /取り消す/ }))[0])
+    expect(await screen.findByText(/AIが応答しません。このあと数分で、自動で作り直します/)).toBeInTheDocument()
+    expect(posts.update).toHaveBeenCalledWith('a', { status: 'canceled', rejected: true })
+  })
+
+  it('サーバーが「作れなかった」理由を返したときも、その理由を伝える（月の上限など）', async () => {
+    posts.list = [post('a')]
+    api.refillAutopilot.mockResolvedValue({ state: state(), result: { created: 0, generated: 0, error: '今月の上限に近づいています' } })
+    render(<XAutopilotPanel />)
+    fireEvent.click((await screen.findAllByRole('button', { name: /取り消す/ }))[0])
+    expect(await screen.findByText(/今月の上限に近づいています。このあと数分で、自動で作り直します/)).toBeInTheDocument()
+  })
+
+  it('取り消し自体に失敗したら、作り直しは頼まない', async () => {
+    posts.list = [post('a')]
+    posts.update.mockRejectedValue(new Error('予約の更新に失敗しました: boom'))
+    render(<XAutopilotPanel />)
+    fireEvent.click((await screen.findAllByRole('button', { name: /取り消す/ }))[0])
+    expect(await screen.findByText(/予約の更新に失敗しました/)).toBeInTheDocument()
+    expect(api.refillAutopilot).not.toHaveBeenCalled()
   })
 
   it('予約が無ければ、始めると並ぶことを伝える', async () => {

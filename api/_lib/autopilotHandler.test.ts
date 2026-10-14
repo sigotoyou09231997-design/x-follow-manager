@@ -157,6 +157,24 @@ describe('操作', () => {
     expect(store.posts.every((p) => p.status === 'canceled')).toBe(true)
   })
 
+  it('取り消した枠を、いますぐ別の文で作り直す（refill）。ログインが要る', async () => {
+    const { handler, store } = setup(ready())
+    const anon = await call(handler, { body: { action: 'refill' } })
+    expect(anon.status).toBe(401)
+
+    await call(handler, { ...AS_OWNER, body: { action: 'enable' } })
+    const first = store.posts[0]
+    first.status = 'canceled' // 画面の「取り消す」（削除せず、印を付けて残す）
+    first.rejected = true
+
+    const r = await call(handler, { ...AS_OWNER, body: { action: 'refill' } })
+    expect(r.status).toBe(200)
+    expect(r.body.result.created).toBe(1)
+    const replacement = store.posts.find((p) => p.slotKey === first.slotKey && p.status === 'scheduled')
+    expect(replacement).toBeTruthy()
+    expect(replacement!.text).not.toBe(first.text)
+  })
+
   it('設定を保存する: 枠が変わったかも返す。範囲外は直さず、理由つきで400', async () => {
     const { handler } = setup(ready())
     const r = await call(handler, { ...AS_OWNER, body: { action: 'saveSettings', settings: { postsPerDay: 2 } } })

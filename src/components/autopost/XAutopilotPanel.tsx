@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useScheduledPosts } from '../../hooks/useScheduledPosts'
 import { useXAutopilot } from '../../hooks/useXAutopilot'
 import {
   buildAutopilotProfile,
   previewAutopilotPost,
   readAutopilotHistory,
+  refillAutopilot,
   saveAutopilotSettings,
   startAutopilot,
   stopAutopilot,
@@ -55,6 +56,9 @@ export function XAutopilotPanel() {
   const [notice, setNotice] = useState<Notice>()
   const [preview, setPreview] = useState<{ text: string | null; problems: string[] }>()
   const [step, setStep] = useState<string>()
+  // 「取り消す」のあとの作り直し。続けて何本も取り消しても、1つずつ順番に頼む（同じ枠を同時に作って費用が無駄にならないように）。
+  const refillQueue = useRef<Promise<unknown>>(Promise.resolve())
+  const [refilling, setRefilling] = useState(0)
 
   const upcoming = useMemo(
     () =>
@@ -184,13 +188,34 @@ export function XAutopilotPanel() {
     try {
       // 削除せず、「取り消した」印を付けて残す。消すと、AIに「これは要らない」が伝わらず、取り消しても
       // 似た話題・同じ型の文が出続けた。残した文は、次に書くとき「こういうのは出さない」の材料になる。
-      // 取り消した枠は作り直されない（枠は x_autopilot.slots に覚えてある）。一覧には出ない。
+      // 取り消した枠は空きとして扱い、別の文で作り直す（下の queueRefill）。一覧には出ない。
       await updateScheduledPost(post.id, { status: 'canceled', rejected: true })
-      setNotice({ text: '取り消しました。この文に似た話題・型は、これから作らないようにします', kind: 'ok' })
+      setNotice({ text: '取り消しました。いちばん近い時刻の枠から、別の文を作り直します', kind: 'ok' })
       await reloadPosts()
+      queueRefill()
     } catch (err) {
       setNotice({ text: errorOf(err), kind: 'err' })
     }
+  }
+
+  // 取り消した枠（いちばん近い時刻から）を、いますぐ別の文で作り直す。毎分の補充も同じ空きを拾うので、
+  // これが失敗しても、このあと数分で自動で作り直される。続けて取り消しても、順番に1つずつ頼む。
+  function queueRefill() {
+    setRefilling((n) => n + 1)
+    refillQueue.current = refillQueue.current.then(async () => {
+      try {
+        const reply = await refillAutopilot()
+        const r = reply.result as { created: number; error?: string } | undefined
+        if (r?.error) setNotice({ text: `${r.error}。このあと数分で、自動で作り直します`, kind: 'err' })
+        else if (r && r.created > 0) setNotice({ text: '取り消した枠に、別の文を並べました', kind: 'ok' })
+      } catch (err) {
+        setNotice({ text: `${errorOf(err)}。このあと数分で、自動で作り直します`, kind: 'err' })
+      } finally {
+        setRefilling((n) => n - 1)
+        await reloadPosts()
+        void reload()
+      }
+    })
   }
 
   return (
@@ -203,6 +228,11 @@ export function XAutopilotPanel() {
       {notice && (
         <p className={`autopost__msg autopost__msg--${notice.kind}`} role={notice.kind === 'err' ? 'alert' : 'status'}>
           {notice.text}
+        </p>
+      )}
+      {refilling > 0 && (
+        <p className="xap__muted" role="status">
+          別の文を作り直しています…（数十秒かかります）
         </p>
       )}
 
@@ -386,7 +416,8 @@ export function XAutopilotPanel() {
         )}
         {upcoming.length > 0 && (
           <p className="xap__muted">
-            文を直したいときは、「予約投稿」タブでこの予約を開いてください。取り消した枠は作り直されません。取り消した文は覚えておき、似た話題・型は作らないようにします。
+            文を直したいときは、「予約投稿」タブでこの予約を開いてください。取り消すと、いちばん近い時刻の枠から、別の文を作り直して並べます（数十秒）。
+            取り消した文は覚えておき、似た話題・型は作らないようにします。
           </p>
         )}
       </section>

@@ -57,6 +57,11 @@ export interface AutopilotStore {
    * 「自動運転を止める」での一括の取り消しは含めない（本人が嫌がったわけではないため。印は REJECTED_MARK）。
    */
   rejectedTexts(userId: string, limit: number): Promise<string[]>
+  /**
+   * 本人が「取り消す」で外した自動運転の枠の印。昨日以降ぶん。取り消した枠を、あらためて別の文で作り直すために
+   * 「空いた枠」として数える（作り直した予約が生きていれば、activeSlotKeys のほうで空きではなくなる）。
+   */
+  rejectedSlotKeys(userId: string, sinceDate: string): Promise<string[]>
   /** まだ出ていない自動運転の予約を取り消す。取り消した件数を返す。 */
   cancelUpcoming(userId: string): Promise<number>
   /**
@@ -232,6 +237,25 @@ export function supabaseAutopilotStore(client: SupabaseClient = getSupabaseAdmin
         return []
       }
       return (data ?? []).map((r) => (r.segments ?? []).map((s) => s.text).join('\n')).filter((text) => text.trim())
+    },
+
+    async rejectedSlotKeys(userId, sinceDate) {
+      // 枠の印は 'autopilot:YYYY-MM-DD#番号'。日付で始まるので、文字列の大小で昨日以降に絞れる。
+      const { data, error } = await client
+        .from('scheduled_posts')
+        .select('ai_prompt')
+        .eq('user_id', userId)
+        .like('ai_prompt', `${AUTOPILOT_PREFIX}%`)
+        .eq('status', 'canceled')
+        .eq('error_message', REJECTED_MARK)
+        .gte('ai_prompt', `${AUTOPILOT_PREFIX}${sinceDate}`)
+        .returns<{ ai_prompt: string }[]>()
+      if (error) {
+        // 読めなくても止めない。取り消した枠が、作り直されないまま（いままでの動き）になるだけ。
+        console.error('autopilot rejectedSlotKeys failed:', error.message)
+        return []
+      }
+      return (data ?? []).map((r) => r.ai_prompt.slice(AUTOPILOT_PREFIX.length))
     },
 
     async cancelUpcoming(userId) {
