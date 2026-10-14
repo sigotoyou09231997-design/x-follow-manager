@@ -11,6 +11,7 @@ import {
   EngineError,
   previewPost,
   readHistory,
+  refill,
   saveSettings,
   topUp,
   topUpAll,
@@ -262,15 +263,98 @@ describe('枠の補充（topUp）', () => {
       expect(store.posts[1].status).toBe('scheduled')
     })
 
-    it('取り消した枠は、作り直さない（枠を覚えているので）。取り消した行が残っていても同じ', async () => {
+    // 実例: 今日・明日の枠を「取り消す」と、その日の投稿が無くなり、自動運転を止めて始め直すまで戻らなかった（本人の指摘）。
+    // 取り消した枠は空きとして、いちばん近い時刻の枠から、取り消した文を避けて別の文で作り直す。
+    it('取り消した枠は、同じ枠の印で、別の文に作り直す（取り消した文は避けるよう AI に渡す）', async () => {
+      const store = ready()
+      const { deps, writePost } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      const first = store.posts[0]
+      first.status = 'canceled'
+      first.rejected = true
+      const r = await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      expect(r.created).toBe(1)
+      const replacement = store.posts.find((p) => p.slotKey === first.slotKey && p.status === 'scheduled')
+      expect(replacement).toBeTruthy()
+      expect(replacement!.text).not.toBe(first.text)
+      expect((writePost.mock.calls[1][0] as unknown as { rejected: string[] }).rejected).toEqual([first.text])
+    })
+
+    it('空きが複数あるときは、いちばん近い時刻の枠から作る（まだ作っていない遠い先の枠より先に）', async () => {
+      const store = ready()
+      const { deps } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      const [early, late] = [...store.posts].sort((a, b) => a.at.localeCompare(b.at))
+      for (const p of store.posts) {
+        p.status = 'canceled'
+        p.rejected = true
+      }
+      // 1本ずつ作り直す: 先に近いほう、次に遠いほう
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      const live = () => store.posts.filter((p) => p.status === 'scheduled').map((p) => p.slotKey)
+      expect(live()).toEqual([early.slotKey])
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      expect(live()).toEqual([early.slotKey, late.slotKey])
+    })
+
+    it('作り直した枠は、もう空きではない（取り消した行が残っていても、作り直しを繰り返さない）', async () => {
+      const store = ready()
+      const { deps, writePost } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      store.posts[0].status = 'canceled'
+      store.posts[0].rejected = true
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 }) // 作り直す
+      const calls = writePost.mock.calls.length
+      const liveBefore = store.posts.filter((p) => p.status === 'scheduled').length
+      // そのあと、ほかの空き（まだ作っていない枠）だけが埋まる。取り消した枠は、作り直した予約が生きているので触らない
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      expect(writePost.mock.calls.length).toBe(calls + 1)
+      const key = store.posts[0].slotKey
+      expect(store.posts.filter((p) => p.slotKey === key && p.status === 'scheduled')).toHaveLength(1)
+      expect(store.posts.filter((p) => p.status === 'scheduled').length).toBe(liveBefore + 1)
+    })
+
+    it('手で削除した枠（行ごと消えて印が無い）は、いままでどおり作り直さない', async () => {
+      const store = ready()
+      const { deps } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      const first = store.posts[0]
+      store.posts.splice(0, 1)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      expect(store.posts.some((p) => p.slotKey === first.slotKey)).toBe(false)
+    })
+
+    it('「止める」での一括の取り消し（印なし）の枠は、作り直さない', async () => {
+      const store = ready()
+      const { deps } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      const keys = store.posts.map((p) => p.slotKey)
+      await store.cancelUpcoming(OWNER) // 止めた（記録は残したまま、予約だけ取り消した形）
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      expect(store.posts.filter((p) => keys.includes(p.slotKey) && p.status === 'scheduled')).toHaveLength(0)
+    })
+
+    it('作り直しの AI が失敗したら、空きのまま残し、理由を記録する（次の補充でやり直せる）', async () => {
       const store = ready()
       const { deps } = makeDeps(store)
       await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
       const first = store.posts[0]
       first.status = 'canceled'
       first.rejected = true
-      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      const failing = makeDeps(store, {
+        writePost: (async () => {
+          throw new Error('AIが応答しません')
+        }) as never,
+      })
+      const r = await topUp(failing.deps, await store.get(OWNER), { maxGenerations: 1 })
+      expect(r.created).toBe(0)
+      expect(r.error).toContain('AIが応答しません')
       expect(store.posts.filter((p) => p.slotKey === first.slotKey && p.status === 'scheduled')).toHaveLength(0)
+      // 次に成功すれば、同じ空きが埋まる
+      const ok = makeDeps(store)
+      const again = await topUp(ok.deps, await store.get(OWNER), { maxGenerations: 1 })
+      expect(again.created).toBe(1)
+      expect(store.posts.some((p) => p.slotKey === first.slotKey && p.status === 'scheduled')).toBe(true)
     })
 
     it('「自動運転を止める」での一括の取り消しは、本人が嫌がったわけではないので、材料に入れない', async () => {
@@ -538,5 +622,56 @@ describe('ON / OFF / 設定', () => {
 describe('予約に入れる印', () => {
   it('自動運転の予約の目印（ai_prompt の接頭辞）は、画面と保存先で同じ', () => {
     expect(AUTOPILOT_PREFIX).toBe('autopilot:')
+  })
+})
+
+// 取り消した直後に画面から頼む「いますぐ作り直し」。毎分の補充を待たず、いちばん近い空きを1つ、別の文で埋める。
+describe('いますぐ作り直し（refill）', () => {
+  it('取り消した枠のうち、いちばん近い1つを、別の文で作る（1回の呼び出しで AI は1回）', async () => {
+    const store = ready()
+    const { deps, writePost } = makeDeps(store)
+    await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+    const [early, late] = [...store.posts].sort((a, b) => a.at.localeCompare(b.at))
+    early.status = 'canceled'
+    early.rejected = true
+    late.status = 'canceled'
+    late.rejected = true
+    const before = writePost.mock.calls.length
+
+    const r = await refill(deps, OWNER)
+    expect(r.created).toBe(1)
+    expect(writePost.mock.calls.length).toBe(before + 1)
+    const live = store.posts.filter((p) => p.status === 'scheduled')
+    expect(live.map((p) => p.slotKey)).toEqual([early.slotKey]) // 近いほうだけ。遠いほうは次の呼び出し・毎分の補充で
+    expect(live[0].text).not.toBe(early.text)
+  })
+
+  it('取り消した枠が無ければ、まだ作っていない枠が1つ埋まるだけ（取り消した枠が無いのに作り直しを重ねない）', async () => {
+    const store = ready()
+    const { deps } = makeDeps(store)
+    const r = await refill(deps, OWNER)
+    expect(r.created).toBe(1)
+    expect(store.posts).toHaveLength(1)
+  })
+
+  it('自動運転が OFF・文体のまとめが無い人には、何もしない（AI を呼ばず、費用が出ない）', async () => {
+    const off = memoryStore({ enabled: false, profile: PROFILE, history: history(40) })
+    const offDeps = makeDeps(off)
+    expect(await refill(offDeps.deps, OWNER)).toEqual({ created: 0, generated: 0 })
+    expect(offDeps.writePost).not.toHaveBeenCalled()
+
+    const noProfile = memoryStore({ enabled: true, profile: null, history: history(40) })
+    const noProfileDeps = makeDeps(noProfile)
+    expect(await refill(noProfileDeps.deps, OWNER)).toEqual({ created: 0, generated: 0 })
+    expect(noProfileDeps.writePost).not.toHaveBeenCalled()
+  })
+
+  it('月の上限に近いときは、AI を呼ばず、理由を伝えて止まる', async () => {
+    const store = ready({ usage: { ...emptyUsage('2026-10'), yen: 100000 } })
+    const { deps, writePost } = makeDeps(store)
+    const r = await refill(deps, OWNER)
+    expect(r.created).toBe(0)
+    expect(r.error).toBeTruthy()
+    expect(writePost).not.toHaveBeenCalled()
   })
 })

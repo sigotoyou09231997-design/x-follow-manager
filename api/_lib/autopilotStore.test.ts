@@ -171,6 +171,26 @@ describe('autopilot store が送る要求', () => {
     expect(await store.rejectedTexts('u1', 10)).toEqual([])
   })
 
+  it('取り消した枠: 自分の・自動運転の・本人が取り消した印つきのものだけ、昨日以降ぶん（一括の取り消しは拾わない）', async () => {
+    const { store, sent } = fakeStore(() => ({
+      status: 200,
+      body: [{ ai_prompt: 'autopilot:2026-10-16#0' }, { ai_prompt: 'autopilot:2026-10-16#1' }],
+    }))
+    expect(await store.rejectedSlotKeys('u1', '2026-10-15')).toEqual(['2026-10-16#0', '2026-10-16#1'])
+    const q = sent[0].url.searchParams
+    expect(q.get('user_id')).toBe('eq.u1')
+    expect(q.get('ai_prompt')).toEqual(expect.stringContaining('autopilot:'))
+    expect(sent[0].url.search).toContain('ai_prompt=like.autopilot%3A%25')
+    expect(sent[0].url.search).toContain('ai_prompt=gte.autopilot%3A2026-10-15')
+    expect(q.get('status')).toBe('eq.canceled')
+    expect(q.get('error_message')).toBe('eq.本人が取り消した')
+  })
+
+  it('取り消した枠が読めなくても止めない（空で返す。取り消した枠が作り直されないだけ）', async () => {
+    const { store } = fakeStore(() => ({ status: 500, body: { message: 'boom' } }))
+    expect(await store.rejectedSlotKeys('u1', '2026-10-15')).toEqual([])
+  })
+
   it('生きている枠: 自分の・自動運転の・予約中か投稿済みのものの印を、昨日以降ぶんだけ', async () => {
     const { store, sent } = fakeStore(() => ({
       status: 200,

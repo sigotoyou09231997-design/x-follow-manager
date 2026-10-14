@@ -67,6 +67,11 @@ export function memoryStore(initial?: Partial<AutopilotRow>) {
         .slice(0, limit)
         .map((p) => p.text)
     },
+    async rejectedSlotKeys(userId, sinceDate) {
+      return posts
+        .filter((p) => p.userId === userId && p.status === 'canceled' && p.rejected && p.slotKey.slice(0, 10) >= sinceDate)
+        .map((p) => p.slotKey)
+    },
     async activeSlotKeys(userId, sinceDate) {
       return posts
         .filter((p) => p.userId === userId && p.status !== 'canceled' && p.slotKey.slice(0, 10) >= sinceDate)

@@ -62,3 +62,5 @@ export const buildAutopilotProfile = () => call({ action: 'buildProfile' })
 export const previewAutopilotPost = () => call({ action: 'preview' })
 export const startAutopilot = () => call({ action: 'enable' })
 export const stopAutopilot = () => call({ action: 'disable' })
+/** 空いた枠（「取り消す」で外した枠）を、いちばん近い時刻から1つ、別の文で作り直す。AIを1回呼ぶので数十秒かかる。 */
+export const refillAutopilot = () => call({ action: 'refill' })

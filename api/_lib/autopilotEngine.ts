@@ -307,14 +307,23 @@ export async function topUp(
 
   const now = deps.now()
   const { settings } = row
-  let missing: Slot[] = planSlots(now, settings).filter((s) => !row.slots.includes(s.key))
+  const sinceDate = localDate(now.getTime() - 86_400_000, settings.timeZone)
+  // 本人が「取り消す」で外した枠は、記録に残っていても「空いた枠」として、あらためて別の文で作り直す。
+  // 以前は「取り消した枠は作り直さない」だったが、今日・明日の枠を取り消すと、その日の投稿が無くなり、
+  // 自動運転を止めて始め直すまで戻らなかった（本人の指摘）。作り直すときは、取り消した文を AI に「出さない」として渡す。
+  // 手で削除した枠（行ごと消えて印が無い）と、「止める」での一括の取り消し（印なし）は、いままでどおり作り直さない。
+  const rejectedSlots = await deps.store.rejectedSlotKeys(row.userId, sinceDate)
+  let missing: Slot[] = planSlots(now, settings).filter((s) => !row.slots.includes(s.key) || rejectedSlots.includes(s.key))
   if (missing.length === 0) return result
 
   // 記録に無くても、予約として生きている枠は作り直さない。記録だけが空になる場面（設定を変えて作り直したとき）に、
   // 今日すでに投稿した枠をAIに書かせてから重複と分かると、費用だけがかかる。足りない枠があるときだけ調べる。
-  const alive = await deps.store.activeSlotKeys(row.userId, localDate(now.getTime() - 86_400_000, settings.timeZone))
+  // 取り消した枠も、作り直した予約が生きているなら、もう空きではない（作り直しを繰り返さない）。
+  const alive = await deps.store.activeSlotKeys(row.userId, sinceDate)
   const slots = [...row.slots, ...alive.filter((key) => !row.slots.includes(key))]
-  missing = missing.filter((s) => !slots.includes(s.key))
+  missing = missing.filter((s) => !alive.includes(s.key) && (rejectedSlots.includes(s.key) || !slots.includes(s.key)))
+  // いちばん近い時刻の枠から作る（取り消したのは、たいてい近い枠。遠い先の枠より先に埋める）。
+  missing.sort((a, b) => a.at.localeCompare(b.at))
   if (missing.length === 0) {
     // 生きている枠を記録に足しておく（毎分、同じ調べ直しをしないため）。
     if (slots.length > row.slots.length) await deps.store.save(row.userId, { slots: pruneSlots(slots, settings.timeZone, now) })
@@ -378,7 +387,7 @@ export async function topUp(
         result.created += 1
         createdToday.push({ text: generated.text, at: slot.at })
       }
-      slots.push(slot.key)
+      if (!slots.includes(slot.key)) slots.push(slot.key) // 作り直した枠は、すでに記録にある
     } catch (error) {
       lastError = errorText(error)
       break
@@ -444,6 +453,17 @@ export async function disable(deps: EngineDeps, userId: string): Promise<{ cance
   const canceled = await deps.store.cancelUpcoming(userId)
   await deps.store.save(userId, { enabled: false, slots: [], lastError: null })
   return { canceled }
+}
+
+/**
+ * 空いた枠（本人が「取り消す」で外した枠など）のうち、いちばん近い時刻の1つを、いますぐ別の文で作り直す。
+ * 画面の「取り消す」のあとに呼ぶ。毎分の補充（topUpAll）も同じ空きを拾うが、最大で1分、AI の持ち時間が他の仕事で
+ * 使われていればもっと待つ。取り消したのに空いたまま何分も待たされないよう、画面から直接頼めるようにしてある。
+ * 自動運転が OFF・文体のまとめが無いときは、何もしない（費用が出ない）。月の上限に近いときは、理由を伝えて止まる。
+ */
+export async function refill(deps: EngineDeps, userId: string): Promise<TopUpResult> {
+  const row = await deps.store.get(userId)
+  return topUp(deps, row, { maxGenerations: 1 })
 }
 
 /** 枠の決まり方に関わる設定が変わったか。変わると、まだ出ていない予約は作り直す。 */

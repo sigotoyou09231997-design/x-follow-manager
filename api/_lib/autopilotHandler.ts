@@ -9,6 +9,7 @@ import {
   EngineError,
   previewPost,
   readHistory,
+  refill,
   saveSettings,
   usageFor,
   type EngineDeps,
@@ -26,6 +27,7 @@ import { fetchOwnPosts, XApiError } from './xClient.js'
 //   { action: 'buildProfile' }                    … 履歴から文体をまとめる（AI）
 //   { action: 'preview' }                         … 保存せずに1本書いてみる（AI）
 //   { action: 'enable' } / { action: 'disable' }  … 自動運転の ON / OFF
+//   { action: 'refill' }                          … 空いた枠（「取り消す」で外した枠）を、いちばん近い時刻から1つ、別の文で作り直す（AI）
 // 中身は autopilotEngine.ts。ここは「誰が・何を頼んだか」の確認と、失敗の日本語化だけを持つ。
 
 export interface HandlerDeps {
@@ -175,6 +177,11 @@ export function createAutopilotHandler(deps?: HandlerDeps) {
 
         case 'disable': {
           const result = await disable(engine, userId)
+          return res.status(200).json({ state: await stateNow(), result })
+        }
+
+        case 'refill': {
+          const result = await refill(engine, userId)
           return res.status(200).json({ state: await stateNow(), result })
         }
 
