@@ -634,19 +634,32 @@ describe('ON / OFF / 設定', () => {
       expect(store.posts.map((p) => p.slotKey)).toEqual(first)
     })
 
-    it('本人が取り消した枠は、作り直さない（毎分の補充でも、いますぐの補充でも）。取り消さなかった枠は、これまでどおり作る', async () => {
-      const store = ready({ settings: { ...withApproval, postsPerDay: 2, horizonDays: 1 } })
-      const { deps } = makeDeps(store)
-      await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
-      const first = store.posts[0]
-      first.status = 'canceled'
-      first.rejected = true
+    it('取り消した枠のうち、近い枠（2時間以内）は空けたまま、遠い枠は作り直す', async () => {
+      const store = ready({ settings: { ...withApproval, postsPerDay: 2, horizonDays: 2 } })
+      // 日本時間 14:00（今日の残りの枠が、2時間以内に入る時刻）
+      const { deps } = makeDeps(store, { now: () => new Date('2026-10-10T05:00:00.000Z') })
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 4 })
+      const lead = (p: { at: string }) => Date.parse(p.at) - deps.now().getTime()
+      const near = store.posts.filter((p) => lead(p) < 2 * 3600_000)
+      const far = store.posts.filter((p) => lead(p) >= 2 * 3600_000)
+      expect(near.length).toBeGreaterThan(0)
+      expect(far.length).toBeGreaterThan(0)
 
-      const again = await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
-      expect(again.created).toBe(0)
-      expect(store.posts.filter((p) => p.status !== 'canceled')).toHaveLength(1)
-      const refilled = await refill(deps, OWNER)
-      expect(refilled.created).toBe(0)
+      // 近い1つと、遠い1つを取り消す
+      const nearOne = near[0]
+      const farOne = far[far.length - 1]
+      for (const p of [nearOne, farOne]) {
+        p.status = 'canceled'
+        p.rejected = true
+      }
+      const before = store.posts.length
+
+      const again = await topUp(deps, await store.get(OWNER), { maxGenerations: 4 })
+      expect(again.created).toBe(1) // 遠い枠だけ
+      expect(store.posts).toHaveLength(before + 1)
+      const added = store.posts[store.posts.length - 1]
+      expect(added.slotKey).toBe(farOne.slotKey)
+      expect(store.posts.filter((p) => p.slotKey === nearOne.slotKey && p.status !== 'canceled')).toHaveLength(0)
     })
 
     it('確認なし（オフ）のときは、取り消した枠を、これまでどおり作り直す', async () => {
