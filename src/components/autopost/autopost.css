@@ -700,19 +700,38 @@
   gap: 12px;
 }
 
-/* トップの一番上の、ディスコード・Yay の「いま投稿されている文」。1枚のカードに、1行ずつ。 */
-.channel-texts {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 14px 16px 4px;
+/* トップの稼働スイッチのカード。ディスコード・Yay は、止めるボタンの行の下に、いま投稿している文と過去の文の選び方を続ける。 */
+.channel-block {
+  position: relative;
 }
 
-.channel-texts__title {
-  margin: 0 0 4px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-muted);
+/* 区切りの線。X の行・ほかの枠の次に来る枠にだけ引く。 */
+.switch-list > * + .channel-block::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 36px;
+  right: 0;
+  height: 1px;
+  background: var(--border);
+}
+
+/* 止まっている・見てほしい枠は、行だけでなく、文の部分まで同じ薄い色にする。 */
+.channel-block:has(.switch-row--off, .switch-row--warn) {
+  background: var(--warning-bg);
+}
+
+.channel-block .switch-row {
+  background: transparent;
+}
+
+/* 文の部分は、行の名前の頭にそろえる（点の幅＋間隔＋左の余白）。 */
+.channel-block__text {
+  padding: 0 16px 14px 36px;
+}
+
+.channel-block__text .channel-row {
+  padding: 0;
 }
 
 .channel-row {
@@ -720,10 +739,6 @@
   flex-direction: column;
   gap: 6px;
   padding: 10px 0 14px;
-}
-
-.channel-row + .channel-row {
-  border-top: 1px solid var(--border);
 }
 
 .channel-row__name {
