@@ -558,7 +558,13 @@ export async function saveSettings(
   const problems = settingsProblems({ ...row.settings, ...input })
   if (problems.length > 0) throw new EngineError(problems.join('。'), 400)
 
-  const settings = normalizeSettings({ ...row.settings, ...input })
+  // 「前の投稿を X から消す」は、オンにした時刻をここで記録する（画面からは送らせない）。
+  // オンにする前に溜まっていた投稿を消さないための線引きで、オンのまま他の設定を保存しても動かさない。
+  const wasOn = row.settings.deletePrevious === true
+  const merged: Partial<AutopilotSettings> = { ...row.settings, ...input }
+  merged.deletePreviousFrom =
+    merged.deletePrevious === true ? (wasOn ? row.settings.deletePreviousFrom : deps.now().toISOString()) : null
+  const settings = normalizeSettings(merged)
   const rebuilt = row.enabled && slotShapeChanged(row.settings, settings)
   if (rebuilt) {
     await deps.store.cancelUpcoming(userId)

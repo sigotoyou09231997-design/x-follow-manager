@@ -690,3 +690,36 @@ describe('XAutopilotPanel: 並んだ予約の本文と時刻を直す', () => {
     expect(screen.getByLabelText('本文を直す')).toBeInTheDocument()
   })
 })
+
+describe('XAutopilotPanel: 前の投稿を X から消す（スイッチ）', () => {
+  const toggle = () => screen.getByRole('checkbox', { name: /前の自動運転の投稿を X から消す/ }) as HTMLInputElement
+
+  it('既定はオフ。元に戻せないことと、自分のツイート・オンにする前の投稿は消えないことを伝える', async () => {
+    render(<XAutopilotPanel />)
+    await screen.findByText('自動運転')
+    expect(toggle().checked).toBe(false)
+    expect(screen.getByText(/X で消した投稿は元に戻せません/)).toBeInTheDocument()
+    expect(screen.getByText(/あなたが自分で書いたツイートは消えません/)).toBeInTheDocument()
+    expect(screen.getByText(/オンにする前に出た投稿も消えません/)).toBeInTheDocument()
+  })
+
+  it('オンにして保存すると、deletePrevious だけを送る（時刻は送らない。サーバーが付ける）', async () => {
+    api.saveAutopilotSettings.mockResolvedValue({ state: state({ settings: { ...DEFAULT_SETTINGS, deletePrevious: true, deletePreviousFrom: '2026-10-15T01:00:00.000Z' } }) })
+    render(<XAutopilotPanel />)
+    await screen.findByText('自動運転')
+    fireEvent.click(toggle())
+    fireEvent.click(button('設定を保存する'))
+
+    await waitFor(() => expect(api.saveAutopilotSettings).toHaveBeenCalledWith({ deletePrevious: true }))
+  })
+
+  it('保存済みでオンなら、いつからが対象かを出す', async () => {
+    api.fetchAutopilot.mockResolvedValue({
+      state: state({ settings: { ...DEFAULT_SETTINGS, deletePrevious: true, deletePreviousFrom: '2026-10-15T01:00:00.000Z' } }),
+    })
+    render(<XAutopilotPanel />)
+    await screen.findByText('自動運転')
+    expect(toggle().checked).toBe(true)
+    expect(screen.getByText(/2026\/10\/15にオンにしました。それ以降の投稿が対象です/)).toBeInTheDocument()
+  })
+})

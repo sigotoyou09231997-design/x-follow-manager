@@ -499,6 +499,25 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
           />
         </label>
 
+        <label className={`xap__option${form.deletePrevious ? ' xap__option--on' : ''}`}>
+          <input
+            type="checkbox"
+            checked={form.deletePrevious}
+            onChange={(e) => setEdits((p) => ({ ...p, deletePrevious: e.target.checked }))}
+          />
+          <span className="xap__option-body">
+            <strong>次の投稿が出たら、前の自動運転の投稿を X から消す</strong>
+            <span>
+              いつも最新の1本だけが X に残ります。<b>X で消した投稿は元に戻せません。</b>
+              消すのは自動運転が出した投稿だけで、あなたが自分で書いたツイートは消えません。
+              オンにする前に出た投稿も消えません。
+              {state.settings.deletePrevious && state.settings.deletePreviousFrom && !dirty
+                ? `（${dayLabel(state.settings.deletePreviousFrom)}にオンにしました。それ以降の投稿が対象です）`
+                : ''}
+            </span>
+          </span>
+        </label>
+
         {!blocked && (
           <p className="xap__muted">
             1日{form.postsPerDay}回 × {form.horizonDays}日先まで ＝ 予約は最大{form.postsPerDay * form.horizonDays}本が並びます

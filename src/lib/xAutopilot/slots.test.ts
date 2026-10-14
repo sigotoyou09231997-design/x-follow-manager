@@ -26,6 +26,17 @@ describe('設定を使える形に直す', () => {
     expect(normalizeSettings({ quality: 'xxx' as never }).quality).toBe('standard')
   })
 
+  it('「前の投稿を消す」は、true と書いてあるときだけオン。オンにした時刻が読めなければ持たない（＝何も消さない）', () => {
+    expect(normalizeSettings({ deletePrevious: true, deletePreviousFrom: '2026-10-15T00:00:00.000Z' })).toMatchObject({
+      deletePrevious: true,
+      deletePreviousFrom: '2026-10-15T00:00:00.000Z',
+    })
+    expect(normalizeSettings({ deletePrevious: 'true' as never }).deletePrevious).toBe(false)
+    expect(normalizeSettings({ deletePrevious: true, deletePreviousFrom: 'きのう' })).toMatchObject({ deletePrevious: true, deletePreviousFrom: null })
+    // オフなら時刻も持たない
+    expect(normalizeSettings({ deletePrevious: false, deletePreviousFrom: '2026-10-15T00:00:00.000Z' }).deletePreviousFrom).toBeNull()
+  })
+
   it('時間帯が逆・狭すぎるときは既定の時間帯に戻す', () => {
     expect(normalizeSettings({ windowStart: '20:00', windowEnd: '10:00' })).toMatchObject({ windowStart: '08:00', windowEnd: '23:00' })
     expect(normalizeSettings({ windowStart: '10:00', windowEnd: '10:30' })).toMatchObject({ windowStart: '08:00', windowEnd: '23:00' })
