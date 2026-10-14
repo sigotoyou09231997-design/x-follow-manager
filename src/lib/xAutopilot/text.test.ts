@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { cleanHistory, containsUrl, maxSimilarity, mentionsMinor, pickSamples, similarity, SIMILARITY_LIMIT } from './text'
+import {
+  cleanHistory,
+  containsUrl,
+  maxSimilarity,
+  mentionsMinor,
+  pickSamples,
+  recentWindow,
+  similarity,
+  SIMILARITY_LIMIT,
+} from './text'
 import type { HistoryPost } from './types'
 
 describe('似ているか', () => {
@@ -100,5 +109,50 @@ describe('お手本の選び方', () => {
   it('反応の多かった投稿が混ざる', () => {
     const picked = pickSamples(posts, 12, 3)
     expect(picked.some((p) => p.likes > 0)).toBe(true)
+  })
+})
+
+// 実例: 2025年は投稿の3〜4割が「おはようございます🍋」始まりで反応も多かったが、2026年は0件。
+// 反応の多さだけで全期間から選ぶと、いまは使っていない型の古い投稿がお手本に多く混ざり、AIがそれを真似てしまう。
+describe('お手本は「いまの書き方」の範囲から選ぶ', () => {
+  const DAY = 86_400_000
+  const base = Date.UTC(2026, 9, 30)
+  // 新しい順に 300 件。毎日1件。0〜182日前が「いま」で反応は少なめ、183日より前は「昔」で反応がとても多い
+  const history: HistoryPost[] = Array.from({ length: 300 }, (_, i) => ({
+    id: String(i),
+    text: `投稿その${i}の本文です`,
+    at: new Date(base - i * DAY).toISOString(),
+    likes: i <= 183 ? (i % 5 === 0 ? 10 : 1) : 200,
+    reposts: 0,
+  }))
+
+  it('昔の投稿は、反応がとても多くても、どの seed でも選ばれない', () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      const picked = pickSamples(history, 12, seed)
+      expect(picked).toHaveLength(12)
+      expect(picked.every((p) => Number(p.id) <= 183)).toBe(true)
+    }
+  })
+
+  it('recentWindow: いちばん新しい投稿から183日前まで。端は入り、その1日前は入らない', () => {
+    const window = recentWindow(history, 12)
+    expect(window).toHaveLength(184)
+    expect(window.some((p) => p.id === '183')).toBe(true)
+    expect(window.some((p) => p.id === '184')).toBe(false)
+  })
+
+  it('recentWindow: 範囲が minCount 件に満たないとき（長く休んでいた）は、新しい順に minCount 件まで広げる', () => {
+    const sparse = Array.from({ length: 40 }, (_, i) => ({ ...history[0], id: String(i), at: new Date(base - i * 60 * DAY).toISOString() }))
+    expect(recentWindow(sparse, 12).map((p) => p.id)).toEqual(sparse.slice(0, 12).map((p) => p.id))
+    // その場合でもお手本は空にならず、n 件選べる
+    expect(pickSamples(sparse, 12, 1)).toHaveLength(12)
+  })
+
+  it('recentWindow: 日付が読めない投稿は範囲の内に数える／全部読めないなら全件のまま／空は空', () => {
+    const broken = [{ ...history[0], id: 'x', at: 'いつか' }, ...history.slice(0, 3)]
+    expect(recentWindow(broken, 1).some((p) => p.id === 'x')).toBe(true)
+    const allBroken = history.slice(0, 5).map((p) => ({ ...p, at: '不明' }))
+    expect(recentWindow(allBroken, 1)).toEqual(allBroken)
+    expect(recentWindow([], 12)).toEqual([])
   })
 })

@@ -22,7 +22,8 @@ const PROFILE: StyleProfile = {
 const post = (i: number, likes = 0): HistoryPost => ({
   id: String(i),
   text: `投稿その${i}`,
-  at: `2026-10-${String(30 - i).padStart(2, '0')}T00:00:00.000Z`,
+  // 2026-10-30 から i 日前。i が大きくても、正しい日付になる
+  at: new Date(Date.UTC(2026, 9, 30) - i * 86_400_000).toISOString(),
   likes,
   reposts: 0,
 })
@@ -93,13 +94,32 @@ describe('文体をまとめる指示', () => {
     expect(PROFILE_SYSTEM_PROMPT).toContain('未成年・学生・年齢が曖昧な相手を連想させる内容')
   })
 
-  it('渡す投稿は、新しい150件＋反応の多い50件まで（費用を抑える）', () => {
-    const history = Array.from({ length: 400 }, (_, i) => post(i, i === 399 ? 99 : 0))
+  it('渡す投稿は、新しい150件＋反応の多い50件まで（費用を抑える）。50件は「いまの書き方」の範囲(半年)の中から', () => {
+    // 毎日1件ずつ400日ぶん。範囲は、いちばん新しい投稿から183日前まで（0〜183日前の184件）。150件の外にあるのは34件だけ
+    const history = Array.from({ length: 400 }, (_, i) => post(i, i % 3 === 0 ? 5 : 0))
     const selected = selectForProfile(history)
-    expect(selected).toHaveLength(200)
+    expect(selected).toHaveLength(184)
     expect(selected.slice(0, 150)).toEqual(history.slice(0, 150))
-    expect(selected.some((p) => p.id === '399')).toBe(true) // 古くても、反応が多ければ入る
-    expect(new Set(selected.map((p) => p.id)).size).toBe(200)
+    expect(new Set(selected.map((p) => p.id)).size).toBe(184) // 重複なし
+    expect(selected.some((p) => p.id === '183')).toBe(true) // 範囲の端(183日前)は入る
+    expect(selected.some((p) => p.id === '184')).toBe(false) // その1日前は入らない
+  })
+
+  // 実例: 2025年は投稿の3〜4割が「おはようございます🍋」始まりで反応も多かったが、2026年は0件。
+  // 反応の多さだけで全期間から選ぶと、いまは使っていない型の古い投稿が文体のまとめに入り、AIがそれで書いてしまう。
+  it('反応がとても多くても、半年より古い投稿は入れない', () => {
+    const history = Array.from({ length: 400 }, (_, i) => post(i, i === 399 ? 999 : i === 300 ? 500 : 0))
+    const selected = selectForProfile(history)
+    expect(selected.some((p) => p.id === '399')).toBe(false)
+    expect(selected.some((p) => p.id === '300')).toBe(false)
+  })
+
+  it('半年より新しい投稿が少ない（長く休んでいた）ときは、新しい順150件のまま。空にならない', () => {
+    // 30日おきに200件。半年の範囲に入るのは7件だけで、150件に満たない
+    const history = Array.from({ length: 200 }, (_, i) => ({ ...post(0, i === 190 ? 99 : 0), id: String(i), at: new Date(Date.UTC(2026, 9, 30) - i * 30 * 86_400_000).toISOString() }))
+    const selected = selectForProfile(history)
+    expect(selected).toHaveLength(150)
+    expect(selected).toEqual(history.slice(0, 150))
   })
 
   it('投稿の日付と反応を添える', () => {
