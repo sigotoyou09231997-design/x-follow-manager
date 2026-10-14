@@ -362,7 +362,7 @@ describe('XAutopilotPanel: 自動運転の開始・停止', () => {
 
 describe('XAutopilotPanel: これから投稿される予定', () => {
   beforeEach(() => {
-    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true, settings: { ...DEFAULT_SETTINGS, requireApproval: false } }) })
   })
 
   it('自動運転の予約中だけを、時刻の早い順に出す（ふつうの予約・投稿済みは出さない）', async () => {
@@ -503,8 +503,8 @@ describe('XAutopilotPanel: トップの1画面用（summary）', () => {
     expect(screen.queryByText('1日の投稿数')).not.toBeInTheDocument()
   })
 
-  it('ここからも取り消せて、取り消すと別の文を作り直してもらう', async () => {
-    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+  it('ここからも取り消せて、取り消すと別の文を作り直してもらう（確認なしの設定のとき）', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true, settings: { ...DEFAULT_SETTINGS, requireApproval: false } }) })
     posts.list = [post('a')]
     render(<XAutopilotPanel variant="summary" />)
 
@@ -871,5 +871,29 @@ describe('XAutopilotPanel: 予約の並びと時刻の見せ方', () => {
     expect(screen.getByText(/^(今日|明日)$/)).toBeInTheDocument()
     expect(screen.getByText(/^\d{2}:\d{2}$/)).toBeInTheDocument()
     expect(screen.getByText(/^あと2時間(30|29)分$/)).toBeInTheDocument()
+  })
+})
+
+describe('XAutopilotPanel: 確認してから投稿する設定では、取り消した枠を作り直さない', () => {
+  const future = (hours: number) => new Date(Date.now() + hours * 3600_000).toISOString()
+
+  it('取り消すと、その枠は空けたまま。作り直しは頼まない', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) }) // 既定は requireApproval: true
+    posts.list = [post('a', { status: 'draft', scheduledAt: future(1) })]
+    render(<XAutopilotPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: /取り消す/ }))
+
+    await waitFor(() => expect(posts.update).toHaveBeenCalledWith('a', { status: 'canceled', rejected: true }))
+    expect(await screen.findByText(/この枠は、そのまま空けておきます/)).toBeInTheDocument()
+    await new Promise((r) => setTimeout(r, 50))
+    expect(api.refillAutopilot).not.toHaveBeenCalled()
+  })
+
+  it('取り消した文は、これからの「出さないもの」として残す（印は付ける）', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    posts.list = [post('a', { status: 'draft', scheduledAt: future(1) })]
+    render(<XAutopilotPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: /取り消す/ }))
+    await waitFor(() => expect(posts.update.mock.calls[0][1].rejected).toBe(true))
   })
 })

@@ -380,7 +380,10 @@ export async function topUp(
   // 以前は「取り消した枠は作り直さない」だったが、今日・明日の枠を取り消すと、その日の投稿が無くなり、
   // 自動運転を止めて始め直すまで戻らなかった（本人の指摘）。作り直すときは、取り消した文を AI に「出さない」として渡す。
   // 手で削除した枠（行ごと消えて印が無い）と、「止める」での一括の取り消し（印なし）は、いままでどおり作り直さない。
-  const rejectedSlots = await deps.store.rejectedSlotKeys(row.userId, sinceDate)
+  // ただし、確認してから投稿する設定（requireApproval）のときは作り直さない。確認待ちの中から、本人が選んで外したものなので、
+  // 外したら、そのまま外れたままにする（消したのに、また同じ枠に新しい文が出てくる、を作らない）。
+  // 近い時刻の枠が空いたままでも、「投稿可能にする」を押したあとの補充（refill）が、まだ作っていない枠を埋める。
+  const rejectedSlots = settings.requireApproval ? [] : await deps.store.rejectedSlotKeys(row.userId, sinceDate)
   let missing: Slot[] = planSlots(now, settings).filter((s) => !row.slots.includes(s.key) || rejectedSlots.includes(s.key))
   if (missing.length === 0) return result
 

@@ -634,6 +634,31 @@ describe('ON / OFF / 設定', () => {
       expect(store.posts.map((p) => p.slotKey)).toEqual(first)
     })
 
+    it('本人が取り消した枠は、作り直さない（毎分の補充でも、いますぐの補充でも）。取り消さなかった枠は、これまでどおり作る', async () => {
+      const store = ready({ settings: { ...withApproval, postsPerDay: 2, horizonDays: 1 } })
+      const { deps } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      const first = store.posts[0]
+      first.status = 'canceled'
+      first.rejected = true
+
+      const again = await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      expect(again.created).toBe(0)
+      expect(store.posts.filter((p) => p.status !== 'canceled')).toHaveLength(1)
+      const refilled = await refill(deps, OWNER)
+      expect(refilled.created).toBe(0)
+    })
+
+    it('確認なし（オフ）のときは、取り消した枠を、これまでどおり作り直す', async () => {
+      const store = ready({ settings: { ...DEFAULT_SETTINGS, requireApproval: false, postsPerDay: 2, horizonDays: 1 } })
+      const { deps } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      store.posts[0].status = 'canceled'
+      store.posts[0].rejected = true
+      const again = await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      expect(again.created).toBe(1)
+    })
+
     it('止めると、確認待ちの予約も取り消す', async () => {
       const store = ready({ settings: withApproval })
       const { deps } = makeDeps(store)
