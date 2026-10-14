@@ -7,6 +7,7 @@ import { FollowTidyView, type FilterKey } from './components/FollowTidyView'
 import { SettingsView, type FeatureTarget } from './components/SettingsView'
 import { SummaryBar } from './components/SummaryBar'
 import { UpdateBanner } from './components/UpdateBanner'
+import { QuickMenu } from './components/QuickMenu'
 import { Icon } from './components/Icon'
 import { X_CALLBACK_PATH } from './lib/schedule/constants'
 import { useAccounts, useCurrentBatchKeys, useSummary } from '#accounts-hook'
@@ -166,6 +167,9 @@ function App() {
   return (
     <div className="app-shell" data-screen={tab}>
       <UpdateBanner />
+
+      {/* 画面の下に付いてくるメニュー。どの画面からでも、各画面（設定・予約投稿・フォロー整理…）へ行ける。 */}
+      <QuickMenu current={tab} onSelect={(target) => goto(target, target === 'protected' ? 'protected' : undefined)} />
 
       <header className="app-header">
         {parent ? (
