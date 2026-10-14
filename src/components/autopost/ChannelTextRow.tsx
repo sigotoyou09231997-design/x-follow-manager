@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { CHANNEL_LABELS, SaveConflictError, saveMessages, type ChannelSnapshot } from '../../lib/autopost/api'
 import { flat, withArchived } from '../../lib/autopost/draft'
 
-// トップの1画面で、ディスコード／Yay の「いま投稿されている文」を見せ、過去の文をドロップダウンから選んで切り替える。
+// トップの1画面の一番上で、ディスコード／Yay の「いま投稿されている文」を1行ずつ見せ、過去の文をドロップダウンから選んで切り替える。
 // 文を自分で書き換える・順番に回す文を増やす・外す、は詳細の画面（AutoPostView）。
 
 interface Props {
@@ -18,7 +18,7 @@ const short = (text: string) => {
   return line.length > OPTION_LENGTH ? `${line.slice(0, OPTION_LENGTH)}…` : line
 }
 
-export function ChannelTextCard({ snapshot, onChanged }: Props) {
+export function ChannelTextRow({ snapshot, onChanged }: Props) {
   const name = CHANNEL_LABELS[snapshot.channel]
   const [picked, setPicked] = useState('')
   const [saving, setSaving] = useState(false)
@@ -53,39 +53,36 @@ export function ChannelTextCard({ snapshot, onChanged }: Props) {
   }
 
   return (
-    <section className="surface-card channel-text" aria-label={`${name}の投稿文`}>
-      <h3 className="channel-text__title">{name}の投稿文</h3>
+    <div className="channel-row" role="group" aria-label={`${name}の投稿文`}>
+      <strong className="channel-row__name">{name}</strong>
 
       {snapshot.messages.length === 0 ? (
-        <p className="autopost__empty">まだ文がありません。「文や回数を変える」で書いてください。</p>
+        <p className="channel-row__empty">まだ文がありません。「文や回数を変える」で書いてください。</p>
       ) : (
-        <ul className="channel-text__list">
+        <ul className="channel-row__list">
           {snapshot.messages.map((text, i) => (
-            <li key={i} className="channel-text__item">
-              {snapshot.messages.length > 1 && <span className="channel-text__no">{i + 1}つ目</span>}
-              <span className="channel-text__body">{text}</span>
+            <li key={i} className="channel-row__item">
+              {snapshot.messages.length > 1 && <span className="channel-row__no">{i + 1}つ目</span>}
+              <span className="channel-row__body">{text}</span>
             </li>
           ))}
         </ul>
       )}
 
       {past.length === 0 ? (
-        <p className="xap__muted">過去の文はまだありません。文を変えて保存すると、前の文がここから選べます。</p>
+        <p className="channel-row__empty">過去の文はまだありません。文を変えて保存すると、前の文がここから選べます。</p>
       ) : (
-        <div className="channel-text__pick">
-          <label className="xap__field">
-            <span>過去の文から選ぶ</span>
-            <select value={picked} onChange={(e) => setPicked(e.target.value)} aria-label={`${name}の過去の文`}>
-              <option value="">選んでください</option>
-              {past.map((text, i) => (
-                <option key={`${i}-${text}`} value={String(i)}>
-                  {short(text)}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="channel-row__pick">
+          <select value={picked} onChange={(e) => setPicked(e.target.value)} aria-label={`${name}の過去の文`}>
+            <option value="">過去の文から選ぶ</option>
+            {past.map((text, i) => (
+              <option key={`${i}-${text}`} value={String(i)}>
+                {short(text)}
+              </option>
+            ))}
+          </select>
           <button type="button" className="btn btn--secondary btn--small" onClick={() => void apply()} disabled={picked === '' || saving}>
-            {saving ? '切り替えています…' : 'この文にする'}
+            {saving ? '切り替え中…' : 'この文にする'}
           </button>
         </div>
       )}
@@ -95,6 +92,6 @@ export function ChannelTextCard({ snapshot, onChanged }: Props) {
           {notice.text}
         </p>
       )}
-    </section>
+    </div>
   )
 }

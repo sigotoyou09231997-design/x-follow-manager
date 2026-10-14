@@ -312,65 +312,89 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
     })
   }
 
+  // 予約の1件ずつのカード。投稿可能のエリアと、確認待ちのエリアで同じ形を使う。
+  const renderPost = (post: (typeof upcoming)[number]) =>
+    editing?.id === post.id ? (
+      <li key={post.id} className="xap__editing">
+        <UpcomingEditor
+          text={post.segments[0]?.text ?? ''}
+          at={post.scheduledAt ?? new Date().toISOString()}
+          timeZone={state.settings.timeZone}
+          saving={editing.saving}
+          error={editing.error}
+          onSave={(text, at) => void saveEdit(post.id, text, at)}
+          onCancel={() => setEditing(undefined)}
+        />
+      </li>
+    ) : (
+      <li key={post.id}>
+        <WhenLabel iso={post.scheduledAt} timeZone={state.settings.timeZone} />
+        {/* エリアの見出しで状態は分かるので、札は「確認待ちなのに時刻を過ぎている」ときだけ出す。 */}
+        {post.status === 'draft' && post.scheduledAt && new Date(post.scheduledAt).getTime() <= Date.now() && (
+          <span className="xap__badge xap__badge--draft">確認待ち（時刻を過ぎています）</span>
+        )}
+        <span className="autopost__history-text xap__upcoming-text">{post.segments[0]?.text}</span>
+        <div className="xap__card-actions">
+          {post.status === 'draft' ? (
+            <button type="button" className="btn btn--primary btn--small" onClick={() => void setApproved(post.id, true)} aria-label="この予約を投稿可能にする">
+              <Icon name="check" size={14} />
+              投稿可能にする
+            </button>
+          ) : (
+            <button type="button" className="btn btn--ghost btn--small" onClick={() => void setApproved(post.id, false)} aria-label="この予約を確認待ちに戻す">
+              確認待ちに戻す
+            </button>
+          )}
+          <button type="button" className="btn btn--ghost btn--small" onClick={() => setEditing({ id: post.id, saving: false })} aria-label="この予約の本文と時刻を直す">
+            <Icon name="edit" size={14} />
+            編集
+          </button>
+          <button type="button" className="btn btn--ghost btn--small btn--danger" onClick={() => void cancelOne(post.id)}>
+            <Icon name="trash" size={14} />
+            取り消す
+          </button>
+        </div>
+      </li>
+    )
+
+  // 投稿可能（時刻になると投稿される）と、確認待ち（押すまで投稿されない）を、別々の枠に分ける。
+  const approvedPosts = upcoming.filter((p) => p.status === 'scheduled')
+  const waitingPosts = upcoming.filter((p) => p.status === 'draft')
+
   const upcomingSection = (
     <section aria-label="これから投稿される予定">
       <h2 className="autopost__sub">{variant === 'summary' ? 'Xの、これから投稿される予定' : 'これから投稿される予定'}</h2>
       {upcoming.length === 0 ? (
         <p className="autopost__empty">まだありません。自動運転を始めると、ここに並びます。</p>
       ) : (
-        <ul className="autopost__history xap__upcoming">
-          {upcoming.map((post) => (
-            editing?.id === post.id ? (
-              <li key={post.id} className="xap__editing">
-                <UpcomingEditor
-                  text={post.segments[0]?.text ?? ''}
-                  at={post.scheduledAt ?? new Date().toISOString()}
-                  timeZone={state.settings.timeZone}
-                  saving={editing.saving}
-                  error={editing.error}
-                  onSave={(text, at) => void saveEdit(post.id, text, at)}
-                  onCancel={() => setEditing(undefined)}
-                />
-              </li>
+        <div className="xap__zones">
+          <div className="xap__zone xap__zone--ok" role="group" aria-labelledby="xap-zone-ok">
+            <header className="xap__zone-head">
+              <h3 id="xap-zone-ok" className="xap__zone-title">投稿可能</h3>
+              <span className="xap__zone-count">{approvedPosts.length}件</span>
+              <p className="xap__zone-note">時刻になると投稿されます</p>
+            </header>
+            {approvedPosts.length === 0 ? (
+              <p className="xap__zone-empty">まだありません。確認待ちの「投稿可能にする」を押すと、ここに入ります。</p>
             ) : (
-              <li key={post.id}>
-                <WhenLabel iso={post.scheduledAt} timeZone={state.settings.timeZone} />
-                <span className={`xap__badge xap__badge--${post.status === 'draft' ? 'draft' : 'ok'}`}>
-                  {post.status === 'draft'
-                    ? post.scheduledAt && new Date(post.scheduledAt).getTime() <= Date.now()
-                      ? '確認待ち（時刻を過ぎています）'
-                      : '確認待ち'
-                    : '投稿可能'}
-                </span>
-                <span className="autopost__history-text xap__upcoming-text">{post.segments[0]?.text}</span>
-                <div className="xap__card-actions">
-                  {post.status === 'draft' ? (
-                    <button type="button" className="btn btn--primary btn--small" onClick={() => void setApproved(post.id, true)} aria-label="この予約を投稿可能にする">
-                      <Icon name="check" size={14} />
-                      投稿可能にする
-                    </button>
-                  ) : (
-                    <button type="button" className="btn btn--ghost btn--small" onClick={() => void setApproved(post.id, false)} aria-label="この予約を確認待ちに戻す">
-                      確認待ちに戻す
-                    </button>
-                  )}
-                  <button type="button" className="btn btn--ghost btn--small" onClick={() => setEditing({ id: post.id, saving: false })} aria-label="この予約の本文と時刻を直す">
-                    <Icon name="edit" size={14} />
-                    編集
-                  </button>
-                  <button type="button" className="btn btn--ghost btn--small btn--danger" onClick={() => void cancelOne(post.id)}>
-                    <Icon name="trash" size={14} />
-                    取り消す
-                  </button>
-                </div>
-              </li>
-            )
-          ))}
-        </ul>
+              <ul className="autopost__history xap__upcoming">{approvedPosts.map(renderPost)}</ul>
+            )}
+          </div>
+
+          {waitingPosts.length > 0 && (
+            <div className="xap__zone xap__zone--draft" role="group" aria-labelledby="xap-zone-draft">
+              <header className="xap__zone-head">
+                <h3 id="xap-zone-draft" className="xap__zone-title">確認待ち</h3>
+                <span className="xap__zone-count">{waitingPosts.length}件</span>
+                <p className="xap__zone-note">「投稿可能にする」を押すまで、投稿されません</p>
+              </header>
+              <ul className="autopost__history xap__upcoming">{waitingPosts.map(renderPost)}</ul>
+            </div>
+          )}
+        </div>
       )}
       {upcoming.length > 0 && (
         <p className="xap__muted">
-          {state.settings.requireApproval ? '「投稿可能」を押したものだけが、時刻になると投稿されます（確認待ちのままだと投稿されません）。' : ''}
           {variant === 'summary'
             ? '「編集」で本文と投稿時刻を直せます。取り消すと、近い時刻の枠から別の文を作り直します（数十秒）。'
             : '「編集」で本文と投稿時刻を直せます。取り消すと、いちばん近い時刻の枠から、別の文を作り直して並べます（数十秒）。取り消した文は覚えておき、似た話題・型は作らないようにします。'}
