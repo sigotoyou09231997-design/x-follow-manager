@@ -897,3 +897,23 @@ describe('XAutopilotPanel: 確認してから投稿する設定では、取り�
     await waitFor(() => expect(posts.update.mock.calls[0][1].rejected).toBe(true))
   })
 })
+
+describe('XAutopilotPanel: トップの1画面用（summary）の「今月のAI料金」', () => {
+  it('今月使った金額と上限・割合を、稼働スイッチの上に出す', async () => {
+    api.fetchAutopilot.mockResolvedValue({
+      state: withProfile({
+        enabled: true,
+        usage: { ...emptyUsage('2026-10'), yen: 450 },
+        settings: { ...DEFAULT_SETTINGS, monthlyBudgetYen: 3000 },
+      }),
+    })
+    render(<XAutopilotPanel variant="summary" />)
+
+    const meter = await screen.findByRole('region', { name: '今月のAI料金' })
+    expect(within(meter).getByText('450円')).toBeInTheDocument()
+    expect(within(meter).getByText('／ 上限 3,000円')).toBeInTheDocument()
+    expect(within(meter).getByText('15%')).toBeInTheDocument()
+    const switches = screen.getByRole('region', { name: '稼働スイッチ' })
+    expect(meter.compareDocumentPosition(switches) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy() // 料金が上
+  })
+})

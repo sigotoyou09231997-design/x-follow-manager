@@ -26,6 +26,7 @@ import { updateScheduledPost } from '../../lib/schedule/postsStore'
 import { Icon } from '../Icon'
 import { SwitchRow } from './ChannelControls'
 import { UpcomingEditor } from './UpcomingEditor'
+import { UsageMeter } from './UsageMeter'
 
 // 「自動投稿」タブの X。過去の投稿を読んで文体をまとめ、AIが新しい投稿を前もって予約に並べる。
 // 費用が出る操作（読み込み・まとめ・試し書き）は、押す前にボタンの横へ金額の目安を出す。
@@ -449,6 +450,8 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
             別の文を作り直しています…（数十秒かかります）
           </p>
         )}
+        {/* 今月のAI料金。トップのいちばん上（稼働スイッチの上）に、上限に対する割合の棒つきで出す。 */}
+        <UsageMeter usage={state.usage} budgetYen={state.settings.monthlyBudgetYen} />
         <section className="surface-card switch-list" aria-label="稼働スイッチ">
           <SwitchRow
             name="X"
