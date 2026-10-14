@@ -20,6 +20,7 @@ import {
   type Quality,
 } from '../../lib/xAutopilot/types'
 import { settingsProblems } from '../../lib/xAutopilot/slots'
+import { soonestApprovalTime } from '../../lib/xAutopilot/approve'
 import { updateScheduledPost } from '../../lib/schedule/postsStore'
 import { Icon } from '../Icon'
 import { SwitchRow } from './ChannelControls'
@@ -236,12 +237,16 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
     if (!post) return
     setNotice(undefined)
     try {
-      await updateScheduledPost(id, { status: approved ? 'scheduled' : 'draft' })
+      // 投稿可能な予約の中で、これがいちばん早いなら、待たせずに前倒しする（5分後）。前に投稿可能な予約があれば、時刻はそのまま。
+      const moved = approved ? soonestApprovalTime(post, posts, Date.now()) : undefined
+      await updateScheduledPost(id, { status: approved ? 'scheduled' : 'draft', ...(moved ? { scheduledAt: moved } : {}) })
       const late = !!post.scheduledAt && new Date(post.scheduledAt).getTime() <= Date.now()
       const text = approved
-        ? late
-          ? '投稿可能にしました。時刻を過ぎているので、1分以内に投稿されます'
-          : '投稿可能にしました。時刻になると投稿されます'
+        ? moved
+          ? `投稿可能にしました。いちばん早い投稿可能な予約なので、${whenLabel(moved, state?.settings.timeZone ?? 'Asia/Tokyo')}（5分後）に投稿されます`
+          : late
+            ? '投稿可能にしました。時刻を過ぎているので、1分以内に投稿されます'
+            : '投稿可能にしました。時刻になると投稿されます'
         : '確認待ちに戻しました。投稿可能にするまで、投稿されません'
       setNotice({ text, kind: 'ok' })
       await reloadPosts()
