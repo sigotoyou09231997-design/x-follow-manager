@@ -11,9 +11,18 @@ export interface PreviousPost {
   tweetIds: string[]
 }
 
+/** 「前の投稿を X から消す」の設定。オフが既定。 */
+export interface CleanupRule {
+  on: boolean
+  /** オンにした時刻（ISO8601）。これ以降に出た投稿だけを消す。無ければ（読めなければ）何も消さない。 */
+  since: string | null
+}
+
 export interface CleanupDeps {
-  /** 今出した投稿（exceptId）を除く、自動運転が出した・まだ消していない投稿。古い順。 */
-  listPrevious(userId: string, exceptId: string): Promise<PreviousPost[]>
+  /** 本人の設定（消すか・いつから）。 */
+  loadRule(userId: string): Promise<CleanupRule>
+  /** 今出した投稿（exceptId）を除く、自動運転が出した・since 以降の・まだ消していない投稿。古い順。 */
+  listPrevious(userId: string, exceptId: string, since: string): Promise<PreviousPost[]>
   /** X から1件消す。すでに無いときも成功で返す。失敗は throw。 */
   deleteTweet(tweetId: string): Promise<void>
   /** 消し終えた予約の行に、消した印（DELETED_MARK）を付ける。 */
@@ -43,8 +52,12 @@ export async function deletePreviousAutopilotPosts(
   userId: string,
   justPostedId: string
 ): Promise<CleanupResult> {
-  const previous = (await deps.listPrevious(userId, justPostedId)).filter((post) => post.id !== justPostedId)
   const result: CleanupResult = { deleted: 0, failed: 0 }
+  // 消す設定がオフ（既定）なら、何も読まず、何も消さない。オンにした時刻が分からないときも消さない。
+  const rule = await deps.loadRule(userId)
+  if (!rule.on || !rule.since) return result
+
+  const previous = (await deps.listPrevious(userId, justPostedId, rule.since)).filter((post) => post.id !== justPostedId)
 
   for (const post of previous.slice(0, MAX_DELETIONS_PER_RUN)) {
     if (post.tweetIds.length === 0) continue

@@ -36,6 +36,16 @@ export interface AutopilotSettings {
   /** 1か月に使ってよい金額（円）の目安。超えそうになったら新しい投稿を作らない。 */
   monthlyBudgetYen: number
   quality: Quality
+  /**
+   * 次の自動運転の投稿が出たとき、前に自動運転が出した投稿を X から消すか。消すと元に戻せないので、既定はオフ。
+   * 消すのは自動運転が出した投稿だけ（本人が書いたツイートには触れない）。
+   */
+  deletePrevious: boolean
+  /**
+   * 「消す」をオンにした時刻（ISO8601。オフのあいだは null）。サーバーが付ける（画面からは送らない）。
+   * これ以降に出た投稿だけを消す対象にし、オンにする前に溜まっていた投稿には触れない。
+   */
+  deletePreviousFrom: string | null
 }
 
 export const DEFAULT_SETTINGS: AutopilotSettings = {
@@ -46,6 +56,8 @@ export const DEFAULT_SETTINGS: AutopilotSettings = {
   horizonDays: 2,
   monthlyBudgetYen: 3000,
   quality: 'standard',
+  deletePrevious: false,
+  deletePreviousFrom: null,
 }
 
 export const LIMITS = {

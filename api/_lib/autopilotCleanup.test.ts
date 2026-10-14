@@ -1,14 +1,17 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { deletePreviousAutopilotPosts, MAX_DELETIONS_PER_RUN, type CleanupDeps, type PreviousPost } from './autopilotCleanup.js'
+import { deletePreviousAutopilotPosts, MAX_DELETIONS_PER_RUN, type CleanupDeps, type CleanupRule, type PreviousPost } from './autopilotCleanup.js'
 import { deletePost, XApiError } from './xClient.js'
 
 // 「次の投稿が出たら、前の自動運転の投稿を X から消す」の決めごと。本物の X・Supabase には触れず、偽物を渡して見る。
+
+const ON: CleanupRule = { on: true, since: '2026-10-15T00:00:00.000Z' }
 
 function deps(previous: PreviousPost[], overrides: Partial<CleanupDeps> = {}) {
   const deleted: string[] = []
   const marked: string[] = []
   const d: CleanupDeps = {
+    loadRule: async () => ON,
     listPrevious: async () => previous,
     deleteTweet: async (id) => {
       deleted.push(id)
@@ -45,11 +48,28 @@ describe('deletePreviousAutopilotPosts', () => {
     expect(marked).toEqual(['a'])
   })
 
-  it('いま出した投稿を渡して、前の投稿の一覧を頼む（持ち主と除外を取り違えない）', async () => {
+  it('いま出した投稿と、オンにした時刻を渡して、前の投稿の一覧を頼む（持ち主と除外を取り違えない）', async () => {
     const listPrevious = vi.fn(async () => [] as PreviousPost[])
     const { d } = deps([], { listPrevious })
     await deletePreviousAutopilotPosts(d, 'u1', 'now')
-    expect(listPrevious).toHaveBeenCalledWith('u1', 'now')
+    expect(listPrevious).toHaveBeenCalledWith('u1', 'now', ON.since)
+  })
+
+  it('消す設定がオフ（既定）なら、前の投稿を探しもせず、何も消さない', async () => {
+    const listPrevious = vi.fn(async () => [{ id: 'a', tweetIds: ['t1'] }])
+    const { d, deleted, marked } = deps([], { loadRule: async () => ({ on: false, since: null }), listPrevious })
+    expect(await deletePreviousAutopilotPosts(d, 'u1', 'now')).toEqual({ deleted: 0, failed: 0 })
+    expect(listPrevious).not.toHaveBeenCalled()
+    expect(deleted).toEqual([])
+    expect(marked).toEqual([])
+  })
+
+  it('オンでも、オンにした時刻が分からなければ何も消さない（過去分を巻き込まない）', async () => {
+    const listPrevious = vi.fn(async () => [{ id: 'a', tweetIds: ['t1'] }])
+    const { d, deleted } = deps([], { loadRule: async () => ({ on: true, since: null }), listPrevious })
+    await deletePreviousAutopilotPosts(d, 'u1', 'now')
+    expect(listPrevious).not.toHaveBeenCalled()
+    expect(deleted).toEqual([])
   })
 
   it('スレッドは、中の投稿を全部消してから印を付ける', async () => {

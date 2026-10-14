@@ -576,6 +576,33 @@ describe('ON / OFF / 設定', () => {
     expect(store.rows.get(OWNER)?.slots).toHaveLength(1)
   })
 
+  it('「前の投稿を X から消す」は既定でオフ。オンにした時刻を記録し、ほかの設定を保存しても動かさず、オフで消える', async () => {
+    const store = ready({ enabled: false })
+    const { deps } = makeDeps(store)
+    expect(store.rows.get(OWNER)?.settings).toMatchObject({ deletePrevious: false, deletePreviousFrom: null })
+
+    const on = await saveSettings(deps, OWNER, { deletePrevious: true })
+    expect(on.settings.deletePrevious).toBe(true)
+    const from = on.settings.deletePreviousFrom
+    expect(from).toBe(deps.now().toISOString())
+    expect(on.rebuilt).toBe(false) // 枠の決まり方ではないので、予約は作り直さない
+
+    // オンのまま別の設定を保存しても、オンにした時刻は変わらない（過去分を巻き込む範囲が広がらない）
+    const later = { ...deps, now: () => new Date(deps.now().getTime() + 3600_000) }
+    const other = await saveSettings(later, OWNER, { quality: 'saver' })
+    expect(other.settings.deletePreviousFrom).toBe(from)
+
+    // 画面（や古い画面）から時刻を送られても、採用しない
+    const forged = await saveSettings(later, OWNER, { deletePreviousFrom: '2020-01-01T00:00:00.000Z' } as never)
+    expect(forged.settings.deletePreviousFrom).toBe(from)
+
+    const off = await saveSettings(later, OWNER, { deletePrevious: false })
+    expect(off.settings).toMatchObject({ deletePrevious: false, deletePreviousFrom: null })
+    // もう一度オンにすれば、その時刻からになる
+    const again = await saveSettings(later, OWNER, { deletePrevious: true })
+    expect(again.settings.deletePreviousFrom).toBe(later.now().toISOString())
+  })
+
   it('作り直しの最初の1本が作れなくても、設定の保存は成功のまま（理由は補充が記録する）', async () => {
     const store = ready()
     const { deps } = makeDeps(store)

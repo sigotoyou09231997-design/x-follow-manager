@@ -63,6 +63,8 @@ export function normalizeSettings(input: Partial<AutopilotSettings> | null | und
     Math.min(LIMITS.postsPerDay.max, maxByWindow)
   )
 
+  const deletePrevious = raw.deletePrevious === true
+
   return {
     postsPerDay,
     windowStart,
@@ -75,6 +77,12 @@ export function normalizeSettings(input: Partial<AutopilotSettings> | null | und
       LIMITS.monthlyBudgetYen.max
     ),
     quality: raw.quality === 'saver' ? 'saver' : 'standard',
+    deletePrevious,
+    // オフのあいだ、オンにした時刻は持たない。オンなのに時刻が無い・読めないときは null（＝何も消さない。下の deletesFrom）
+    deletePreviousFrom:
+      deletePrevious && typeof raw.deletePreviousFrom === 'string' && Number.isFinite(Date.parse(raw.deletePreviousFrom))
+        ? raw.deletePreviousFrom
+        : null,
   }
 }
 

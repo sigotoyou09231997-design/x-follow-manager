@@ -475,7 +475,11 @@ async function publishOne(post: PostRow, tokenCache: Map<string, string>): Promi
 async function removePreviousAutopilotPosts(post: PostRow, accessToken: string): Promise<void> {
   const db = getSupabaseAdmin()
   const deps: CleanupDeps = {
-    async listPrevious(userId, exceptId) {
+    async loadRule(userId) {
+      const row = await supabaseAutopilotStore().get(userId)
+      return { on: row.settings.deletePrevious, since: row.settings.deletePreviousFrom }
+    },
+    async listPrevious(userId, exceptId, since) {
       const { data, error } = await db
         .from('scheduled_posts')
         .select('id, posted_tweet_ids, error_message')
@@ -484,6 +488,8 @@ async function removePreviousAutopilotPosts(post: PostRow, accessToken: string):
         .like('ai_prompt', `${AUTOPILOT_PREFIX}%`)
         .not('posted_tweet_ids', 'is', null)
         .neq('id', exceptId)
+        // オンにする前に出た投稿には触れない
+        .gte('scheduled_at', since)
         .order('scheduled_at', { ascending: true })
         .limit(200)
       if (error) throw new Error(`前の投稿の取得に失敗しました: ${error.message}`)
