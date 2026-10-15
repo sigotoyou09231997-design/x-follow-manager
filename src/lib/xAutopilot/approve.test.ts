@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { APPROVE_LEAD_MS, MIN_POST_GAP_MS, lastPostedAt, postsOnDay, pullForwardTime, soonestApprovalTime } from './approve'
+import { APPROVE_LEAD_MS, MIN_POST_GAP_MS, lastPostedAt, postsOnDay, soonestApprovalTime } from './approve'
 
 const NOW = Date.parse('2026-10-15T01:00:00.000Z')
 const at = (min: number) => new Date(NOW + min * 60_000).toISOString()
@@ -55,37 +55,6 @@ describe('直前の投稿から、最低限の間隔をあける', () => {
   })
 })
 
-describe('毎分の前倒し（先に出した予約のあと、残りが待たされない）', () => {
-  it('先の投稿可能な予約が出て、残りが1時間以上先なら、直前の投稿から最低間隔あとへ前倒しする', () => {
-    // 25分前に出した → 次は5分後が下限。いま出ようとしているのは、1時間後のもの
-    const list = [post('p', 'posted', -25), post('b', 'scheduled', 60), post('c', 'scheduled', 200)]
-    expect(pullForwardTime(list, NOW)).toEqual({ id: 'b', scheduledAt: new Date(NOW - 25 * 60_000 + MIN_POST_GAP_MS).toISOString() })
-  })
-
-  it('直前の投稿が十分前なら、1分後へ前倒しする（長く待たせない）', () => {
-    const list = [post('p', 'posted', -300), post('b', 'scheduled', 60)]
-    expect(pullForwardTime(list, NOW)).toEqual({ id: 'b', scheduledAt: new Date(NOW + 60_000).toISOString() })
-  })
-
-  it('動かすのは、いちばん早い投稿可能な予約だけ。確認待ち・取り消しは数えない', () => {
-    const list = [post('d', 'draft', 5), post('x', 'canceled', 10), post('b', 'scheduled', 90), post('c', 'scheduled', 30)]
-    expect(pullForwardTime(list, NOW)?.id).toBe('c')
-  })
-
-  it('すでに出せる時刻に近い（数分の差）なら、動かさない。投稿可能な予約が無ければ何もしない', () => {
-    expect(pullForwardTime([post('b', 'scheduled', 2)], NOW)).toBeUndefined()
-    expect(pullForwardTime([post('d', 'draft', 90)], NOW)).toBeUndefined()
-    expect(pullForwardTime([], NOW)).toBeUndefined()
-  })
-
-  it('動かしたあと、もう一度やっても、同じ時刻のまま（毎分書き換え続けない）', () => {
-    const list = [post('p', 'posted', -25), post('b', 'scheduled', 60)]
-    const moved = pullForwardTime(list, NOW)!
-    const after = [post('p', 'posted', -25), { id: 'b', status: 'scheduled', scheduledAt: moved.scheduledAt }]
-    expect(pullForwardTime(after, NOW + 60_000)).toBeUndefined()
-  })
-})
-
 describe('本人が時刻を決めた予約は、動かさない', () => {
   const fixed = (id: string, status: string, min: number) => ({ ...post(id, status, min), fixedTime: true })
 
@@ -93,11 +62,6 @@ describe('本人が時刻を決めた予約は、動かさない', () => {
     expect(soonestApprovalTime(fixed('b', 'draft', 300), [], NOW)).toBeUndefined()
   })
 
-  it('毎分の前倒しの対象にしない。時刻を決めていない、次に早い予約が前倒しされる', () => {
-    const list = [post('p', 'posted', -300), fixed('f', 'scheduled', 90), post('c', 'scheduled', 200)]
-    expect(pullForwardTime(list, NOW)?.id).toBe('c')
-    expect(pullForwardTime([post('p', 'posted', -300), fixed('f', 'scheduled', 90)], NOW)).toBeUndefined()
-  })
 })
 
 describe('前に投稿可能な予約があるとき、列のすぐ後ろ（次に空いている枠）へ詰める', () => {
@@ -148,20 +112,6 @@ describe('1日の投稿数の上限（今日すでに上限まで出ているな
     const target = post('b', 'draft', 3000)
     const others = [post('done', 'posted', -120)] // 今日は1本だけ
     expect(soonestApprovalTime(target, [target, ...others], NOW, [slot(1000)], CAP)).toBe(new Date(NOW + APPROVE_LEAD_MS).toISOString())
-  })
-
-  it('毎分の前倒しは、今日の投稿数が上限なら、動かさない（出した1＋投稿可能1 → もう1本は今日に足さない）', () => {
-    const list = [post('done', 'posted', -300), post('tonight', 'scheduled', 600), post('b', 'scheduled', 900)]
-    // 先頭は tonight（600分後）。今日はすでに done と tonight の上限2本（tonight を除くと1本→空きあり）なので動く…を確かめる
-    expect(pullForwardTime(list, NOW, CAP)?.id).toBe('tonight')
-    // 今日に出した2本＋もう1本の投稿可能 → 先頭を動かすと3本目になるので動かさない
-    const full = [post('d1', 'posted', -300), post('d2', 'posted', -200), post('x', 'scheduled', 300)]
-    expect(pullForwardTime(full, NOW, CAP)).toBeUndefined()
-  })
-
-  it('上限を渡さなければ（確認なしなど）、これまでどおり', () => {
-    const full = [post('d1', 'posted', -300), post('d2', 'posted', -200), post('x', 'scheduled', 300)]
-    expect(pullForwardTime(full, NOW)?.id).toBe('x')
   })
 })
 

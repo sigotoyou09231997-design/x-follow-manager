@@ -1000,3 +1000,21 @@
 .rejected-insights__chip--blocked small {
   color: var(--danger);
 }
+
+/* 「投稿可能にする」ボタン。押すと何時に投稿されるかを、ボタンの中の下段に出す（勝手に投稿された、を作らない）。 */
+.xap__approve {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.xap__approve-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.xap__approve-when {
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.9;
+}

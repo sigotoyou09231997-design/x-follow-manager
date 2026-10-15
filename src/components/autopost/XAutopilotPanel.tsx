@@ -269,6 +269,29 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
     }
   }
 
+  // 投稿可能にしたとき、その予約の投稿時刻を動かす先（動かさないなら undefined）。決まりは lib/xAutopilot/approve.ts。
+  // 押す前にボタンへ「押すと◯時に投稿」と出すのにも、同じ計算を使う（押してみたら思わぬ時刻だった、を作らない）。
+  function approvalMove(post: (typeof posts)[number]): string | undefined {
+    const toTimes = (p: (typeof posts)[number]) => ({ id: p.id, status: p.status, scheduledAt: p.scheduledAt, fixedTime: p.segments[0]?.fixedTime === true })
+    return soonestApprovalTime(
+      toTimes(post),
+      posts.filter((p) => isAutopilotPost(p.aiPrompt)).map(toTimes),
+      Date.now(),
+      // 次に空いている枠の時刻（設定の1日の投稿数・時間帯から決まる、これからの枠）
+      state ? planSlots(new Date(), state.settings).map((s) => Date.parse(s.at)) : [],
+      state ? { postsPerDay: state.settings.postsPerDay, timeZone: state.settings.timeZone } : undefined
+    )
+  }
+
+  // 押すと、いつ投稿されるか（ボタンの下に出す）。時刻を過ぎている予約は、1分以内に投稿される。
+  function approveHint(post: (typeof posts)[number]): string {
+    const planned = approvalMove(post) ?? post.scheduledAt
+    const late = !!planned && new Date(planned).getTime() <= Date.now()
+    if (late) return '押すと、1分以内に投稿されます'
+    const parts = whenParts(planned, state?.settings.timeZone ?? 'Asia/Tokyo', Date.now())
+    return parts ? `押すと、${parts.day} ${parts.time} に投稿されます` : ''
+  }
+
   // 「投稿可能」: 確認待ち（draft）を予約中（scheduled）にする。時刻になると投稿される（時刻を過ぎていれば、1分以内に）。
   // 「確認待ちに戻す」はその逆。投稿可能にしたあとは、その予約より前の時刻に、まだ作っていない枠が残っていないかを
   // 調べて、あればいちばん近い枠から別の文を作る（取り消したあとの作り直しと同じ仕組み。空きが無ければ何も作らない）。
@@ -277,16 +300,8 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
     if (!post) return
     setNotice(undefined)
     try {
-      // 投稿可能な予約の中で、これがいちばん早いなら、待たせずに前倒しする（5分後）。前に投稿可能な予約があれば、時刻はそのまま。
-      const toTimes = (p: (typeof posts)[number]) => ({ id: p.id, status: p.status, scheduledAt: p.scheduledAt, fixedTime: p.segments[0]?.fixedTime === true })
-      const moved = approved ? soonestApprovalTime(
-            toTimes(post),
-            posts.filter((p) => isAutopilotPost(p.aiPrompt)).map(toTimes),
-            Date.now(),
-            // 次に空いている枠の時刻（設定の1日の投稿数・時間帯から決まる、これからの枠）
-            state ? planSlots(new Date(), state.settings).map((s) => Date.parse(s.at)) : [],
-            state ? { postsPerDay: state.settings.postsPerDay, timeZone: state.settings.timeZone } : undefined
-          ) : undefined
+      // 投稿可能にするときだけ、時刻を動かす場合がある（動かす先は、押す前にボタンに出している時刻と同じ）。
+      const moved = approved ? approvalMove(post) : undefined
       await updateScheduledPost(id, { status: approved ? 'scheduled' : 'draft', ...(moved ? { scheduledAt: moved } : {}) })
       const late = !!post.scheduledAt && new Date(post.scheduledAt).getTime() <= Date.now()
       const text = approved
@@ -377,9 +392,12 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
         <span className="autopost__history-text xap__upcoming-text">{post.segments[0]?.text}</span>
         <div className="xap__card-actions">
           {post.status === 'draft' ? (
-            <button type="button" className="btn btn--primary btn--small" onClick={() => void setApproved(post.id, true)} aria-label="この予約を投稿可能にする">
-              <Icon name="check" size={14} />
-              投稿可能にする
+            <button type="button" className="btn btn--primary btn--small xap__approve" onClick={() => void setApproved(post.id, true)} aria-label="この予約を投稿可能にする">
+              <span className="xap__approve-main">
+                <Icon name="check" size={14} />
+                投稿可能にする
+              </span>
+              <span className="xap__approve-when">{approveHint(post)}</span>
             </button>
           ) : (
             <button type="button" className="btn btn--ghost btn--small" onClick={() => void setApproved(post.id, false)} aria-label="この予約を確認待ちに戻す">
