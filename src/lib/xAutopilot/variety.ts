@@ -60,7 +60,7 @@ export function pickVariety(seed: string): { form: WritingForm; length: LengthTa
   return { form, length }
 }
 
-const trimmed = (text: string) => text.replace(/^[\s「『（(【\[]+/, '').replace(/\s+/g, '')
+const trimmed = (text: string) => text.replace(/^[\s「『（(【[]+/, '').replace(/\s+/g, '')
 
 /** 書き出し（最初の3文字）。 */
 export function openingOf(text: string): string {

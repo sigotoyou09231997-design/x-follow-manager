@@ -225,6 +225,15 @@ describe('最近の傾向・話題の偏りの渡し方', () => {
 })
 
 describe('今回の書き方（型・長さ・避ける書き出しと締め）', () => {
+  const base = {
+    profile: PROFILE,
+    samples: [],
+    recent: [],
+    plannedSameDay: [],
+    scheduledAt: '2026-10-10T03:00:00.000Z',
+    timeZone: 'Asia/Tokyo',
+  }
+
   it('型と長さ、避ける書き出し・締めを、欄にして渡す', () => {
     const message = buildPostUserMessage({
       ...base,
