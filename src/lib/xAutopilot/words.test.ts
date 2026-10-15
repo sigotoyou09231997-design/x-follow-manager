@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { uncertainIn } from './text'
 import { frequentWords, FRESH_THEMES, overusedIn, pickFreshThemes, wordsOf } from './words'
 
 describe('言葉の取り出し', () => {
@@ -33,6 +34,13 @@ describe('使いすぎの言葉', () => {
 })
 
 describe('まだ書いたことがない題材の候補', () => {
+  it('天気・気温の題材は入れない（入れると、検査で落ちる文を毎回書かせることになる）', () => {
+    expect(FRESH_THEMES.filter((t) => uncertainIn(t.theme).length > 0).map((t) => t.theme)).toEqual([])
+    for (const gone of ['天気予報と実際の天気のずれ', '雨の日の信号待ち', '洗濯物が乾かない季節の悩み', '月や星の見え方']) {
+      expect(FRESH_THEMES.map((t) => t.theme)).not.toContain(gone)
+    }
+  })
+
   it('過去の投稿にキーワードが出ている題材は外す', () => {
     const picks = pickFreshThemes('seed', FRESH_THEMES.length, ['傘を忘れた', 'エレベーターが遅い'])
     expect(picks).not.toContain('傘をなくしがちな話')

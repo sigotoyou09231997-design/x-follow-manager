@@ -44,11 +44,11 @@ export function overusedIn(text: string, words: string[]): string[] {
 /**
  * まだ書いたことがない題材の候補。ふだんの生活の、体験談にならない題材（見たもの・思ったこと・世の中のあるある）。
  * キーワードのどれかが過去の投稿に出ていれば「書いたことがある」として、候補から外す。
+ * 天気・気温・空の様子に頼る題材は入れない（作り置きで、出る日の天気は分からない。text.ts の uncertainIn が書き直させる）。
+ * 候補に天気の題材があると、検査で落ちるとわかっている文を毎回書かせることになる。
  */
 export const FRESH_THEMES: { theme: string; keywords: string[] }[] = [
   { theme: '電車や駅のアナウンスへの感想', keywords: ['アナウンス', '駅'] },
-  { theme: '天気予報と実際の天気のずれ', keywords: ['天気予報', '予報'] },
-  { theme: '洗濯物が乾かない季節の悩み', keywords: ['洗濯', '乾燥機'] },
   { theme: '図書館や本屋の静けさ', keywords: ['図書館', '本屋', '書店'] },
   { theme: '傘をなくしがちな話', keywords: ['傘'] },
   { theme: '目覚まし時計とスヌーズの攻防', keywords: ['スヌーズ', '目覚まし'] },
@@ -60,9 +60,7 @@ export const FRESH_THEMES: { theme: string; keywords: string[] }[] = [
   { theme: '自動ドアが反応してくれない', keywords: ['自動ドア'] },
   { theme: 'スーパーの試食コーナー', keywords: ['試食'] },
   { theme: '床屋や美容室での会話', keywords: ['美容室', '美容院', '床屋'] },
-  { theme: '季節の変わり目の服選び', keywords: ['衣替え', '服選び'] },
   { theme: '自販機の新商品を見つけた時', keywords: ['新商品', '自販機'] },
-  { theme: 'エアコンの設定温度の迷い', keywords: ['エアコン', '設定温度'] },
   { theme: '通知が来て確認すると広告だった', keywords: ['広告'] },
   { theme: '歩きスマホをしている人を避ける', keywords: ['歩きスマホ'] },
   { theme: '路線の乗り換えで迷う', keywords: ['乗り換え', '乗換'] },
@@ -73,9 +71,8 @@ export const FRESH_THEMES: { theme: string; keywords: string[] }[] = [
   { theme: '手帳やカレンダーに予定を書き込むこと', keywords: ['手帳', 'カレンダー'] },
   { theme: 'ベランダや窓から見える景色', keywords: ['ベランダ'] },
   { theme: 'イヤホンの片方だけ聞こえない', keywords: ['イヤホン'] },
-  { theme: '雨の日の信号待ち', keywords: ['信号'] },
+  { theme: '赤信号が長く感じる時', keywords: ['信号'] },
   { theme: '食器棚や冷蔵庫の整理', keywords: ['冷蔵庫', '食器'] },
-  { theme: '月や星の見え方', keywords: ['月', '星空', '満月'] },
 ]
 
 /** 小さな文字列から、決まった0以上1未満の数を作る（FNV-1a）。同じ枠なら同じ候補、枠が違えば違う候補になる。 */

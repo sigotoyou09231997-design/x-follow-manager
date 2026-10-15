@@ -109,6 +109,13 @@ export function crowdedTopics(texts: string[], options: { minCount: number; minS
 }
 
 /**
+ * 「最近少ない話題」として勧めない括り。天気は書かない決まり（text.ts の uncertainIn）なので、
+ * 本人が天気の話をよく書いていて最近出ていないだけで勧めると、AI に「天気を書け」と「天気を書くな」を同時に言うことになる。
+ * 「最近多すぎる話題」には残す（天気の話を避けさせる向きは決まりと同じ）。
+ */
+const NOT_SUGGESTED = new Set(['天気・季節'])
+
+/**
  * 少ない括り: 本人がふだん書く（履歴全体の5%以上・5件以上）のに、直近には1つも出ていないもの。
  * 本人が書かない括り（旅行など）を勧めると、無かった体験を作る原因になるので、履歴に根拠があるものだけにする。
  */
@@ -116,6 +123,7 @@ export function neglectedTopics(historyTexts: string[], recentTexts: string[], m
   if (historyTexts.length < 20) return []
   const recent = new Map(countTopics(recentTexts).map((t) => [t.name, t.count]))
   return countTopics(historyTexts)
+    .filter((t) => !NOT_SUGGESTED.has(t.name))
     .filter((t) => t.count >= 5 && t.count / t.total >= 0.05 && (recent.get(t.name) ?? 0) === 0)
     .sort((a, b) => b.count / b.total - a.count / a.total)
     .slice(0, max)

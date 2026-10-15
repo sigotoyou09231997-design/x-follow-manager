@@ -131,6 +131,13 @@ describe('neglectedTopics: ふだん書くのに、最近出ていない話題',
     expect(names).not.toContain('お出かけ・旅行') // 履歴に根拠が弱い（無かった体験を作らせない）
   })
 
+  it('天気・季節は、履歴に多くて最近出ていなくても勧めない（天気は書かない決まりと食い違うため）', () => {
+    const withWeather = [...longHistory, ...Array(12).fill('今日は寒い。上着がいる')] // 天気・季節の括り（本人がふだん書く）
+    expect(countTopics(withWeather).find((t) => t.name === '天気・季節')?.count).toBe(12)
+    expect(neglectedTopics(withWeather, ['ハイボールが好き'])).not.toContain('天気・季節')
+    expect(neglectedTopics(withWeather, ['ハイボールが好き'])).toContain('会社・仕事') // 勧める仕組みそのものは生きている
+  })
+
   it('履歴が少なければ（20件未満）、何も勧めない', () => {
     expect(neglectedTopics(Array(10).fill('今日の仕事'), [])).toEqual([])
   })

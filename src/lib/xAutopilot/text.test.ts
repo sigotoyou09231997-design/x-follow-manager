@@ -8,6 +8,7 @@ import {
   recentWindow,
   similarity,
   SIMILARITY_LIMIT,
+  uncertainIn,
 } from './text'
 import type { HistoryPost } from './types'
 
@@ -46,6 +47,29 @@ describe('URL・未成年を連想させる言葉', () => {
     }
     expect(mentionsMinor('大人のお姉さんと話したい')).toBe(false)
     expect(mentionsMinor('耳が弱いので、ささやいてほしい')).toBe(false)
+  })
+})
+
+describe('天気・気温の言葉（作り置きの投稿で、出る日の天気は分からない）', () => {
+  it('天気・気温の話を見つけ、どの言葉かを返す', () => {
+    expect(uncertainIn('今日は寒いから早く帰る。')).toContain('寒い')
+    expect(uncertainIn('明日は雨らしい。')).toContain('雨')
+    expect(uncertainIn('台風が近づいているらしい')).toContain('台風')
+    expect(uncertainIn('朝から晴れていて気持ちいい。')).toContain('晴れ')
+    expect(uncertainIn('今日の気温は高めらしい。')).toContain('気温')
+    expect(uncertainIn('梅雨なのに全然降らない')).toEqual(expect.arrayContaining(['梅雨', '雨']))
+  })
+
+  it('天気の話でない文は拾わない（季節の名前・食べ物・温かい飲み物は対象外）', () => {
+    for (const text of [
+      '電車で寝落ちして、降りる駅を乗り過ごした。',
+      'ハイボールの缶、冷蔵庫に常備してる。',
+      '温かいコーヒーを淹れる時間が好き。',
+      '秋は焼き芋がうまい。',
+      '冬のボーナスの話をした。',
+    ]) {
+      expect(uncertainIn(text)).toEqual([])
+    }
   })
 })
 
