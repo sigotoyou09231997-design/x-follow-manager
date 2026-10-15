@@ -938,3 +938,32 @@ describe('XAutopilotPanel: 取り消した文の分析', () => {
     expect(screen.queryByRole('region', { name: '取り消した文の分析' })).not.toBeInTheDocument()
   })
 })
+
+describe('XAutopilotPanel: 「投稿可能にする」を押す前に、投稿される時刻を見せる', () => {
+  const future = (hours: number) => new Date(Date.now() + hours * 3600_000).toISOString()
+
+  it('ボタンの中に「押すと、◯時に投稿されます」と出る（いちばん早い投稿可能な予約になるなら、5分後の時刻）', async () => {
+    posts.list = [post('a', { status: 'draft', scheduledAt: future(30) })]
+    render(<XAutopilotPanel />)
+    const button = await screen.findByRole('button', { name: 'この予約を投稿可能にする' })
+    expect(within(button).getByText(/^押すと、(今日|明日) \d{2}:\d{2} に投稿されます$/)).toBeInTheDocument()
+  })
+
+  it('時刻を過ぎている予約は「1分以内に投稿されます」と出る', async () => {
+    posts.list = [post('a', { status: 'draft' })] // 既定の時刻は過去
+    render(<XAutopilotPanel />)
+    const button = await screen.findByRole('button', { name: 'この予約を投稿可能にする' })
+    expect(within(button).getByText('押すと、1分以内に投稿されます')).toBeInTheDocument()
+  })
+
+  it('自分で決めた時刻の予約は、その時刻が出る（動かさない）', async () => {
+    const when = future(30)
+    posts.list = [post('a', { status: 'draft', scheduledAt: when, segments: [{ text: '本文', media: [], fixedTime: true }] })]
+    render(<XAutopilotPanel />)
+    const button = await screen.findByRole('button', { name: 'この予約を投稿可能にする' })
+    const hint = within(button).getByText(/^押すと、.* に投稿されます$/).textContent ?? ''
+    expect(hint).toMatch(/\d{2}:\d{2}/)
+    fireEvent.click(button)
+    await waitFor(() => expect(posts.update).toHaveBeenCalledWith('a', { status: 'scheduled' })) // 時刻は動かさない
+  })
+})
