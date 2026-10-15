@@ -113,6 +113,9 @@ export function buildPostSystemPrompt(): string {
 - まず今回の話題を決めてから書く。話題は偏りやすい（同じ括りの話題が続くと、別の投稿に見えず飽きられる）ので、
   【最近多すぎる話題】にある括りは選ばず、【最近少ない話題】があればその中から選ぶ。
   括りは大きく見る（ハイボールもジンソーダも晩酌も、同じ「お酒」。その括りが挙がっていれば、別のお酒の話も不可）
+- 今までに書いたことがない題材を選ぶ。【まだ書いたことがない題材の候補】があれば、その中から1つ選び、
+  【使いすぎの言葉】にある言葉は、使わない・言い換えない。題材は新しくても、語尾・口調・文の長さ・改行・絵文字・
+  「w」や「草」の使い方は、【この人らしさ】と【お手本】から取り入れて、本人の言い回しで書く
 - 【最近の投稿の傾向】があるときは、長さ・句点・絵文字・「w」「草」などの割合は、その数字に合わせる
   （本人の書き方は変わる。文章のルールにある書き方の説明より、毎回計算した最新の数字を優先する）
 
@@ -151,6 +154,10 @@ export interface PostPromptInput {
   crowded?: string[]
   /** ふだん書くのに最近出ていない話題の括り。今回はここから選ぶ。無ければ省略。neglectedTopics。 */
   neglected?: string[]
+  /** 最近の投稿で何度も出ている言葉（「焼き芋」「ハイボール」など）。今回は使わない。無ければ省略。frequentWords。 */
+  overused?: string[]
+  /** まだ書いたことがない題材の候補。今回はここから選ぶと、新しい内容になる。無ければ省略。pickFreshThemes。 */
+  fresh?: string[]
   /** 同じ日にすでに予約されている投稿。話題の重なりを避ける。 */
   plannedSameDay: string[]
   scheduledAt: string
@@ -229,6 +236,18 @@ export function buildPostUserMessage(input: PostPromptInput): string {
   if (neglected.length) {
     sections.push(
       `【最近少ない話題】（本人がふだん書くのに、最近は出ていない括り。今回はここから選ぶとよい。事実は作らず、感想や考えとして書く）\n${neglected.map((t) => `- ${t}`).join('\n')}`
+    )
+  }
+  const overused = (input.overused ?? []).map((t) => t.trim()).filter(Boolean)
+  if (overused.length) {
+    sections.push(
+      `【使いすぎの言葉】（最近の投稿で何度も出ている言葉。今回は、これらの言葉も、同じ題材も使わない。言い換えも不可）\n${overused.map((t) => `- ${t}`).join('\n')}`
+    )
+  }
+  const fresh = (input.fresh ?? []).map((t) => t.trim()).filter(Boolean)
+  if (fresh.length) {
+    sections.push(
+      `【まだ書いたことがない題材の候補】（過去の投稿に1度も出ていない題材。今回はここから1つ選ぶ。体験談や事実は作らず、見たこと・思ったこと・あるあるとして、本人の言い回しで書く）\n${fresh.map((t) => `- ${t}`).join('\n')}`
     )
   }
   const planned = input.plannedSameDay.map((t) => t.trim()).filter(Boolean)

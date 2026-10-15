@@ -185,6 +185,25 @@ describe('最近の傾向・話題の偏りの渡し方', () => {
     expect(message).toContain('- ゲーム')
   })
 
+  it('使いすぎの言葉と、まだ書いたことがない題材の候補を、それぞれ欄にして渡す', () => {
+    const message = buildPostUserMessage({ ...base, overused: ['焼き芋', 'ハイボール'], fresh: ['傘をなくしがちな話', '図書館や本屋の静けさ'] })
+    expect(message).toContain('【使いすぎの言葉】')
+    expect(message).toContain('これらの言葉も、同じ題材も使わない。言い換えも不可')
+    expect(message).toContain('- 焼き芋')
+    expect(message).toContain('- ハイボール')
+    expect(message).toContain('【まだ書いたことがない題材の候補】')
+    expect(message).toContain('体験談や事実は作らず、見たこと・思ったこと・あるあるとして、本人の言い回しで書く')
+    expect(message).toContain('- 傘をなくしがちな話')
+  })
+
+  it('指示に、今までに書いたことがない題材を選ぶ・使いすぎの言葉は言い換えない・本人の言い回しは取り入れる、が書いてある', () => {
+    const system = buildPostSystemPrompt()
+    expect(system).toContain('今までに書いたことがない題材を選ぶ')
+    expect(system).toContain('【使いすぎの言葉】にある言葉は、使わない・言い換えない')
+    expect(system).toContain('語尾・口調・文の長さ・改行・絵文字')
+    expect(system).toContain('事実を作らない') // 守りは残っている
+  })
+
   it('何も無ければ（空・空白だけも）、欄ごと出さない', () => {
     const message = buildPostUserMessage({ ...base, recentStyle: '  ', crowded: [], neglected: ['  '] })
     expect(message).not.toContain('【最近の投稿の傾向】')
