@@ -2,7 +2,8 @@
 // （確認なしの自動投稿は、時刻をばらして散らす決まりなので、動かさない）。
 //
 // 投稿可能な予約は、できるだけ早く出す。ただし、直前の自動運転の投稿から最低限の間隔はあける（連投に見えないため）。
-//   ・押したとき（画面）: 投稿可能な予約の中でいちばん早ければ、その時刻へ前倒しする。
+//   ・押したとき（画面）: 投稿可能な予約の中でいちばん早ければ、いますぐ側へ前倒しする。前に投稿可能な予約があれば、
+//     その列のすぐ後ろ（次に空いている枠）へ詰める。
 //   ・毎分（サーバー）: 先に投稿可能にした予約が出たあと、残りの予約が元の時刻のまま待たされないよう、
 //     いちばん早い投稿可能な予約を、同じ決まりで前倒しする。
 
@@ -57,18 +58,27 @@ export function earliestAllowed(now: number, lastPosted: number | undefined, lea
  * 他の投稿可能な予約（status が scheduled）の中に、この予約より前の時刻のものがあれば、前倒ししない。
  * 前倒し先は「いまから猶予ぶん」と「直前の投稿から最低間隔」の遅いほう。それより前の時刻なら、これ以上は動かさない。
  */
-export function soonestApprovalTime(post: PostTime, autopilot: PostTime[], now: number): string | undefined {
+export function soonestApprovalTime(post: PostTime, autopilot: PostTime[], now: number, slotTimes: number[] = []): string | undefined {
   // 本人が時刻を決めた予約は、投稿可能にしても、時刻を動かさない。
   if (post.fixedTime) return undefined
   const current = at(post.scheduledAt)
   if (current === undefined) return undefined
-  const target = earliestAllowed(now, lastPostedAt(autopilot), APPROVE_LEAD_MS)
-  if (current <= target) return undefined
-  const earlierApproved = autopilot.some((o) => {
-    const t = at(o.scheduledAt)
-    return o.id !== post.id && o.status === 'scheduled' && t !== undefined && t < current
-  })
-  return earlierApproved ? undefined : new Date(target).toISOString()
+  const earlier = autopilot
+    .filter((o) => o.id !== post.id && o.status === 'scheduled')
+    .map((o) => at(o.scheduledAt))
+    .filter((t): t is number => t !== undefined && t < current)
+
+  // これより前の投稿可能な予約が無ければ、できるだけ早く（いまから猶予ぶん、直前の投稿から最低間隔）。
+  if (earlier.length === 0) {
+    const target = earliestAllowed(now, lastPostedAt(autopilot), APPROVE_LEAD_MS)
+    return current <= target ? undefined : new Date(target).toISOString()
+  }
+
+  // 前に投稿可能な予約があるなら、その列のすぐ後ろ（最後の予約から最低間隔あけた、次の枠の時刻）へ。
+  // 遠い日の予約を投稿可能にしても、間をあけずに、次に空いている枠（たとえば明日の午前）へ詰める。
+  const floor = Math.max(Math.max(...earlier) + MIN_POST_GAP_MS, now + APPROVE_LEAD_MS)
+  const next = slotTimes.filter((t) => t >= floor).sort((a, b) => a - b)[0]
+  return next !== undefined && next < current ? new Date(next).toISOString() : undefined
 }
 
 /**

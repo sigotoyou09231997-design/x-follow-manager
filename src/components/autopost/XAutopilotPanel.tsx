@@ -19,7 +19,7 @@ import {
   type AutopilotState,
   type Quality,
 } from '../../lib/xAutopilot/types'
-import { settingsProblems } from '../../lib/xAutopilot/slots'
+import { planSlots, settingsProblems } from '../../lib/xAutopilot/slots'
 import { REFILL_MIN_LEAD_MS, soonestApprovalTime } from '../../lib/xAutopilot/approve'
 import { whenParts } from '../../lib/xAutopilot/whenLabel'
 import { updateScheduledPost } from '../../lib/schedule/postsStore'
@@ -259,7 +259,13 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
     try {
       // 投稿可能な予約の中で、これがいちばん早いなら、待たせずに前倒しする（5分後）。前に投稿可能な予約があれば、時刻はそのまま。
       const toTimes = (p: (typeof posts)[number]) => ({ id: p.id, status: p.status, scheduledAt: p.scheduledAt, fixedTime: p.segments[0]?.fixedTime === true })
-      const moved = approved ? soonestApprovalTime(toTimes(post), posts.filter((p) => isAutopilotPost(p.aiPrompt)).map(toTimes), Date.now()) : undefined
+      const moved = approved ? soonestApprovalTime(
+            toTimes(post),
+            posts.filter((p) => isAutopilotPost(p.aiPrompt)).map(toTimes),
+            Date.now(),
+            // 次に空いている枠の時刻（設定の1日の投稿数・時間帯から決まる、これからの枠）
+            state ? planSlots(new Date(), state.settings).map((s) => Date.parse(s.at)) : []
+          ) : undefined
       await updateScheduledPost(id, { status: approved ? 'scheduled' : 'draft', ...(moved ? { scheduledAt: moved } : {}) })
       const late = !!post.scheduledAt && new Date(post.scheduledAt).getTime() <= Date.now()
       const text = approved

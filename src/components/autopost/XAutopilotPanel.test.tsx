@@ -771,16 +771,20 @@ describe('XAutopilotPanel: 投稿可能（確認してから投稿する）', ()
     await waitFor(() => expect(api.refillAutopilot).toHaveBeenCalledTimes(1))
   })
 
-  it('これより前に投稿可能な予約があるときは、時刻は動かさず、状態だけ scheduled にする', async () => {
-    posts.list = [
-      post('early', { scheduledAt: future(2) }), // 投稿可能（scheduled）で、前にある
-      post('a', { status: 'draft', scheduledAt: future(30) }),
-    ]
+  it('これより前に投稿可能な予約があるときは、その列のすぐ後ろ（30分以上あけた次の枠）へ詰める。元の時刻より早く、前の予約より後', async () => {
+    const early = future(2)
+    const original = future(30)
+    posts.list = [post('early', { scheduledAt: early }), post('a', { status: 'draft', scheduledAt: original })]
     render(<XAutopilotPanel />)
     fireEvent.click(await screen.findByRole('button', { name: 'この予約を投稿可能にする' }))
 
-    await waitFor(() => expect(posts.update).toHaveBeenCalledWith('a', { status: 'scheduled' }))
-    expect(await screen.findByText(/投稿可能にしました。時刻になると投稿されます/)).toBeInTheDocument()
+    await waitFor(() => expect(posts.update).toHaveBeenCalledTimes(1))
+    const [id, patch] = posts.update.mock.calls[0]
+    expect(id).toBe('a')
+    expect(patch.status).toBe('scheduled')
+    const moved = new Date(patch.scheduledAt).getTime()
+    expect(moved).toBeGreaterThanOrEqual(new Date(early).getTime() + 30 * 60_000)
+    expect(moved).toBeLessThan(new Date(original).getTime())
   })
 
   it('前にあるのが確認待ちだけなら、前倒しする（確認待ちは順番を塞がない）', async () => {
