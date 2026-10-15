@@ -20,7 +20,7 @@ import {
   type Quality,
 } from '../../lib/xAutopilot/types'
 import { planSlots, settingsProblems } from '../../lib/xAutopilot/slots'
-import { REFILL_MIN_LEAD_MS, soonestApprovalTime } from '../../lib/xAutopilot/approve'
+import { postsOnDay, REFILL_MIN_LEAD_MS, soonestApprovalTime } from '../../lib/xAutopilot/approve'
 import { whenParts } from '../../lib/xAutopilot/whenLabel'
 import { updateScheduledPost } from '../../lib/schedule/postsStore'
 import { Icon } from '../Icon'
@@ -264,7 +264,8 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
             posts.filter((p) => isAutopilotPost(p.aiPrompt)).map(toTimes),
             Date.now(),
             // 次に空いている枠の時刻（設定の1日の投稿数・時間帯から決まる、これからの枠）
-            state ? planSlots(new Date(), state.settings).map((s) => Date.parse(s.at)) : []
+            state ? planSlots(new Date(), state.settings).map((s) => Date.parse(s.at)) : [],
+            state ? { postsPerDay: state.settings.postsPerDay, timeZone: state.settings.timeZone } : undefined
           ) : undefined
       await updateScheduledPost(id, { status: approved ? 'scheduled' : 'draft', ...(moved ? { scheduledAt: moved } : {}) })
       const late = !!post.scheduledAt && new Date(post.scheduledAt).getTime() <= Date.now()
@@ -430,6 +431,12 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
   if (variant === 'summary') {
     const ready = hasProfile && connected
     const waitingCount = upcoming.filter((p) => p.status === 'draft').length
+    // 今日の投稿数（出した・出している・投稿可能）と、1日の上限。上限を超えて今日に入らないよう、画面で見えるようにする。
+    const todayCount = postsOnDay(
+      posts.filter((p) => isAutopilotPost(p.aiPrompt)).map((p) => ({ id: p.id, status: p.status, scheduledAt: p.scheduledAt })),
+      Date.now(),
+      { postsPerDay: state.settings.postsPerDay, timeZone: state.settings.timeZone }
+    )
     const stopButton = (
       <button type="button" className="btn btn--small autopost__pause-stop" onClick={() => void doStop()} disabled={working} aria-label="自動運転を止める">
         {busy === 'stop' ? '止めています…' : '止める'}
@@ -470,7 +477,7 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
           <SwitchRow
             name="X"
             tone={state.enabled ? (state.lastError ? 'warn' : 'on') : 'off'}
-            status={state.enabled ? (waitingCount > 0 ? `自動運転中・確認待ち${waitingCount}件` : '自動運転中') : ready ? '自動運転は止まっています' : '先に、Xとの連携と文体のまとめが必要です'}
+            status={state.enabled ? `自動運転中・今日の投稿 ${todayCount}/${state.settings.postsPerDay}本${waitingCount > 0 ? `・確認待ち${waitingCount}件` : ''}` : ready ? '自動運転は止まっています' : '先に、Xとの連携と文体のまとめが必要です'}
             note={state.enabled && state.lastError ? `補充を止めています: ${state.lastError}` : undefined}
             action={state.enabled ? stopButton : !ready && onOpenDetail ? setupButton : startButton}
           />

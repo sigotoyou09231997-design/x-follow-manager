@@ -215,7 +215,7 @@ async function pullForwardApproved(now: Date): Promise<void> {
         scheduledAt: r.scheduled_at,
         fixedTime: r.segments?.[0]?.fixedTime === true,
       }))
-      const move = pullForwardTime(rows, now.getTime())
+      const move = pullForwardTime(rows, now.getTime(), { postsPerDay: row.settings.postsPerDay, timeZone: row.settings.timeZone })
       if (!move) continue
       const { error: updateError } = await db
         .from('scheduled_posts')

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { APPROVE_LEAD_MS, MIN_POST_GAP_MS, lastPostedAt, pullForwardTime, soonestApprovalTime } from './approve'
+import { APPROVE_LEAD_MS, MIN_POST_GAP_MS, lastPostedAt, postsOnDay, pullForwardTime, soonestApprovalTime } from './approve'
 
 const NOW = Date.parse('2026-10-15T01:00:00.000Z')
 const at = (min: number) => new Date(NOW + min * 60_000).toISOString()
@@ -128,5 +128,48 @@ describe('前に投稿可能な予約があるとき、列のすぐ後ろ（次�
     const others = [post('a', 'scheduled', 600)]
     expect(soonestApprovalTime(target, [target, ...others], NOW, [])).toBeUndefined()
     expect(soonestApprovalTime(target, [target, ...others], NOW, [slot(610), slot(640)])).toBe(new Date(slot(640)).toISOString()) // 610 は30分以内
+  })
+})
+
+describe('1日の投稿数の上限（今日すでに上限まで出ているなら、今日に入れない）', () => {
+  const CAP = { postsPerDay: 2, timeZone: 'Asia/Tokyo' }
+  // NOW は日本時間 10:00（2026-10-15）。同じ日は +0〜+839分（23:59 まで）、翌日は +840分〜
+  const slot = (min: number) => NOW + min * 60_000
+
+  it('今日の投稿が上限に達している（出した1＋投稿可能1）とき、前倒し先は、次の日の枠', () => {
+    const target = post('b', 'draft', 3000)
+    const others = [post('done', 'posted', -120), post('tonight', 'scheduled', 600)] // 今日はすでに2本
+    // 今日の枠（700分後＝21:40）はあるが、上限なので使わない。明日の枠（1000分後）へ
+    const moved = soonestApprovalTime(target, [target, ...others], NOW, [slot(700), slot(1000), slot(2000)], CAP)
+    expect(moved).toBe(new Date(slot(1000)).toISOString())
+  })
+
+  it('今日にまだ余裕があれば、これまでどおり（いますぐ側へ）', () => {
+    const target = post('b', 'draft', 3000)
+    const others = [post('done', 'posted', -120)] // 今日は1本だけ
+    expect(soonestApprovalTime(target, [target, ...others], NOW, [slot(1000)], CAP)).toBe(new Date(NOW + APPROVE_LEAD_MS).toISOString())
+  })
+
+  it('毎分の前倒しは、今日の投稿数が上限なら、動かさない（出した1＋投稿可能1 → もう1本は今日に足さない）', () => {
+    const list = [post('done', 'posted', -300), post('tonight', 'scheduled', 600), post('b', 'scheduled', 900)]
+    // 先頭は tonight（600分後）。今日はすでに done と tonight の上限2本（tonight を除くと1本→空きあり）なので動く…を確かめる
+    expect(pullForwardTime(list, NOW, CAP)?.id).toBe('tonight')
+    // 今日に出した2本＋もう1本の投稿可能 → 先頭を動かすと3本目になるので動かさない
+    const full = [post('d1', 'posted', -300), post('d2', 'posted', -200), post('x', 'scheduled', 300)]
+    expect(pullForwardTime(full, NOW, CAP)).toBeUndefined()
+  })
+
+  it('上限を渡さなければ（確認なしなど）、これまでどおり', () => {
+    const full = [post('d1', 'posted', -300), post('d2', 'posted', -200), post('x', 'scheduled', 300)]
+    expect(pullForwardTime(full, NOW)?.id).toBe('x')
+  })
+})
+
+describe('postsOnDay', () => {
+  it('日本時間の同じ日の、出した・出している・投稿可能だけを数える（確認待ち・取り消しは数えない。自分は除く）', () => {
+    const cap = { postsPerDay: 3, timeZone: 'Asia/Tokyo' }
+    const list = [post('a', 'posted', -100), post('b', 'scheduled', 200), post('c', 'draft', 100), post('d', 'canceled', 100), post('e', 'scheduled', 2000)]
+    expect(postsOnDay(list, NOW, cap)).toBe(2)
+    expect(postsOnDay(list, NOW, cap, 'a')).toBe(1)
   })
 })
