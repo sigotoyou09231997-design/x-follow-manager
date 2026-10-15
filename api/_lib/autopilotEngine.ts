@@ -13,6 +13,7 @@ import {
 } from '../../src/lib/xAutopilot/recentStyle.js'
 import { REFILL_MIN_LEAD_MS } from '../../src/lib/xAutopilot/approve.js'
 import { frequentWords, overusedIn, pickFreshThemes } from '../../src/lib/xAutopilot/words.js'
+import { analyzeRejected, blockedWords, describeRejectedTopics, describeRejectedWords } from '../../src/lib/xAutopilot/rejectedAnalysis.js'
 import { isLateMorningSlot } from '../../src/lib/xAutopilot/morning.js'
 import { localDate, localMonth, normalizeSettings, planSlots, settingsProblems, type Slot } from '../../src/lib/xAutopilot/slots.js'
 import {
@@ -89,6 +90,8 @@ const HUMAN_FOR_WORDS = 150
 const RECENT_HISTORY = 30
 /** 本人が取り消した投稿のうち、次に書くとき「こういうのは出さない」として見せる件数（新しい順）。 */
 const REJECTED_FOR_PROMPT = 10
+/** 取り消した文の分析（よく取り消される言葉・話題）に読む本数。プロンプトに文そのものを載せるのは REJECTED_FOR_PROMPT 件だけ。 */
+const REJECTED_FOR_ANALYSIS = 300
 /** 読み込みの連打を止める間隔。 */
 const READ_INTERVAL_MS = 60_000
 /** 検査に落ちたとき、書き直させる回数（最初の1回を除く）。 */
@@ -274,7 +277,7 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
 
   const against = [
     ...ctx.recent.map((r) => r.text),
-    ...ctx.rejected,
+    ...ctx.rejected.slice(0, 60),
     ...ctx.plannedSameDay,
     ...ctx.history.slice(0, RECENT_HISTORY).map((p) => p.text),
   ]
@@ -301,6 +304,11 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
   const overused = frequentWords(autoTexts.slice(0, RECENT_AUTOPILOT_FOR_WORDS), 2, 16)
   const fresh = pickFreshThemes(ctx.slotAt, 4, [...autoTexts, ...humanTexts.slice(0, HUMAN_FOR_WORDS)])
 
+  // 取り消した文の分析: どういう言葉・話題が、取り消されてばかりで、残っていないか（本人が何度も「要らない」と判断したもの）。
+  // 取り消し3本以上で割合が高い言葉は「使わない」（案に入っていたら書き直させる）。一覧と話題は、AIにも伝える。
+  const rejectedAnalysis = analyzeRejected(ctx.rejected, autoTexts)
+  const rejectedBlocked = blockedWords(rejectedAnalysis)
+
   let feedback: string | undefined
   let last: Generated = { problems: ['本文が空'] }
   for (let attempt = 0; attempt <= MAX_REWRITES; attempt++) {
@@ -312,7 +320,9 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
       profile: ctx.profile,
       samples: pickSamples(ctx.history, SAMPLES_PER_POST, ctx.seed + attempt),
       recent: recentForPrompt,
-      rejected: ctx.rejected,
+      rejected: ctx.rejected.slice(0, REJECTED_FOR_PROMPT),
+      rejectedWords: describeRejectedWords(rejectedAnalysis),
+      rejectedTopics: describeRejectedTopics(rejectedAnalysis),
       recentStyle,
       crowded: crowdedList.map(describeCrowded),
       neglected,
@@ -333,6 +343,8 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
     if (text) {
       const hit = overusedIn(text, overused)
       if (hit.length > 0) problems.push(`使いすぎの言葉（${hit.join('・')}）を含んでいる`)
+      const refused = overusedIn(text, rejectedBlocked)
+      if (refused.length > 0) problems.push(`本人が何度も取り消している言葉（${refused.join('・')}）を含んでいる`)
     }
     last = { text, problems }
     if (problems.length === 0) return last
@@ -354,7 +366,7 @@ export async function previewPost(deps: EngineDeps, userId: string): Promise<Gen
   const history = await humanHistory(deps, row)
   const usage = usageFor(row, now)
   const recent = await deps.store.recentTexts(userId, RECENT_AUTOPILOT_FOR_WORDS)
-  const rejected = await deps.store.rejectedTexts(userId, REJECTED_FOR_PROMPT)
+  const rejected = await deps.store.rejectedTexts(userId, REJECTED_FOR_ANALYSIS)
   const slotAt = new Date(now.getTime() + 3600_000).toISOString()
   const result = await generateOne({
     deps,
@@ -445,7 +457,7 @@ export async function topUp(
   const history = await humanHistory(deps, row)
   const usage = usageFor(row, now)
   const recent = await deps.store.recentTexts(row.userId, RECENT_AUTOPILOT_FOR_WORDS)
-  const rejected = await deps.store.rejectedTexts(row.userId, REJECTED_FOR_PROMPT)
+  const rejected = await deps.store.rejectedTexts(row.userId, REJECTED_FOR_ANALYSIS)
   const createdToday: { text: string; at: string }[] = []
   let lastError: string | null = null
 

@@ -849,6 +849,9 @@ describe('最新の履歴を毎回取り入れる・自動運転の投稿は学�
     overused?: string[]
     fresh?: string[]
     feedback?: string
+    rejectedWords?: string[]
+    rejectedTopics?: string[]
+    rejected?: string[]
   }
 
   describe('履歴の読み直し', () => {
@@ -1016,6 +1019,54 @@ describe('最新の履歴を毎回取り入れる・自動運転の投稿は学�
       expect(b).toHaveLength(4)
       expect(a).not.toContain('傘をなくしがちな話') // 「傘」はもう書いている
       expect(a).not.toEqual(b)
+    })
+
+    describe('取り消した文の分析', () => {
+      function withRejected(texts: string[]) {
+        const store = withRecentAutopilot(['電車が少し遅れていた。'])
+        texts.forEach((text, i) =>
+          store.posts.push({ userId: OWNER, at: new Date(Date.UTC(2026, 8, 20) + i * 3600_000).toISOString(), text, slotKey: `2026-09-2${i % 9}#${i}`, status: 'canceled', rejected: true })
+        )
+        return store
+      }
+      const cancelled = ['焼き芋の匂いがした。', '焼き芋を買って帰った。', '駅前で焼き芋が売っていた。', 'ハイボールが一番うまい。']
+
+      it('取り消された文の全部から、よく取り消される言葉を数えて、AIに渡す（文そのものは新しい10件だけ）', async () => {
+        const many = Array.from({ length: 30 }, (_, i) => `取り消した文その${i}、焼き芋のこと`)
+        const store = withRejected([...cancelled, ...many])
+        const { deps, writePost } = makeDeps(store)
+        await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+        const input = writePost.mock.calls[0][0] as unknown as Input
+        expect(input.rejectedWords?.[0]).toMatch(/^焼き芋（取り消し\d+回/)
+        expect(input.rejected).toHaveLength(10)
+      })
+
+      it('何度も取り消されている言葉が入った案は使わず、理由を伝えて書き直させる', async () => {
+        const store = withRejected(cancelled)
+        const seen: Input[] = []
+        const outputs = ['夜の焼き芋は格別だと思う。', '雨の日の傘って、あるだけで安心する。']
+        let n = 0
+        const { deps } = makeDeps(store, {
+          writePost: (async (input: Input & { onUsage?: (u: { inputTokens: number; outputTokens: number }) => void }) => {
+            seen.push(input)
+            input.onUsage?.({ inputTokens: 10, outputTokens: 10 })
+            return outputs[n++]
+          }) as never,
+        })
+        await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+        expect(seen).toHaveLength(2)
+        expect(seen[1].feedback).toContain('本人が何度も取り消している言葉（焼き芋）')
+        expect(store.posts.filter((p) => p.status !== 'canceled').at(-1)?.text).toBe('雨の日の傘って、あるだけで安心する。')
+      })
+
+      it('取り消しが無ければ、その欄は出さない', async () => {
+        const store = withRecentAutopilot(['電車が少し遅れていた。'])
+        const { deps, writePost } = makeDeps(store)
+        await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+        const input = writePost.mock.calls[0][0] as unknown as Input
+        expect(input.rejectedWords).toEqual([])
+        expect(input.rejectedTopics).toEqual([])
+      })
     })
 
     it('偏っていなければ、「多すぎる」は出さない', async () => {

@@ -952,3 +952,51 @@
   line-height: 1.6;
   color: var(--text-muted);
 }
+
+/* 取り消した文の分析。言葉・話題を、回数つきの小さな札で並べる。使わない言葉は濃い色。 */
+.rejected-insights__lead {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.rejected-insights__sub {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.rejected-insights__chips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rejected-insights__chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--fill);
+  font-size: 14px;
+}
+
+.rejected-insights__chip small {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.rejected-insights__chip--blocked {
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.rejected-insights__chip--blocked small {
+  color: var(--danger);
+}
