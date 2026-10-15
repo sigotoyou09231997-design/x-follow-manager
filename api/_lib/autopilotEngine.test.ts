@@ -389,7 +389,7 @@ describe('枠の補充（topUp）', () => {
     expect(store.posts).toHaveLength(0)
     expect(r.error).toContain('URLを含んでいる')
     expect(store.rows.get(OWNER)?.lastError).toContain('検査を通りませんでした')
-    expect(writePost).toHaveBeenCalledTimes(2) // 最初の1回＋書き直し1回で諦める
+    expect(writePost).toHaveBeenCalledTimes(3) // 最初の1回＋書き直し2回で諦める
   })
 
   it('1回目が似すぎでも、理由を伝えた書き直しが通れば予約に入る', async () => {
