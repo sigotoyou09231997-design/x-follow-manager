@@ -223,3 +223,27 @@ describe('最近の傾向・話題の偏りの渡し方', () => {
     expect(system).toContain('事実を作らない')
   })
 })
+
+describe('今回の書き方（型・長さ・避ける書き出しと締め）', () => {
+  it('型と長さ、避ける書き出し・締めを、欄にして渡す', () => {
+    const message = buildPostUserMessage({
+      ...base,
+      form: { name: '問いかけ', how: '読み手に聞く形で、疑問や問いかけで終える' },
+      length: { label: '短め', hint: '15〜30字ほどの短い一文', min: 10, max: 38 },
+      avoidOpenings: ['最近、'],
+      avoidEndings: ['ってる。'],
+    })
+    expect(message).toContain('【今回の書き方】')
+    expect(message).toContain('型: 問いかけ（読み手に聞く形で、疑問や問いかけで終える）')
+    expect(message).toContain('長さ: 短め（15〜30字ほどの短い一文）')
+    expect(message).toContain('書き出しは、次では始めない: 「最近、」')
+    expect(message).toContain('締めは、次で終えない: 「ってる。」')
+  })
+
+  it('指定が無ければ、欄ごと出さない。指示には、型と長さに従う・同じ骨組みにしない、が書いてある', () => {
+    expect(buildPostUserMessage(base)).not.toContain('【今回の書き方】')
+    const system = buildPostSystemPrompt()
+    expect(system).toContain('【今回の書き方】があれば、型と長さに必ず従う')
+    expect(system).toContain('場所や物の話→不満→オチ、の繰り返し')
+  })
+})

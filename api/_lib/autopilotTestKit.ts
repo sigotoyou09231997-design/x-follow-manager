@@ -140,9 +140,15 @@ export function resetWritten() {
   counter = 0
 }
 export function makeDeps(store: ReturnType<typeof memoryStore>, over: Partial<EngineDeps> = {}) {
-  const writePost = vi.fn(async (input: { onUsage?: (u: { inputTokens: number; outputTokens: number }) => void }) => {
+  const writePost = vi.fn(async (input: { onUsage?: (u: { inputTokens: number; outputTokens: number }) => void; length?: { min: number; max: number } }) => {
     input.onUsage?.({ inputTokens: 4000, outputTokens: 1200 })
-    return WRITTEN[counter++ % WRITTEN.length]
+    const i = counter++
+    let text = WRITTEN[i % WRITTEN.length]
+    // 指定された長さ（枠ごとに違う）の範囲に入るよう、別の文を足す（足す文は番号ごとに違うので、似すぎの検査には当たらない）
+    for (let k = 1; input.length && [...text].length < input.length.min + 2 && k < 12; k++) {
+      text += `。${WRITTEN[(i * 7 + k * 5) % WRITTEN.length]}（${i}-${k}）`
+    }
+    return text
   })
   const writeProfile = vi.fn(async (input: { onUsage?: (u: { inputTokens: number; outputTokens: number }) => void }) => {
     input.onUsage?.({ inputTokens: 15000, outputTokens: 5000 })

@@ -1,0 +1,49 @@
+import { describe, expect, it } from 'vitest'
+import { endingOf, FORMS, lengthProblem, LENGTHS, openingOf, pickVariety, repeatedEndings, repeatedOpenings } from './variety'
+
+describe('型と長さ', () => {
+  it('枠が同じなら同じ、違えば、いろいろな型・長さが出る', () => {
+    expect(pickVariety('2026-10-15#0')).toEqual(pickVariety('2026-10-15#0'))
+    const seeds = Array.from({ length: 60 }, (_, i) => `2026-10-${10 + (i % 20)}#${i}`)
+    const forms = new Set(seeds.map((s) => pickVariety(s).form.name))
+    const lengths = new Set(seeds.map((s) => pickVariety(s).length.label))
+    expect(forms.size).toBeGreaterThanOrEqual(8)
+    expect(lengths.size).toBe(LENGTHS.length)
+    expect(FORMS.length).toBeGreaterThanOrEqual(12)
+  })
+})
+
+describe('書き出し・締めの繰り返し', () => {
+  const recent = [
+    '最近、朝の空気がちょっと冷たくなってきた。上着どうするか迷う季節。',
+    '最近、スマホの充電が減るの早い気がする。',
+    '自販機の飲み物、いつの間にか220円が普通になってる。高過ぎやろ。',
+    '映画館のポップコーン、量の割に値段おかしい。でも買ってまう。',
+    '雨の日の信号待ち、傘の水滴がズボンに全部くる。',
+  ]
+
+  it('書き出し（最初の3文字）と締め（最後の4文字）を取り出す。かっこ・空白は飛ばす', () => {
+    expect(openingOf('「最近、朝の空気')).toBe('最近、')
+    expect(endingOf('高過ぎやろ。\n')).toBe('過ぎやろ。'.slice(-4))
+  })
+
+  it('最近の投稿で2回以上使っている書き出しを出す', () => {
+    expect(repeatedOpenings(recent)).toEqual(['最近、'])
+  })
+
+  it('3回以上使っている締めだけを出す', () => {
+    const endings = ['ってる。', 'ってる。', 'ってる。', 'ている。'].map((e, i) => `文${i}は${e}`)
+    expect(repeatedEndings(endings)).toEqual(['ってる。'])
+    expect(repeatedEndings(recent)).toEqual([])
+  })
+})
+
+describe('長さの検査', () => {
+  it('範囲に入っていれば問題なし。外れていれば、短い／長いと理由を返す（改行・空白は数えない）', () => {
+    const short = LENGTHS[0]
+    expect(lengthProblem('電車が遅れて、少し焦った朝だった。', short)).toBeUndefined()
+    expect(lengthProblem('あ', short)).toMatch(/^短すぎる/)
+    expect(lengthProblem('あ'.repeat(60), short)).toMatch(/^長すぎる/)
+    expect(lengthProblem('あ\nい\nう\nえ\nお\nか\nき\nく\nけ\nこ', short)).toBeUndefined() // 10字
+  })
+})
