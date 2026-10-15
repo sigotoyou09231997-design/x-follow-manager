@@ -15,6 +15,7 @@ import { aiCostYen, formatYen, monthlyYen, QUALITY_MODELS, setupYen, TYPICAL_TOK
 import {
   isAutopilotPost,
   LIMITS,
+  REJECTED_MARK,
   type AutopilotSettings,
   type AutopilotState,
   type Quality,
@@ -25,6 +26,7 @@ import { whenParts } from '../../lib/xAutopilot/whenLabel'
 import { updateScheduledPost } from '../../lib/schedule/postsStore'
 import { Icon } from '../Icon'
 import { SwitchRow } from './ChannelControls'
+import { RejectedInsights } from './RejectedInsights'
 import { UpcomingEditor } from './UpcomingEditor'
 import { UsageMeter } from './UsageMeter'
 
@@ -104,6 +106,24 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
           (a, b) =>
             Number(a.status === 'draft') - Number(b.status === 'draft') || (a.scheduledAt ?? '').localeCompare(b.scheduledAt ?? '')
         ),
+    [posts]
+  )
+
+  // 取り消した文（「取り消す」で外した自動運転の文）と、取り消されなかった文。取り消した文の分析に使う。
+  const rejectedTexts = useMemo(
+    () =>
+      posts
+        .filter((p) => isAutopilotPost(p.aiPrompt) && p.status === 'canceled' && p.errorMessage === REJECTED_MARK)
+        .map((p) => p.segments.map((s) => s.text).join('\n'))
+        .filter((t) => t.trim()),
+    [posts]
+  )
+  const keptTexts = useMemo(
+    () =>
+      posts
+        .filter((p) => isAutopilotPost(p.aiPrompt) && p.status !== 'canceled' && p.status !== 'failed')
+        .map((p) => p.segments.map((s) => s.text).join('\n'))
+        .filter((t) => t.trim()),
     [posts]
   )
 
@@ -505,6 +525,8 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
           別の文を作り直しています…（数十秒かかります）
         </p>
       )}
+
+      <RejectedInsights rejected={rejectedTexts} kept={keptTexts} />
 
       <StyleCard
         state={state}

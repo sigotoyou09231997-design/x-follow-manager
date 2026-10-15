@@ -910,3 +910,31 @@ describe('XAutopilotPanel: 確認してから投稿する設定で、取り消�
     await waitFor(() => expect(posts.update.mock.calls[0][1].rejected).toBe(true))
   })
 })
+
+describe('XAutopilotPanel: 取り消した文の分析', () => {
+  const rejected = (id: string, text: string) =>
+    post(id, { status: 'canceled', errorMessage: '本人が取り消した', segments: [{ text, media: [] }] })
+
+  it('取り消した文（印つき）だけを集めて、よく取り消される言葉を出す。一括の取り消し（印なし）は数えない', async () => {
+    posts.list = [
+      rejected('a', '焼き芋の匂いがした。'),
+      rejected('b', '焼き芋を買って帰った。'),
+      rejected('c', '駅前で焼き芋が売っていた。'),
+      post('d', { status: 'canceled', segments: [{ text: '止めたときの一括取り消し。焼き芋とは無関係', media: [] }] }), // 印なし
+    ]
+    render(<XAutopilotPanel />)
+
+    const card = await screen.findByRole('region', { name: '取り消した文の分析' })
+    expect(within(card).getByText('3件')).toBeInTheDocument()
+    expect(within(card).getByText('焼き芋')).toBeInTheDocument()
+    expect(within(card).getByText('取り消し3回')).toBeInTheDocument()
+  })
+
+  it('トップの1画面（summary）には出さない（詳細の画面だけ）', async () => {
+    posts.list = [rejected('a', '焼き芋の匂いがした。')]
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    render(<XAutopilotPanel variant="summary" />)
+    await screen.findByRole('region', { name: '稼働スイッチ' })
+    expect(screen.queryByRole('region', { name: '取り消した文の分析' })).not.toBeInTheDocument()
+  })
+})
