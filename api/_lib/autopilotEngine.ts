@@ -12,6 +12,7 @@ import {
   neglectedTopics,
 } from '../../src/lib/xAutopilot/recentStyle.js'
 import { REFILL_MIN_LEAD_MS } from '../../src/lib/xAutopilot/approve.js'
+import { frequentWords, overusedIn, pickFreshThemes } from '../../src/lib/xAutopilot/words.js'
 import { isLateMorningSlot } from '../../src/lib/xAutopilot/morning.js'
 import { localDate, localMonth, normalizeSettings, planSlots, settingsProblems, type Slot } from '../../src/lib/xAutopilot/slots.js'
 import {
@@ -78,7 +79,13 @@ export const MAX_HISTORY_KEPT = 400
 /** お手本として1回に見せる投稿数。 */
 const SAMPLES_PER_POST = 12
 /** 内容の重なりを調べる、直近の自動運転の投稿数と、ご本人の実際の投稿数。 */
+/** 確認してから投稿する設定で、確認待ちを作り置く日数の下限。 */
+export const APPROVAL_HORIZON_DAYS = 4
 const RECENT_AUTOPILOT = 15
+/** 使いすぎの言葉を数えるために読む、自動運転の最近の本数。プロンプトに載せるのは RECENT_AUTOPILOT 件だけ。 */
+const RECENT_AUTOPILOT_FOR_WORDS = 60
+/** まだ書いたことがない題材の候補から外すために読む、本人の最近の投稿の本数。 */
+const HUMAN_FOR_WORDS = 150
 const RECENT_HISTORY = 30
 /** 本人が取り消した投稿のうち、次に書くとき「こういうのは出さない」として見せる件数（新しい順）。 */
 const REJECTED_FOR_PROMPT = 10
@@ -287,6 +294,13 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
     (name) => !crowdedList.some((t) => t.name === name)
   )
 
+  // 言葉の偏り（同じ言葉が何度も出る）と、まだ書いたことがない題材。AI は呼ばない。
+  //   使いすぎの言葉: 自動運転が最近出した投稿で、2本以上に出ている言葉。今回は使わせない（案に入っていたら書き直させる）。
+  //                   本人が自分で書く言葉（会社・ゲームなど、本人のふだんの題材）は、ここには入れない。偏っていたのは自動運転の側。
+  //   新しい題材  : 過去の投稿（本人・自動運転）に1度も出ていない題材の候補を、枠ごとに違う組み合わせで渡す。
+  const overused = frequentWords(autoTexts.slice(0, RECENT_AUTOPILOT_FOR_WORDS), 2, 16)
+  const fresh = pickFreshThemes(ctx.slotAt, 4, [...autoTexts, ...humanTexts.slice(0, HUMAN_FOR_WORDS)])
+
   let feedback: string | undefined
   let last: Generated = { problems: ['本文が空'] }
   for (let attempt = 0; attempt <= MAX_REWRITES; attempt++) {
@@ -302,6 +316,8 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
       recentStyle,
       crowded: crowdedList.map(describeCrowded),
       neglected,
+      overused,
+      fresh,
       plannedSameDay: ctx.plannedSameDay,
       scheduledAt: ctx.slotAt,
       timeZone: row.settings.timeZone,
@@ -313,6 +329,11 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
       },
     })
     const problems = text ? checkPost(text, against) : ['本文が空']
+    // 使いすぎの言葉が入っていたら、使えない案として、理由を伝えて書き直させる。
+    if (text) {
+      const hit = overusedIn(text, overused)
+      if (hit.length > 0) problems.push(`使いすぎの言葉（${hit.join('・')}）を含んでいる`)
+    }
     last = { text, problems }
     if (problems.length === 0) return last
     feedback = problems.join('、')
@@ -332,7 +353,7 @@ export async function previewPost(deps: EngineDeps, userId: string): Promise<Gen
   row = await withFreshHistory(deps, row)
   const history = await humanHistory(deps, row)
   const usage = usageFor(row, now)
-  const recent = await deps.store.recentTexts(userId, RECENT_AUTOPILOT)
+  const recent = await deps.store.recentTexts(userId, RECENT_AUTOPILOT_FOR_WORDS)
   const rejected = await deps.store.rejectedTexts(userId, REJECTED_FOR_PROMPT)
   const slotAt = new Date(now.getTime() + 3600_000).toISOString()
   const result = await generateOne({
@@ -385,7 +406,12 @@ export async function topUp(
   // ただし、確認してから投稿する設定（requireApproval）のときは、近い枠（いまから2時間以内・過ぎた枠）は作り直さない。
   // 本人が選んで外したものなので、消したのにまた同じ時間帯に新しい文が出てくる、を作らない。
   // 遠い枠（たとえば明日）は作り直す（作り直さないと、候補が減る一方で、AIの文章が止まったように見える）。
-  const planned = planSlots(now, settings)
+  // 確認してから投稿する設定では、確認の途中で取り消す・投稿可能にするたびに候補が減っていくので、設定の「何日先まで」より
+  // 多め（最低4日先まで）に、確認待ちを作り置く（候補が1つしか無い、を避ける）。確認なしの設定は、設定のとおり。
+  const planned = planSlots(
+    now,
+    settings.requireApproval ? { ...settings, horizonDays: Math.max(settings.horizonDays, APPROVAL_HORIZON_DAYS) } : settings
+  )
   const rejectedAll = await deps.store.rejectedSlotKeys(row.userId, sinceDate)
   const refillable = (key: string) => {
     if (!settings.requireApproval) return true
@@ -418,7 +444,7 @@ export async function topUp(
   row = await withFreshHistory(deps, row)
   const history = await humanHistory(deps, row)
   const usage = usageFor(row, now)
-  const recent = await deps.store.recentTexts(row.userId, RECENT_AUTOPILOT)
+  const recent = await deps.store.recentTexts(row.userId, RECENT_AUTOPILOT_FOR_WORDS)
   const rejected = await deps.store.rejectedTexts(row.userId, REJECTED_FOR_PROMPT)
   const createdToday: { text: string; at: string }[] = []
   let lastError: string | null = null

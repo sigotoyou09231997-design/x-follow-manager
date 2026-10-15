@@ -624,13 +624,13 @@ describe('ON / OFF / 設定', () => {
     it('確認待ちの枠も、埋まっている枠に数える（枠の記録が空に戻っても、同じ枠に別の文を重ねて作らない）', async () => {
       const store = ready({ settings: { ...withApproval, postsPerDay: 1, horizonDays: 1 }, slots: [] })
       const { deps } = makeDeps(store)
-      await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 20 })
       const first = store.posts.map((p) => p.slotKey)
-      expect(first).toHaveLength(1)
+      expect(first.length).toBeGreaterThan(0)
 
       store.rows.get(OWNER)!.slots = []
-      await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
-      // 1日1回・1日先まで → 枠は今日の1つだけ。確認待ちがあるので、2本目は作らない
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 20 })
+      // 確認待ちの行が生きているので、同じ枠には重ねて作らない
       expect(store.posts.map((p) => p.slotKey)).toEqual(first)
     })
 
@@ -638,7 +638,7 @@ describe('ON / OFF / 設定', () => {
       const store = ready({ settings: { ...withApproval, postsPerDay: 2, horizonDays: 2 } })
       // 日本時間 14:00（今日の残りの枠が、2時間以内に入る時刻）
       const { deps } = makeDeps(store, { now: () => new Date('2026-10-10T05:00:00.000Z') })
-      await topUp(deps, await store.get(OWNER), { maxGenerations: 4 })
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 40 })
       const lead = (p: { at: string }) => Date.parse(p.at) - deps.now().getTime()
       const near = store.posts.filter((p) => lead(p) < 2 * 3600_000)
       const far = store.posts.filter((p) => lead(p) >= 2 * 3600_000)
@@ -654,7 +654,7 @@ describe('ON / OFF / 設定', () => {
       }
       const before = store.posts.length
 
-      const again = await topUp(deps, await store.get(OWNER), { maxGenerations: 4 })
+      const again = await topUp(deps, await store.get(OWNER), { maxGenerations: 40 })
       expect(again.created).toBe(1) // 遠い枠だけ
       expect(store.posts).toHaveLength(before + 1)
       const added = store.posts[store.posts.length - 1]
@@ -840,7 +840,16 @@ describe('最新の履歴を毎回取り入れる・自動運転の投稿は学�
     created_at: '2026-10-10T00:00:00.000Z',
     public_metrics: { like_count: 3, retweet_count: 0 },
   })
-  type Input = { recent: string[]; samples: { id: string }[]; crowded?: string[]; neglected?: string[]; recentStyle?: string }
+  type Input = {
+    recent: string[]
+    samples: { id: string }[]
+    crowded?: string[]
+    neglected?: string[]
+    recentStyle?: string
+    overused?: string[]
+    fresh?: string[]
+    feedback?: string
+  }
 
   describe('履歴の読み直し', () => {
     it('2時間より古い履歴は、文を作る前に読み直す（差分）。新しい投稿が、その回の AI に渡る', async () => {
@@ -966,6 +975,49 @@ describe('最新の履歴を毎回取り入れる・自動運転の投稿は学�
       expect(input.neglected).not.toContain('お酒・晩酌')
     })
 
+    it('自動運転の最近の投稿で何度も出ている言葉（焼き芋）を「使いすぎの言葉」として渡す。本人が自分で書く言葉は入れない', async () => {
+      const store = withRecentAutopilot([
+        '帰り道に焼き芋の匂いがして、つい目で追った。',
+        '焼き芋の季節になったなあと思う。',
+        '駅前で焼き芋が売っていた。',
+        '電車が少し遅れていた。',
+      ])
+      const { deps, writePost } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      const input = writePost.mock.calls[0][0] as unknown as Input
+      expect(input.overused).toContain('焼き芋')
+      expect(input.overused).not.toContain('会社') // 本人のふだんの題材（履歴に多い）は、使いすぎにしない
+    })
+
+    it('使いすぎの言葉が入った案は使わず、理由を伝えて書き直させる', async () => {
+      const store = withRecentAutopilot(['焼き芋の匂いがした。', '焼き芋を買って帰った。', '電車が遅れた。'])
+      const seen: Input[] = []
+      const outputs = ['また焼き芋の話をしてしまう。', '雨の日の傘って、あるだけで安心する。']
+      let n = 0
+      const { deps } = makeDeps(store, {
+        writePost: (async (input: Input & { onUsage?: (u: { inputTokens: number; outputTokens: number }) => void }) => {
+          seen.push(input)
+          input.onUsage?.({ inputTokens: 10, outputTokens: 10 })
+          return outputs[n++]
+        }) as never,
+      })
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      expect(seen).toHaveLength(2)
+      expect(seen[1].feedback).toContain('使いすぎの言葉（焼き芋）')
+      expect(store.posts.at(-1)?.text).toBe('雨の日の傘って、あるだけで安心する。')
+    })
+
+    it('まだ書いたことがない題材の候補を4つ渡す。過去の投稿に出ている題材は外す。枠が違えば候補も違う', async () => {
+      const store = withRecentAutopilot(['傘を忘れて濡れて帰った。', '電車が遅れた。'])
+      const { deps, writePost } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      const [a, b] = writePost.mock.calls.map((c) => (c[0] as unknown as Input).fresh ?? [])
+      expect(a).toHaveLength(4)
+      expect(b).toHaveLength(4)
+      expect(a).not.toContain('傘をなくしがちな話') // 「傘」はもう書いている
+      expect(a).not.toEqual(b)
+    })
+
     it('偏っていなければ、「多すぎる」は出さない', async () => {
       const store = withRecentAutopilot([
         'ジンソーダを飲んでみた。',
@@ -1014,5 +1066,20 @@ describe('最新の履歴を毎回取り入れる・自動運転の投稿は学�
       await topUp(fewDeps.deps, await few.get(OWNER), { maxGenerations: 1 })
       expect((fewDeps.writePost.mock.calls[0][0] as unknown as Input).recentStyle).toBeUndefined()
     })
+  })
+})
+
+describe('確認してから投稿する設定では、確認待ちを多め（最低4日先まで）に作り置く', () => {
+  it('設定が「1日先まで」でも、4日ぶんの枠を作る。確認なしの設定は、設定どおり', async () => {
+    const approval = ready({ settings: { ...DEFAULT_SETTINGS, requireApproval: true, postsPerDay: 2, horizonDays: 1 } })
+    const a = makeDeps(approval)
+    await topUp(a.deps, await approval.get(OWNER), { maxGenerations: 40 })
+    const days = new Set(approval.posts.map((p) => p.slotKey.slice(0, 10)))
+    expect(days.size).toBeGreaterThanOrEqual(4)
+
+    const auto = ready({ settings: { ...DEFAULT_SETTINGS, requireApproval: false, postsPerDay: 2, horizonDays: 1 } })
+    const b = makeDeps(auto)
+    await topUp(b.deps, await auto.get(OWNER), { maxGenerations: 40 })
+    expect(new Set(auto.posts.map((p) => p.slotKey.slice(0, 10))).size).toBeLessThanOrEqual(2)
   })
 })
