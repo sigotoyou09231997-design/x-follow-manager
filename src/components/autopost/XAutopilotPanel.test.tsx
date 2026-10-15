@@ -493,7 +493,7 @@ describe('XAutopilotPanel: トップの1画面用（summary）', () => {
     posts.list = [post('a')]
     render(<XAutopilotPanel variant="summary" />)
 
-    expect(await screen.findByText('自動運転中')).toBeInTheDocument()
+    expect(await screen.findByText(/^自動運転中・今日の投稿 \d\/3本/)).toBeInTheDocument()
     expect(button('自動運転を止める')).toBeEnabled()
     expect(screen.getByRole('heading', { name: 'Xの、これから投稿される予定' })).toBeInTheDocument()
     expect(screen.getByText('自動運転の本文 a')).toBeInTheDocument()
@@ -844,7 +844,7 @@ describe('XAutopilotPanel: 投稿可能（確認してから投稿する）', ()
     posts.list = [post('a', { status: 'draft', scheduledAt: future(3) }), post('b', { status: 'draft', scheduledAt: future(6) })]
     render(<XAutopilotPanel variant="summary" />)
 
-    expect(await screen.findByText('自動運転中・確認待ち2件')).toBeInTheDocument()
+    expect(await screen.findByText(/^自動運転中・今日の投稿 \d\/3本・確認待ち2件$/)).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'この予約を投稿可能にする' })).toHaveLength(2)
   })
 })

@@ -7,6 +7,36 @@
 //   ・毎分（サーバー）: 先に投稿可能にした予約が出たあと、残りの予約が元の時刻のまま待たされないよう、
 //     いちばん早い投稿可能な予約を、同じ決まりで前倒しする。
 
+import { toZonedParts } from '../schedule/repeat.js'
+
+/** 1日の投稿数の上限（設定の「1日の投稿数」）と、日の数え方（設定の地域）。 */
+export interface DailyCap {
+  postsPerDay: number
+  timeZone: string
+}
+
+const dayKey = (ms: number, timeZone: string): string => {
+  const p = toZonedParts(ms, timeZone)
+  return `${p.year}-${p.month}-${p.day}`
+}
+
+/**
+ * その日（ms の属する日）に、すでに出した・出している・投稿可能な、自動運転の投稿が何本あるか。
+ * 前倒しや投稿可能にした結果、1日の投稿数を超えないかを見るために数える。except は数えない予約（動かす本人）。
+ */
+export function postsOnDay(autopilot: PostTime[], ms: number, cap: DailyCap, exceptId?: string): number {
+  const key = dayKey(ms, cap.timeZone)
+  return autopilot.filter((p) => {
+    const t = at(p.scheduledAt)
+    return (
+      p.id !== exceptId &&
+      t !== undefined &&
+      (p.status === 'posted' || p.status === 'publishing' || p.status === 'scheduled') &&
+      dayKey(t, cap.timeZone) === key
+    )
+  }).length
+}
+
 /** 押してから投稿までの猶予。押し間違いに気づいて「確認待ちに戻す」を押せるくらいは残す。 */
 export const APPROVE_LEAD_MS = 5 * 60_000
 
@@ -58,7 +88,13 @@ export function earliestAllowed(now: number, lastPosted: number | undefined, lea
  * 他の投稿可能な予約（status が scheduled）の中に、この予約より前の時刻のものがあれば、前倒ししない。
  * 前倒し先は「いまから猶予ぶん」と「直前の投稿から最低間隔」の遅いほう。それより前の時刻なら、これ以上は動かさない。
  */
-export function soonestApprovalTime(post: PostTime, autopilot: PostTime[], now: number, slotTimes: number[] = []): string | undefined {
+export function soonestApprovalTime(
+  post: PostTime,
+  autopilot: PostTime[],
+  now: number,
+  slotTimes: number[] = [],
+  cap?: DailyCap
+): string | undefined {
   // 本人が時刻を決めた予約は、投稿可能にしても、時刻を動かさない。
   if (post.fixedTime) return undefined
   const current = at(post.scheduledAt)
@@ -69,15 +105,19 @@ export function soonestApprovalTime(post: PostTime, autopilot: PostTime[], now: 
     .filter((t): t is number => t !== undefined && t < current)
 
   // これより前の投稿可能な予約が無ければ、できるだけ早く（いまから猶予ぶん、直前の投稿から最低間隔）。
+  // どちらも、その日の投稿数が1日の上限（cap）に達している日には置かない（今日すでに上限まで出ているなら、次の日の枠へ）。
+  const hasRoom = (ms: number) => !cap || postsOnDay(autopilot, ms, cap, post.id) < cap.postsPerDay
   if (earlier.length === 0) {
     const target = earliestAllowed(now, lastPostedAt(autopilot), APPROVE_LEAD_MS)
-    return current <= target ? undefined : new Date(target).toISOString()
+    if (hasRoom(target)) return current <= target ? undefined : new Date(target).toISOString()
+    const next = slotTimes.filter((t) => t >= target && hasRoom(t)).sort((a, b) => a - b)[0]
+    return next !== undefined && next < current ? new Date(next).toISOString() : undefined
   }
 
   // 前に投稿可能な予約があるなら、その列のすぐ後ろ（最後の予約から最低間隔あけた、次の枠の時刻）へ。
   // 遠い日の予約を投稿可能にしても、間をあけずに、次に空いている枠（たとえば明日の午前）へ詰める。
   const floor = Math.max(Math.max(...earlier) + MIN_POST_GAP_MS, now + APPROVE_LEAD_MS)
-  const next = slotTimes.filter((t) => t >= floor).sort((a, b) => a - b)[0]
+  const next = slotTimes.filter((t) => t >= floor && hasRoom(t)).sort((a, b) => a - b)[0]
   return next !== undefined && next < current ? new Date(next).toISOString() : undefined
 }
 
@@ -85,7 +125,7 @@ export function soonestApprovalTime(post: PostTime, autopilot: PostTime[], now: 
  * 毎分の前倒し。いちばん早い投稿可能な予約が、出せる時刻（直前の投稿から最低間隔・いますぐ）より遅く待たされていれば、
  * その時刻へ前倒しする。動かさないときは undefined。ここでの猶予は1分（押した直後ではないので、長く待たせない）。
  */
-export function pullForwardTime(autopilot: PostTime[], now: number): { id: string; scheduledAt: string } | undefined {
+export function pullForwardTime(autopilot: PostTime[], now: number, cap?: DailyCap): { id: string; scheduledAt: string } | undefined {
   const approved = autopilot
     // 本人が時刻を決めた予約は、前倒しの対象にしない（本人が選んだ時刻に出す）。
     .filter((p) => p.status === 'scheduled' && !p.fixedTime && at(p.scheduledAt) !== undefined)
@@ -94,5 +134,7 @@ export function pullForwardTime(autopilot: PostTime[], now: number): { id: strin
   if (!first) return undefined
   const target = earliestAllowed(now, lastPostedAt(autopilot), 60_000)
   if ((at(first.scheduledAt) as number) <= target + MOVE_THRESHOLD_MS) return undefined
+  // その日の投稿数が、すでに1日の上限に達しているなら、前倒しで今日の分を増やさない（元の時刻のまま）。
+  if (cap && postsOnDay(autopilot, target, cap, first.id) >= cap.postsPerDay) return undefined
   return { id: first.id, scheduledAt: new Date(target).toISOString() }
 }
