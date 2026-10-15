@@ -33,6 +33,8 @@ describe('文の検査', () => {
     expect(checkPost('あ'.repeat(141), [])).toContain('文字数の上限（全角140字）を超えている')
     expect(checkPost('見てね https://example.com', [])).toContain('URLを含んでいる')
     expect(checkPost('女子高生の話', [])).toContain('未成年を連想させる表現を含んでいる')
+    expect(checkPost('今日は暑い。', [])).toEqual([expect.stringContaining('天気・気温の話（暑い）')]) // 作り置きで、出る日の天気は分からない
+    expect(checkPost('電車で寝落ちして、降りる駅を乗り過ごした。', [])).toEqual([])
     expect(checkPost('今日はなんだか眠いかも！', ['今日はなんだか眠いかも'])).toContain('最近の投稿と内容が似すぎている')
   })
 })
@@ -390,6 +392,38 @@ describe('枠の補充（topUp）', () => {
     expect(r.error).toContain('URLを含んでいる')
     expect(store.rows.get(OWNER)?.lastError).toContain('検査を通りませんでした')
     expect(writePost).toHaveBeenCalledTimes(3) // 最初の1回＋書き直し2回で諦める
+  })
+
+  describe('天気・気温の話は書かせない（本人の指示 2026-10-15。作り置きで、出る日の天気は分からない）', () => {
+    it('天気の話が入った案は、理由を伝えて書き直させ、天気の無い案が通れば予約に入る', async () => {
+      type AiInput = { feedback?: string; onUsage?: (u: { inputTokens: number; outputTokens: number }) => void }
+      const store = ready()
+      const seen: AiInput[] = []
+      const outputs = ['今日は寒いから、帰ってすぐ風呂に入りたい。', '駅の売店で、気づくとガムを買っている。']
+      let n = 0
+      const { deps } = makeDeps(store, {
+        writePost: (async (input: AiInput) => {
+          seen.push(input)
+          input.onUsage?.({ inputTokens: 10, outputTokens: 10 })
+          return outputs[n++]
+        }) as never,
+      })
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      expect(seen).toHaveLength(2)
+      expect(seen[1].feedback).toContain('天気・気温の話（寒い）')
+      expect(store.posts.at(-1)?.text).toBe('駅の売店で、気づくとガムを買っている。')
+    })
+
+    it('書き直しても天気の話のままなら、予約に入れず、止まって理由を記録する', async () => {
+      const store = ready()
+      const { deps, writePost } = makeDeps(store)
+      writePost.mockResolvedValue('明日は雨らしい。傘を持って出かける。')
+      const r = await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
+      expect(r.created).toBe(0)
+      expect(store.posts).toHaveLength(0)
+      expect(r.error).toContain('天気・気温の話')
+      expect(writePost).toHaveBeenCalledTimes(3) // 最初の1回＋書き直し2回で諦める
+    })
   })
 
   it('1回目が似すぎでも、理由を伝えた書き直しが通れば予約に入る', async () => {
@@ -999,7 +1033,7 @@ describe('最新の履歴を毎回取り入れる・自動運転の投稿は学�
     it('使いすぎの言葉が入った案は使わず、理由を伝えて書き直させる', async () => {
       const store = withRecentAutopilot(['焼き芋の匂いがした。', '焼き芋を買って帰った。', '電車が遅れた。'])
       const seen: Input[] = []
-      const outputs = ['また焼き芋の話をしてしまう。', '雨の日の傘って、あるだけで安心する。']
+      const outputs = ['また焼き芋の話をしてしまう。', '傘立てに、自分の傘だけが見つからない。']
       let n = 0
       const { deps } = makeDeps(store, {
         writePost: (async (input: Input & { onUsage?: (u: { inputTokens: number; outputTokens: number }) => void }) => {
@@ -1011,7 +1045,7 @@ describe('最新の履歴を毎回取り入れる・自動運転の投稿は学�
       await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
       expect(seen).toHaveLength(2)
       expect(seen[1].feedback).toContain('使いすぎの言葉（焼き芋）')
-      expect(store.posts.at(-1)?.text).toBe('雨の日の傘って、あるだけで安心する。')
+      expect(store.posts.at(-1)?.text).toBe('傘立てに、自分の傘だけが見つからない。')
     })
 
     it('まだ書いたことがない題材の候補を4つ渡す。過去の投稿に出ている題材は外す。枠が違えば候補も違う', async () => {
@@ -1095,7 +1129,7 @@ describe('最新の履歴を毎回取り入れる・自動運転の投稿は学�
       it('何度も取り消されている言葉が入った案は使わず、理由を伝えて書き直させる', async () => {
         const store = withRejected(cancelled)
         const seen: Input[] = []
-        const outputs = ['夜の焼き芋は格別だと思う。', '雨の日の傘って、あるだけで安心する。']
+        const outputs = ['夜の焼き芋は格別だと思う。', '傘立てに、自分の傘だけが見つからない。']
         let n = 0
         const { deps } = makeDeps(store, {
           writePost: (async (input: Input & { onUsage?: (u: { inputTokens: number; outputTokens: number }) => void }) => {
@@ -1107,7 +1141,7 @@ describe('最新の履歴を毎回取り入れる・自動運転の投稿は学�
         await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
         expect(seen).toHaveLength(2)
         expect(seen[1].feedback).toContain('本人が何度も取り消している言葉（焼き芋）')
-        expect(store.posts.filter((p) => p.status !== 'canceled').at(-1)?.text).toBe('雨の日の傘って、あるだけで安心する。')
+        expect(store.posts.filter((p) => p.status !== 'canceled').at(-1)?.text).toBe('傘立てに、自分の傘だけが見つからない。')
       })
 
       it('取り消しが無ければ、その欄は出さない', async () => {

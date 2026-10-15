@@ -61,6 +61,25 @@ describe('本人の「いまの書き方」', () => {
   })
 })
 
+describe('天気・確かめられないことは書かない（本人の指示 2026-10-15）', () => {
+  it('3つの文章作成の指示すべてに入っている（共通の WRITING_RULES から）', () => {
+    for (const prompt of [buildSystemPrompt('single', 3), buildSystemPrompt('thread', 5), buildDailySystemPrompt(), buildPostSystemPrompt()]) {
+      expect(prompt).toContain('天気・気温の話')
+      expect(prompt).toContain('出る日の天気は分からず')
+    }
+  })
+
+  it('【お手本】に天気の話があっても書かない・天気のほかの確かめられないことも書かない・依頼文に本人が書いた事実は使える', () => {
+    expect(WRITING_RULES).toContain('【お手本】に天気の話があっても書かない')
+    expect(WRITING_RULES).toContain('ニュース・世の中の出来事・店の混雑や営業')
+    expect(WRITING_RULES).toContain('依頼文に本人が書いた事実だけは、そのまま使ってよい')
+  })
+
+  it('いまの書き方（VOICE_GUIDE）の話題の例に、天気を入れない', () => {
+    expect(VOICE_GUIDE).not.toMatch(/天気|雨|暑い|寒い|気温/)
+  })
+})
+
 describe('本人の「いまの書き方」: 話題の偏りと、毎回計算する数字', () => {
   it('お酒の話は10本に1本まで。続けて出さない（本人が最近書いても、自動で作る文は寄せない）', () => {
     expect(VOICE_GUIDE).toContain('お酒の話（ハイボール・ジンソーダ・晩酌など）は、10本に1本までにする')
