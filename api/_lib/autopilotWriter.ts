@@ -5,6 +5,7 @@ import { QUALITY_MODELS } from '../../src/lib/xAutopilot/cost.js'
 import { recentWindow } from '../../src/lib/xAutopilot/text.js'
 import type { HistoryPost, Quality, StyleProfile } from '../../src/lib/xAutopilot/types.js'
 import { RefusedError, WRITING_RULES, writePosts } from './postWriter.js'
+import type { LengthTarget, WritingForm } from '../../src/lib/xAutopilot/variety.js'
 
 // X の自動運転で、AIに頼む2つの仕事。
 //   1. 過去の投稿から「この人らしさ」（語調・話題の傾向）をまとめる      … writeProfile
@@ -113,6 +114,7 @@ export function buildPostSystemPrompt(): string {
 - まず今回の話題を決めてから書く。話題は偏りやすい（同じ括りの話題が続くと、別の投稿に見えず飽きられる）ので、
   【最近多すぎる話題】にある括りは選ばず、【最近少ない話題】があればその中から選ぶ。
   括りは大きく見る（ハイボールもジンソーダも晩酌も、同じ「お酒」。その括りが挙がっていれば、別のお酒の話も不可）
+- 【今回の書き方】があれば、型と長さに必ず従う。最近の投稿と同じ骨組み（「◯◯、△△。□□。」のように、場所や物の話→不満→オチ、の繰り返し）で書かない
 - 【本人がよく取り消す言葉・話題】にあるものは、取り消される文の特徴なので、使わない・選ばない。
 - 今までに書いたことがない題材を選ぶ。【まだ書いたことがない題材の候補】があれば、その中から1つ選び、
   【使いすぎの言葉】にある言葉は、使わない・言い換えない。題材は新しくても、語尾・口調・文の長さ・改行・絵文字・
@@ -155,6 +157,12 @@ export interface PostPromptInput {
   crowded?: string[]
   /** ふだん書くのに最近出ていない話題の括り。今回はここから選ぶ。無ければ省略。neglectedTopics。 */
   neglected?: string[]
+  /** 今回の書き方（枠ごとに決める）。型と長さ。無ければ省略。pickVariety。 */
+  form?: WritingForm
+  length?: LengthTarget
+  /** 最近の投稿で何度も使っている書き出し・締め。今回は避ける。無ければ省略。repeatedOpenings / repeatedEndings。 */
+  avoidOpenings?: string[]
+  avoidEndings?: string[]
   /** よく取り消される言葉（回数つき、1行ずつ）。本人が何度も「要らない」と取り消したもの。今回は使わない。無ければ省略。describeRejectedWords。 */
   rejectedWords?: string[]
   /** よく取り消される話題の括り。今回は選ばない。無ければ省略。describeRejectedTopics。 */
@@ -242,6 +250,15 @@ export function buildPostUserMessage(input: PostPromptInput): string {
     sections.push(
       `【最近少ない話題】（本人がふだん書くのに、最近は出ていない括り。今回はここから選ぶとよい。事実は作らず、感想や考えとして書く）\n${neglected.map((t) => `- ${t}`).join('\n')}`
     )
+  }
+  if (input.form || input.length) {
+    const lines = [
+      input.form ? `型: ${input.form.name}（${input.form.how}）` : '',
+      input.length ? `長さ: ${input.length.label}（${input.length.hint}）` : '',
+      (input.avoidOpenings ?? []).length ? `書き出しは、次では始めない: ${(input.avoidOpenings ?? []).map((o) => `「${o}」`).join('')}` : '',
+      (input.avoidEndings ?? []).length ? `締めは、次で終えない: ${(input.avoidEndings ?? []).map((o) => `「${o}」`).join('')}` : '',
+    ].filter(Boolean)
+    sections.push(`【今回の書き方】（必ず従う。内容が違っても、毎回同じ骨組みにならないようにするための指定）\n${lines.map((t) => `- ${t}`).join('\n')}`)
   }
   const rejectedWords = (input.rejectedWords ?? []).map((t) => t.trim()).filter(Boolean)
   const rejectedTopics = (input.rejectedTopics ?? []).map((t) => t.trim()).filter(Boolean)

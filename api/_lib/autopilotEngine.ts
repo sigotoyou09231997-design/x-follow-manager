@@ -13,6 +13,7 @@ import {
 } from '../../src/lib/xAutopilot/recentStyle.js'
 import { REFILL_MIN_LEAD_MS } from '../../src/lib/xAutopilot/approve.js'
 import { frequentWords, overusedIn, pickFreshThemes } from '../../src/lib/xAutopilot/words.js'
+import { lengthProblem, openingOf, pickVariety, repeatedEndings, repeatedOpenings } from '../../src/lib/xAutopilot/variety.js'
 import { analyzeRejected, blockedWords, describeRejectedTopics, describeRejectedWords } from '../../src/lib/xAutopilot/rejectedAnalysis.js'
 import { isLateMorningSlot } from '../../src/lib/xAutopilot/morning.js'
 import { localDate, localMonth, normalizeSettings, planSlots, settingsProblems, type Slot } from '../../src/lib/xAutopilot/slots.js'
@@ -95,7 +96,7 @@ const REJECTED_FOR_ANALYSIS = 300
 /** 読み込みの連打を止める間隔。 */
 const READ_INTERVAL_MS = 60_000
 /** 検査に落ちたとき、書き直させる回数（最初の1回を除く）。 */
-const MAX_REWRITES = 1
+const MAX_REWRITES = 2
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, 300)
 
@@ -309,6 +310,14 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
   const rejectedAnalysis = analyzeRejected(ctx.rejected, autoTexts)
   const rejectedBlocked = blockedWords(rejectedAnalysis)
 
+  // 毎回同じ骨組みにならないよう、枠ごとに「型」と「長さ」を決めて指定し、最近の投稿で何度も使っている書き出し・締めは避けさせる。
+  // 守られなかった案（長さが範囲の外・最近と同じ書き出し）は、理由を伝えて書き直させる。
+  const variety = pickVariety(ctx.slotAt)
+  const recentForShape = autoTexts.slice(0, 12)
+  const avoidOpenings = repeatedOpenings(recentForShape)
+  const avoidEndings = repeatedEndings(recentForShape)
+  const recentOpenings = recentForShape.map(openingOf)
+
   let feedback: string | undefined
   let last: Generated = { problems: ['本文が空'] }
   for (let attempt = 0; attempt <= MAX_REWRITES; attempt++) {
@@ -328,6 +337,10 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
       neglected,
       overused,
       fresh,
+      form: variety.form,
+      length: variety.length,
+      avoidOpenings,
+      avoidEndings,
       plannedSameDay: ctx.plannedSameDay,
       scheduledAt: ctx.slotAt,
       timeZone: row.settings.timeZone,
@@ -343,6 +356,11 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
     if (text) {
       const hit = overusedIn(text, overused)
       if (hit.length > 0) problems.push(`使いすぎの言葉（${hit.join('・')}）を含んでいる`)
+      const lengthIssue = lengthProblem(text, variety.length)
+      if (lengthIssue) problems.push(lengthIssue)
+      // 最近の投稿の2本以上と、同じ書き出し（最初の3文字）なら、使えない案にする。
+      const open = openingOf(text)
+      if (open.length >= 3 && recentOpenings.filter((o) => o === open).length >= 2) problems.push(`書き出し「${open}」が、最近の投稿と同じ`)
       const refused = overusedIn(text, rejectedBlocked)
       if (refused.length > 0) problems.push(`本人が何度も取り消している言葉（${refused.join('・')}）を含んでいる`)
     }

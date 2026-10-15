@@ -389,7 +389,7 @@ describe('枠の補充（topUp）', () => {
     expect(store.posts).toHaveLength(0)
     expect(r.error).toContain('URLを含んでいる')
     expect(store.rows.get(OWNER)?.lastError).toContain('検査を通りませんでした')
-    expect(writePost).toHaveBeenCalledTimes(2) // 最初の1回＋書き直し1回で諦める
+    expect(writePost).toHaveBeenCalledTimes(3) // 最初の1回＋書き直し2回で諦める
   })
 
   it('1回目が似すぎでも、理由を伝えた書き直しが通れば予約に入る', async () => {
@@ -852,6 +852,10 @@ describe('最新の履歴を毎回取り入れる・自動運転の投稿は学�
     rejectedWords?: string[]
     rejectedTopics?: string[]
     rejected?: string[]
+    form?: { name: string }
+    length?: { label: string; min: number; max: number }
+    avoidOpenings?: string[]
+    avoidEndings?: string[]
   }
 
   describe('履歴の読み直し', () => {
@@ -1021,6 +1025,53 @@ describe('最新の履歴を毎回取り入れる・自動運転の投稿は学�
       expect(a).not.toEqual(b)
     })
 
+    describe('型・長さ・書き出しの指定（毎回同じ骨組みにしない）', () => {
+      it('枠ごとに、型と長さを指定して渡す。枠が違えば、違う指定になる', async () => {
+        const store = withRecentAutopilot(['電車が少し遅れていた。'])
+        const { deps, writePost } = makeDeps(store)
+        await topUp(deps, await store.get(OWNER), { maxGenerations: 6 })
+        const inputs = writePost.mock.calls.map((c) => c[0] as unknown as Input)
+        expect(inputs.every((i) => i.form && i.length)).toBe(true)
+        expect(new Set(inputs.map((i) => i.form?.name)).size).toBeGreaterThan(1)
+      })
+
+      it('最近の投稿で2回以上使っている書き出しは、避けるよう伝える', async () => {
+        const store = withRecentAutopilot(['最近、朝が寒い。', '最近、充電が減るのが早い。', '映画館のポップコーンは高い。'])
+        const { deps, writePost } = makeDeps(store)
+        await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+        expect((writePost.mock.calls[0][0] as unknown as Input).avoidOpenings).toEqual(['最近、'])
+      })
+
+      function sequence(outputs: (target: { min: number; max: number } | undefined) => string[]) {
+        const store = withRecentAutopilot(['最近、朝が寒い。', '最近、充電が減るのが早い。', '最近、雨が多い気がする。'])
+        const seen: Input[] = []
+        let n = 0
+        const { deps } = makeDeps(store, {
+          writePost: (async (input: Input & { onUsage?: (u: { inputTokens: number; outputTokens: number }) => void }) => {
+            seen.push(input)
+            input.onUsage?.({ inputTokens: 10, outputTokens: 10 })
+            return outputs(input.length)[n++]
+          }) as never,
+        })
+        return { store, seen, deps }
+      }
+      const fit = (target: { min: number; max: number } | undefined, head: string) => head + 'い'.repeat(Math.max(0, (target?.min ?? 0) - head.length + 2))
+
+      it('最近の投稿の2本以上と同じ書き出し（最初の3文字）の案は使わず、理由を伝えて書き直させる', async () => {
+        const { store, seen, deps } = sequence((t) => [fit(t, '最近、傘を買い替えた'), fit(t, '夕方の商店街の匂いが好きだ')])
+        await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+        expect(seen[1].feedback).toContain('書き出し「最近、」が、最近の投稿と同じ')
+        expect(store.posts.filter((p) => p.status !== 'canceled').at(-1)?.text).toMatch(/^夕方の商店街/)
+      })
+
+      it('指定の長さに合わない案は使わず、理由を伝えて書き直させる', async () => {
+        const { store, seen, deps } = sequence((t) => ['あ', fit(t, '夕方の商店街の匂いが好きだ')])
+        await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+        expect(seen[1].feedback).toMatch(/短すぎる（指定: /)
+        expect(store.posts.filter((p) => p.status !== 'canceled').at(-1)?.text).toMatch(/^夕方の商店街/)
+      })
+    })
+
     describe('取り消した文の分析', () => {
       function withRejected(texts: string[]) {
         const store = withRecentAutopilot(['電車が少し遅れていた。'])
@@ -1093,10 +1144,13 @@ describe('最新の履歴を毎回取り入れる・自動運転の投稿は学�
       const drinks = ['ハイボールが好きすぎて困る', 'ジンソーダの新作を試した', '晩酌の時間が一日の楽しみ', 'ウイスキーの香りが落ち着く']
       let n = 0
       const { deps } = makeDeps(store, {
-        writePost: (async (input: Input & { onUsage?: (u: { inputTokens: number; outputTokens: number }) => void }) => {
+        writePost: (async (input: Input & { length?: { min: number }; onUsage?: (u: { inputTokens: number; outputTokens: number }) => void }) => {
           seen.push(input)
           input.onUsage?.({ inputTokens: 10, outputTokens: 10 })
-          return drinks[n++ % 4]
+          // 指定された長さに届くよう、話題に関係のない覚え書きを足す（話題はお酒のまま。足す文は毎回違うので、似すぎの検査には当たらない）
+          let text = drinks[n++ % 4]
+          for (let k = 1; input.length && [...text].length < input.length.min + 2 && k < 20; k++) text += `。メモ${n}-${k}番、ただの覚え書き`
+          return text
         }) as never,
       })
       await topUp(deps, await store.get(OWNER), { maxGenerations: 4 })
