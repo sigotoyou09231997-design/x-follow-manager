@@ -662,6 +662,32 @@ describe('ON / OFF / 設定', () => {
       expect(store.posts.filter((p) => p.slotKey === nearOne.slotKey && p.status !== 'canceled')).toHaveLength(0)
     })
 
+    it('もう朝（6時以降）なら、今日の午前中の枠は作らない。午後と明日以降の枠は作る', async () => {
+      const store = ready({ settings: { ...withApproval, postsPerDay: 3, horizonDays: 2 } })
+      const { deps } = makeDeps(store, { now: () => new Date('2026-10-10T00:00:00.000Z') }) // 日本時間 9:00
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 10 })
+
+      const parts = (iso: string) =>
+        new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' })
+          .format(new Date(iso))
+          .split(' ')
+      const made = store.posts.map((p) => parts(p.at))
+      expect(made.length).toBeGreaterThan(0)
+      expect(made.filter(([day, hour]) => day === '2026-10-10' && Number(hour) < 12)).toEqual([]) // 今日の午前中は無い
+      expect(made.some(([day]) => day === '2026-10-11')).toBe(true) // 明日の分は作る
+    })
+
+    it('確認なし（オフ）のときは、朝でも今日の午前中の枠を作る（これまでどおり）', async () => {
+      const store = ready({ settings: { ...DEFAULT_SETTINGS, requireApproval: false, postsPerDay: 3, horizonDays: 1 } })
+      const { deps } = makeDeps(store, { now: () => new Date('2026-10-10T00:00:00.000Z') })
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 10 })
+      const morning = store.posts.filter((p) => {
+        const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tokyo', hour: '2-digit', hourCycle: 'h23' }).format(new Date(p.at)))
+        return hour < 12
+      })
+      expect(morning.length).toBeGreaterThan(0)
+    })
+
     it('確認なし（オフ）のときは、取り消した枠を、これまでどおり作り直す', async () => {
       const store = ready({ settings: { ...DEFAULT_SETTINGS, requireApproval: false, postsPerDay: 2, horizonDays: 1 } })
       const { deps } = makeDeps(store)

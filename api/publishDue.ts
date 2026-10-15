@@ -9,6 +9,7 @@ import { RECENT_POSTS_TO_AVOID, writeDailyPost } from './_lib/dailyWriter.js'
 import { topUpAll } from './_lib/autopilotEngine.js'
 import { deletePreviousAutopilotPosts, type CleanupDeps } from './_lib/autopilotCleanup.js'
 import { pullForwardTime } from '../src/lib/xAutopilot/approve.js'
+import { morningWindow } from '../src/lib/xAutopilot/morning.js'
 import { supabaseAutopilotStore } from './_lib/autopilotStore.js'
 import { writeAutopilotPost, writeProfile } from './_lib/autopilotWriter.js'
 import { supabasePosterWatchDeps, watchPosters } from './_lib/posterWatch.js'
@@ -111,6 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 確認してから投稿する設定の人は、先に投稿可能にした予約が出たあと、残りの投稿可能な予約を前に詰める
     // （元の時刻のまま、何時間も待たされないように）。失敗しても、投稿そのものには影響させない。
     await pullForwardApproved(startedAt)
+    await cancelLateMorningDrafts(startedAt)
 
     // 次回分の用意は投稿のあと。AIおまかせの繰り返しではここでAIを呼ぶので、
     // 先に走らせると、その待ち時間のぶん時刻を過ぎた投稿が遅れる。
@@ -224,6 +226,35 @@ async function pullForwardApproved(now: Date): Promise<void> {
     }
   } catch (error) {
     console.error('pullForwardApproved failed:', (error as Error).message)
+  }
+}
+
+/**
+ * 確認してから投稿する設定の人について、「今日の午前中の時刻なのに、朝（6時）になってから作られた確認待ち」を取り消す
+ * （「今日の午前中は、もう作らない」。決まりは src/lib/xAutopilot/morning.ts）。前の日までに作ってあった午前の予約は、
+ * 作られた時刻で見分けて、残す。本人が嫌がったわけではないので、取り消しの印は付けない（文体の学習の「出さないもの」にしない）。
+ */
+async function cancelLateMorningDrafts(now: Date): Promise<void> {
+  try {
+    const db = getSupabaseAdmin()
+    const users = await supabaseAutopilotStore().listEnabled(50)
+    for (const row of users) {
+      if (!row.settings.requireApproval) continue
+      const window = morningWindow(now.getTime(), row.settings.timeZone)
+      if (!window) continue
+      const { error } = await db
+        .from('scheduled_posts')
+        .update({ status: 'canceled', updated_at: now.toISOString() })
+        .eq('user_id', row.userId)
+        .eq('status', 'draft')
+        .like('ai_prompt', `${AUTOPILOT_PREFIX}%`)
+        .gte('scheduled_at', window.scheduledFrom)
+        .lt('scheduled_at', window.scheduledTo)
+        .gte('created_at', window.createdAfter)
+      if (error) console.error('cancelLateMorningDrafts failed:', error.message)
+    }
+  } catch (error) {
+    console.error('cancelLateMorningDrafts failed:', (error as Error).message)
   }
 }
 

@@ -12,6 +12,7 @@ import {
   neglectedTopics,
 } from '../../src/lib/xAutopilot/recentStyle.js'
 import { REFILL_MIN_LEAD_MS } from '../../src/lib/xAutopilot/approve.js'
+import { isLateMorningSlot } from '../../src/lib/xAutopilot/morning.js'
 import { localDate, localMonth, normalizeSettings, planSlots, settingsProblems, type Slot } from '../../src/lib/xAutopilot/slots.js'
 import {
   cleanHistory,
@@ -393,6 +394,9 @@ export async function topUp(
   }
   const rejectedSlots = rejectedAll.filter(refillable)
   let missing: Slot[] = planned.filter((s) => !row.slots.includes(s.key) || rejectedSlots.includes(s.key))
+  // 確認してから投稿する設定では、もう朝（6時以降）なら、今日の午前中の枠は新しく作らない（本人の指示）。
+  // 前の日までに作ってあった午前の予約は、そのまま残る。
+  if (settings.requireApproval) missing = missing.filter((s) => !isLateMorningSlot(s.at, now.getTime(), settings.timeZone))
   if (missing.length === 0) return result
 
   // 記録に無くても、予約として生きている枠は作り直さない。記録だけが空になる場面（設定を変えて作り直したとき）に、
