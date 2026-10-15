@@ -99,3 +99,34 @@ describe('本人が時刻を決めた予約は、動かさない', () => {
     expect(pullForwardTime([post('p', 'posted', -300), fixed('f', 'scheduled', 90)], NOW)).toBeUndefined()
   })
 })
+
+describe('前に投稿可能な予約があるとき、列のすぐ後ろ（次に空いている枠）へ詰める', () => {
+  const slot = (min: number) => NOW + min * 60_000
+
+  it('遠い日の予約を投稿可能にすると、前の投稿可能な予約から最低間隔あけた、次の枠へ移す（明日の午前など）', () => {
+    // 今日の夜（600分後）に投稿可能な予約がある。次の枠は、その30分以上あと（明日の午前＝1300分後）
+    const target = post('sat', 'draft', 3000)
+    const others = [post('tonight', 'scheduled', 600), post('later', 'scheduled', 3300)]
+    const slots = [slot(400), slot(620), slot(1300), slot(1700), slot(2900)]
+    expect(soonestApprovalTime(target, [target, ...others], NOW, slots)).toBe(new Date(slot(1300)).toISOString())
+  })
+
+  it('前の投稿可能な予約の「後」だけを見る（それより後ろの予約は、並びを塞がない）', () => {
+    const target = post('b', 'draft', 3000)
+    const others = [post('far', 'scheduled', 3500)] // 後ろにあるだけ → 前には無いので、いちばん早い扱い
+    expect(soonestApprovalTime(target, [target, ...others], NOW, [slot(1300)])).toBe(new Date(NOW + APPROVE_LEAD_MS).toISOString())
+  })
+
+  it('次の枠がいまの時刻より遅い（すでに最短の位置）なら、動かさない', () => {
+    const target = post('b', 'draft', 700)
+    const others = [post('tonight', 'scheduled', 600)]
+    expect(soonestApprovalTime(target, [target, ...others], NOW, [slot(1300), slot(1700)])).toBeUndefined()
+  })
+
+  it('枠の情報が無ければ（空）、動かさない。前の予約が近すぎれば、最低間隔あけた枠を選ぶ', () => {
+    const target = post('b', 'draft', 3000)
+    const others = [post('a', 'scheduled', 600)]
+    expect(soonestApprovalTime(target, [target, ...others], NOW, [])).toBeUndefined()
+    expect(soonestApprovalTime(target, [target, ...others], NOW, [slot(610), slot(640)])).toBe(new Date(slot(640)).toISOString()) // 610 は30分以内
+  })
+})
