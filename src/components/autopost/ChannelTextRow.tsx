@@ -4,6 +4,7 @@ import { flat, isValid, normalize, slotsOf, withArchived, type Slot } from '../.
 import { hoursLabel, type Hours } from '../../lib/autopost/hours'
 import { registerEditingGuard } from '../../lib/editingGuard'
 import { Icon } from '../Icon'
+import { DayOverview } from './DayTimeline'
 import { HoursPicker } from './HoursPicker'
 
 // トップの1画面の一番上で、ディスコード／Yay の「いま投稿されている文」を1行ずつ見せ、過去の文をドロップダウンから選んで切り替える。
@@ -179,6 +180,10 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
     <div className="channel-row" role="group" aria-label={`${name}の投稿文`}>
       {showName && <strong className="channel-row__name">{name}</strong>}
 
+      {snapshot.hours.some((h) => h !== null) && (
+        <DayOverview hours={snapshot.hours} oneOnly={snapshot.channel === 'yay'} nowHour={snapshot.schedule.hour} />
+      )}
+
       {snapshot.messages.length === 0 && !editing ? (
         <p className="channel-row__empty">まだ文がありません。下の「文を追加」で書いてください。</p>
       ) : (
@@ -201,8 +206,8 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
                     autoFocus
                   />
                   <div className="channel-row__edit-foot">
-                    <HoursPicker hours={editing.hours} onChange={(next) => setEditing({ ...editing, hours: next })} name={`${name}の${label}`} />
                     <span className={`autopost__count${length > snapshot.limits.maxLength ? ' over' : ''}`}>{length}文字</span>
+                    <HoursPicker hours={editing.hours} onChange={(next) => setEditing({ ...editing, hours: next })} name={`${name}の${label}`} />
                   </div>
                   <div className="channel-row__edit-actions">
                     <button type="button" className="btn btn--primary btn--small" onClick={() => void saveEdit()} disabled={editSaving}>
@@ -268,15 +273,15 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
             autoFocus
           />
           <div className="channel-row__edit-foot">
+            <span className={`autopost__count${editing.text.trim().length > snapshot.limits.maxLength ? ' over' : ''}`}>
+              {editing.text.trim().length}文字
+            </span>
             <HoursPicker
               hours={editing.hours}
               onChange={(next) => setEditing({ ...editing, hours: next })}
               name={`${name}の新しい文`}
               defaultOpen
             />
-            <span className={`autopost__count${editing.text.trim().length > snapshot.limits.maxLength ? ' over' : ''}`}>
-              {editing.text.trim().length}文字
-            </span>
           </div>
           <div className="channel-row__edit-actions">
             <button type="button" className="btn btn--primary btn--small" onClick={() => void saveEdit()} disabled={editSaving}>

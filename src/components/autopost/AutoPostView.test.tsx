@@ -357,7 +357,7 @@ describe('AutoPostView', () => {
 
       fireEvent.click(picker())
       fireEvent.click(screen.getByRole('button', { name: /^朝/ }))
-      expect(picker()).toHaveTextContent('5〜11時')
+      expect(picker()).toHaveTextContent('5時〜11時')
 
       const save = screen.getByRole('button', { name: '保存する' })
       expect(save).toBeEnabled() // 文は同じでも、時間帯を変えたので書きかけ
@@ -367,30 +367,103 @@ describe('AutoPostView', () => {
       )
     })
 
-    it('1時間ずつ付け外しできる。終日から1時間外すと、その時間だけ抜ける', async () => {
+    it('「時間を決める」で「9時から12時まで」が出て、開始と終了を選び直せる', async () => {
       render(<AutoPostView />)
       await waitFor(() => expect(box().value).toBe('保存してある文'))
       fireEvent.click(picker())
-      fireEvent.click(screen.getByRole('button', { name: '3時台' }))
-      expect(screen.getByRole('button', { name: '3時台' })).toHaveAttribute('aria-pressed', 'false')
-      expect(screen.getByRole('button', { name: '4時台' })).toHaveAttribute('aria-pressed', 'true')
-      expect(picker()).toHaveTextContent('4時〜翌3時') // 夜をまたいでつながる
+      expect(screen.getByText('時間を決めていないので、一日中この文が使われます。')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: '時間を決める' }))
+      expect(picker()).toHaveTextContent('9時〜12時')
+
+      fireEvent.change(screen.getByRole('combobox', { name: '終了の時刻' }), { target: { value: '15' } })
+      expect(picker()).toHaveTextContent('9時〜15時')
+      fireEvent.change(screen.getByRole('combobox', { name: '開始の時刻' }), { target: { value: '6' } })
+      expect(picker()).toHaveTextContent('6時〜15時')
     })
 
-    it('時間を1つも選ばないと保存できず、理由が出る。「終日」に戻せば保存できる', async () => {
+    it('夜をまたぐ時間（22時から翌6時まで）を選べる。保存する時間は日をまたいで0時台も含む', async () => {
+      api.saveMessages.mockResolvedValue({ ...snapshots().discord, version: 4 })
       render(<AutoPostView />)
       await waitFor(() => expect(box().value).toBe('保存してある文'))
       fireEvent.click(picker())
-      fireEvent.click(screen.getByRole('button', { name: '終日' }))
-      // 9時だけにして、それを外す
-      fireEvent.click(screen.getByRole('button', { name: /^朝/ }))
-      for (const h of [5, 6, 7, 8, 9, 10]) fireEvent.click(screen.getByRole('button', { name: `${h}時台` }))
-      expect(screen.getByRole('alert')).toHaveTextContent('時間を1つ以上選ぶか')
-      expect(screen.getByRole('button', { name: '保存する' })).toBeDisabled()
+      fireEvent.click(screen.getByRole('button', { name: '時間を決める' }))
+      fireEvent.change(screen.getByRole('combobox', { name: '開始の時刻' }), { target: { value: '22' } })
+      fireEvent.change(screen.getByRole('combobox', { name: '終了の時刻' }), { target: { value: '6' } })
+      expect(picker()).toHaveTextContent('22時〜翌6時')
+      fireEvent.click(screen.getByRole('button', { name: '保存する' }))
+      await waitFor(() =>
+        expect(api.saveMessages).toHaveBeenCalledWith('discord', ['保存してある文'], 3, [[0, 1, 2, 3, 4, 5, 22, 23]])
+      )
+    })
 
+    it('終了に、開始と同じ時は選べない（24時間ぜんぶになってしまうため）', async () => {
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      fireEvent.click(picker())
+      fireEvent.click(screen.getByRole('button', { name: '時間を決める' }))
+      const end = screen.getByRole('combobox', { name: '終了の時刻' })
+      const values = Array.from(end.querySelectorAll('option')).map((o) => o.value)
+      expect(values).toHaveLength(23)
+      expect(values).not.toContain('9')
+    })
+
+    it('開始を終了と同じ時にしようとしたら、終了を1時間あとにずらす', async () => {
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      fireEvent.click(picker())
+      fireEvent.click(screen.getByRole('button', { name: '時間を決める' })) // 9〜12
+      fireEvent.change(screen.getByRole('combobox', { name: '開始の時刻' }), { target: { value: '12' } })
+      expect(picker()).toHaveTextContent('12時台') // 12時〜13時（1時間）
+    })
+
+    it('「別の時間帯も使う」で、同じ文を朝と夜の両方に使える。外すこともできる', async () => {
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      fireEvent.click(picker())
+      fireEvent.click(screen.getByRole('button', { name: /^朝/ })) // 5〜11
+      fireEvent.click(screen.getByRole('button', { name: '別の時間帯も使う' }))
+      expect(screen.getAllByRole('combobox', { name: /開始の時刻/ })).toHaveLength(2)
+      expect(picker()).toHaveTextContent('5時〜14時') // 5〜11 と 11〜14 は続いているので、一言ではまとまる
+      fireEvent.click(screen.getByRole('button', { name: '2つ目の時間帯を外す' }))
+      expect(screen.getAllByRole('combobox', { name: /開始の時刻/ })).toHaveLength(1)
+    })
+
+    it('「終日」に戻せる。保存してある内容と同じなら書きかけではない', async () => {
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      fireEvent.click(picker())
+      fireEvent.click(screen.getByRole('button', { name: /^朝/ }))
+      expect(screen.getByRole('button', { name: '保存する' })).toBeEnabled()
       fireEvent.click(screen.getByRole('button', { name: '終日' }))
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: '保存する' })).toBeDisabled() // 保存してある内容と同じに戻った
+      expect(screen.getByRole('button', { name: '保存する' })).toBeDisabled()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument() // 「時間を選んでください」にはならない
+    })
+
+    it('時間帯を決めた文があると、1日のどの時間にどの文が使われるかの帯が出る。休む時間も分かる', async () => {
+      api.fetchSnapshots.mockResolvedValue({
+        ...snapshots(),
+        discord: channel({
+          channel: 'discord',
+          messages: ['朝の文', '夜の文'],
+          hours: [[6, 7, 8, 9], [21, 22, 23]],
+          schedule: { hour: 7, activeIndexes: [0], idle: false, nextHour: null },
+          version: 2,
+        }),
+      })
+      render(<AutoPostView />)
+      await waitFor(() => expect(screen.getAllByRole('textbox')).toHaveLength(2))
+      const line = screen.getByRole('figure', { name: '1日の使われ方' })
+      expect(line).toHaveTextContent('休み')
+      expect(line).toHaveTextContent('斜線の時間は、どの文も使われないので投稿を休みます')
+      expect(line.querySelector('[title^="6時〜10時"]')).toHaveTextContent('1')
+      expect(line.querySelector('[title^="21時〜24時"]')).toHaveTextContent('2')
+      expect(line).toHaveTextContent('いま')
+    })
+
+    it('時間帯を決めた文が無ければ、帯は出さない', async () => {
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      expect(screen.queryByRole('figure', { name: '1日の使われ方' })).not.toBeInTheDocument()
     })
 
     it('時間帯を決めてある文は、閉じたままでも時間帯が見える', async () => {
@@ -405,7 +478,7 @@ describe('AutoPostView', () => {
       })
       render(<AutoPostView />)
       await waitFor(() => expect(screen.getAllByRole('textbox')).toHaveLength(2))
-      expect(picker('1つ目の文')).toHaveTextContent('6〜9時')
+      expect(picker('1つ目の文')).toHaveTextContent('6時〜9時')
       expect(picker('2つ目の文')).toHaveTextContent('22時〜翌2時')
     })
 
