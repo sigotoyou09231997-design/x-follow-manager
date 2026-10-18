@@ -767,6 +767,52 @@
   color: var(--text-muted);
 }
 
+/* 「n つ目」「時間帯」の札を左に、「編集」を右に。 */
+.channel-row__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.channel-row__head .channel-row__hours {
+  align-self: center; /* 「n つ目」の札と縦の位置をそろえる（単独のときは上寄せ） */
+}
+
+.channel-row__edit {
+  margin-left: auto;
+}
+
+/* その場で直しているあいだの1つぶん。 */
+.channel-row__item--editing {
+  gap: 6px;
+}
+
+.channel-row__textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  font-size: 16px; /* iOS で入力欄にふれたとき、画面が勝手に拡大されない大きさ */
+  line-height: 1.7;
+}
+
+.channel-row__edit-foot {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.channel-row__edit-foot .hours {
+  flex: 1;
+  min-width: 0;
+}
+
+.channel-row__edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
 /* 長い文は3行まで（全文は「文や回数を変える」で見られる）。 */
 .channel-row__body {
   display: -webkit-box;
