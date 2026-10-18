@@ -111,7 +111,7 @@ describe('ChannelTextRow（トップの一番上の、いま投稿されてい�
         onChanged={() => {}}
       />
     )
-    expect(screen.getByText('6〜9時')).toBeInTheDocument()
+    expect(screen.getByText('6時〜9時')).toBeInTheDocument()
     expect(screen.queryByText('終日')).not.toBeInTheDocument() // 決めていない文には何も付けない
   })
 
@@ -155,7 +155,7 @@ describe('ChannelTextRow（トップの一番上の、いま投稿されてい�
       render(<ChannelTextRow snapshot={snap({ messages: ['朝の文', '夜の文'], hours: [[6, 7, 8], [20, 21]] })} onChanged={() => {}} />)
       openEdit('ディスコードの2つ目の文を編集')
       fireEvent.click(screen.getByRole('button', { name: /2つ目の文の投稿する時間帯/ }))
-      fireEvent.click(screen.getByRole('button', { name: '22時台' })) // 20・21 に 22 を足す
+      fireEvent.change(screen.getByRole('combobox', { name: '終了の時刻' }), { target: { value: '23' } }) // 20〜22 を 20〜23 に
       fireEvent.click(screen.getByRole('button', { name: '保存する' }))
       await waitFor(() =>
         expect(api.saveMessages).toHaveBeenCalledWith('discord', ['朝の文', '夜の文'], 4, [[6, 7, 8], [20, 21, 22]])
@@ -189,16 +189,6 @@ describe('ChannelTextRow（トップの一番上の、いま投稿されてい�
       fireEvent.click(screen.getByRole('button', { name: '保存する' }))
       expect(await screen.findByRole('alert')).toHaveTextContent('長すぎます（5文字まで）')
       expect(api.saveMessages).not.toHaveBeenCalled()
-    })
-
-    it('時間を1つも選んでいない時間帯は保存しない', async () => {
-      render(<ChannelTextRow snapshot={snap({ messages: ['朝の文'], hours: [[9]] })} onChanged={() => {}} />)
-      openEdit()
-      fireEvent.click(screen.getByRole('button', { name: /投稿する時間帯/ }))
-      fireEvent.click(screen.getByRole('button', { name: '9時台' })) // 唯一の 9 を外して空にする
-      fireEvent.click(screen.getByRole('button', { name: '保存する' }))
-      expect(api.saveMessages).not.toHaveBeenCalled()
-      expect(screen.getAllByRole('alert').map((n) => n.textContent).join()).toContain('1時間以上')
     })
 
     it('何も変えずに保存を押したら、保存せずに閉じる（版を無駄に進めない）', () => {
@@ -260,7 +250,7 @@ describe('ChannelTextRow（トップの一番上の、いま投稿されてい�
       add()
       expect(newBox().value).toBe('')
       // 時間帯を決めるのが目的なので、選ぶ欄は最初から開いている
-      expect(screen.getByRole('button', { name: '9時台' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '時間を決める' })).toBeInTheDocument()
     })
 
     it('文と時間帯を決めて足すと、今の文の後ろに加わる。今の文は触らない', async () => {

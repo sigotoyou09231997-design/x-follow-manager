@@ -798,14 +798,12 @@
 
 .channel-row__edit-foot {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.channel-row__edit-foot .hours {
-  flex: 1;
-  min-width: 0;
+.channel-row__edit-foot .autopost__count {
+  align-self: flex-end;
 }
 
 .channel-row__edit-actions {
@@ -1069,14 +1067,12 @@
 
 .autopost__box-foot {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.autopost__box-foot .hours {
-  flex: 1;
-  min-width: 0;
+.autopost__box-foot .autopost__count {
+  align-self: flex-end;
 }
 
 .autopost__now {
@@ -1171,29 +1167,57 @@
   color: var(--accent);
 }
 
-.hours__grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 6px;
+.hours__allday {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
 }
 
-.hours__cell {
-  min-height: 40px; /* 指で押せる大きさ */
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+.hours__allday p {
+  margin: 0;
+  flex: 1 1 200px;
+  font-size: 13px;
+  line-height: 1.6;
   color: var(--text-muted);
-  font: inherit;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
 }
 
-.hours__cell[aria-pressed='true'] {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--on-accent);
-  font-weight: 600;
+.hours__ranges {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 「[ 9時 ] から [ 12時 ] まで」を1行に */
+.hours__range {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.hours__range select {
+  width: auto;
+  flex: 1 1 0;
+  min-width: 84px;
+  max-width: 120px;
+  min-height: 44px; /* 指で押せる大きさ */
+  padding: 0 12px;
+  font-size: 16px; /* iOS で選んだとき、画面が勝手に拡大されない大きさ */
+  color: var(--text-h);
+}
+
+.hours__range-remove {
+  margin-left: auto;
+}
+
+.hours__add {
+  align-self: flex-start;
 }
 
 .hours__hint {
@@ -1219,17 +1243,137 @@
   white-space: nowrap;
 }
 
-@media (min-width: 640px) {
-  .hours__grid {
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-  }
+/* ---------------------------------------------------------------- 1日の使われ方の帯 */
+
+.dayline {
+  position: relative;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.channel-row__add {
-  align-self: flex-start;
+.dayline__bar {
+  position: relative;
+  display: flex;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--fill);
 }
 
-.channel-row__remove {
-  margin-left: auto;
-  color: var(--danger);
+.dayline__seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border-right: 2px solid var(--surface);
+}
+
+.dayline__seg:last-of-type {
+  border-right: 0;
+}
+
+/* 色は文ごとに4通りを回す。数字でも見分けられるので、色だけには頼らない */
+.dayline__seg--t0 {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.dayline__seg--t1 {
+  background: color-mix(in srgb, var(--text-h) 14%, transparent);
+  color: var(--text-h);
+}
+
+.dayline__seg--t2 {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.dayline__seg--t3 {
+  background: var(--success-bg);
+  color: var(--success-strong);
+}
+
+.dayline__seg--multi {
+  background: var(--accent-bg);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* 休み: 斜線 */
+.dayline__seg--rest {
+  background: repeating-linear-gradient(135deg, transparent 0 5px, var(--border) 5px 6px);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.dayline__now {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text-h);
+  pointer-events: none;
+}
+
+.dayline__now i {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--text-h);
+  color: var(--bg);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.dayline__ticks {
+  position: relative;
+  height: 14px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.dayline__ticks span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.dayline__ticks span:first-child {
+  transform: none;
+}
+
+.dayline__ticks span:last-child {
+  transform: translateX(-100%);
+}
+
+.dayline__caption {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+/* 1つの文の時間帯だけを見せる細い帯 */
+.dayline--strip .dayline__bar {
+  height: 14px;
+  gap: 1px;
+  background: transparent;
+}
+
+.dayline__cell {
+  flex: 1 1 0;
+  background: var(--fill);
+}
+
+.dayline__cell--on {
+  background: var(--accent);
 }

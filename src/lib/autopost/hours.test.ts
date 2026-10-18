@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { ALL_HOURS, HOUR_PRESETS, hoursLabel, normalizeHours, sameHours, toggleHour } from './hours'
+import {
+  ALL_HOURS,
+  HOUR_PRESETS,
+  daySegments,
+  endChoices,
+  hoursLabel,
+  hoursToRanges,
+  normalizeHours,
+  ownersByHour,
+  rangeHours,
+  rangeLabel,
+  rangesToHours,
+  sameHours,
+} from './hours'
 
 describe('hoursLabel', () => {
   it('null と24時間ぜんぶは「終日」', () => {
@@ -8,8 +21,8 @@ describe('hoursLabel', () => {
   })
 
   it('つながった時間は1つにまとめる', () => {
-    expect(hoursLabel([9, 10, 11])).toBe('9〜12時')
-    expect(hoursLabel([21, 22, 23])).toBe('21〜24時')
+    expect(hoursLabel([9, 10, 11])).toBe('9時〜12時')
+    expect(hoursLabel([21, 22, 23])).toBe('21時〜24時')
   })
 
   it('1時間だけのときは「○時台」', () => {
@@ -17,7 +30,7 @@ describe('hoursLabel', () => {
   })
 
   it('離れた時間は「・」でつなぐ', () => {
-    expect(hoursLabel([7, 8, 12, 13])).toBe('7〜9時・12〜14時')
+    expect(hoursLabel([7, 8, 12, 13])).toBe('7時〜9時・12時〜14時')
   })
 
   it('夜をまたぐ時間は「翌」で表す', () => {
@@ -31,30 +44,6 @@ describe('hoursLabel', () => {
 
   it('選んでいないときは「未選択」', () => {
     expect(hoursLabel([])).toBe('未選択')
-  })
-})
-
-describe('toggleHour', () => {
-  it('選んでいない時間を足すと、小さい順に並ぶ', () => {
-    expect(toggleHour([9, 11], 10)).toEqual([9, 10, 11])
-  })
-
-  it('選んである時間を外す', () => {
-    expect(toggleHour([9, 10, 11], 10)).toEqual([9, 11])
-  })
-
-  it('終日から1時間外すと、その時間だけ抜けた23時間になる', () => {
-    const result = toggleHour(null, 3)
-    expect(result).toHaveLength(23)
-    expect(result).not.toContain(3)
-  })
-
-  it('24時間そろったら終日に戻る', () => {
-    expect(toggleHour(ALL_HOURS.filter((h) => h !== 3), 3)).toBeNull()
-  })
-
-  it('最後の1つを外すと空（書きかけ）になる', () => {
-    expect(toggleHour([9], 9)).toEqual([])
   })
 })
 
@@ -78,5 +67,79 @@ describe('HOUR_PRESETS', () => {
 
   it('ぜんぶ合わせると24時間になる（抜けがない）', () => {
     expect(HOUR_PRESETS.flatMap((p) => p.hours).sort((a, b) => a - b)).toEqual(ALL_HOURS)
+  })
+})
+
+describe('範囲（◯時から◯時まで）', () => {
+  it('開始は含み、終了は含まない', () => {
+    expect(rangeHours({ from: 9, to: 12 })).toEqual([9, 10, 11])
+    expect(rangeHours({ from: 23, to: 24 })).toEqual([23])
+  })
+
+  it('終了が開始以下なら夜をまたぐ', () => {
+    expect(rangeHours({ from: 22, to: 2 })).toEqual([22, 23, 0, 1])
+    expect(rangeHours({ from: 20, to: 24 })).toEqual([20, 21, 22, 23])
+  })
+
+  it('範囲を時間にする。重なりは1つにまとめ、24時間ぜんぶは終日', () => {
+    expect(rangesToHours([{ from: 9, to: 12 }, { from: 11, to: 14 }])).toEqual([9, 10, 11, 12, 13])
+    expect(rangesToHours([{ from: 6, to: 24 }, { from: 0, to: 6 }])).toBeNull()
+    expect(rangesToHours([])).toEqual([])
+  })
+
+  it('時間を範囲に分ける。0時と23時がつながるときは夜をまたぐ1つにする', () => {
+    expect(hoursToRanges([7, 8, 12, 13])).toEqual([{ from: 7, to: 9 }, { from: 12, to: 14 }])
+    expect(hoursToRanges([22, 23, 0, 1, 2])).toEqual([{ from: 22, to: 3 }])
+    expect(hoursToRanges(null)).toEqual([])
+  })
+
+  it('範囲 → 時間 → 範囲 と往復しても同じ', () => {
+    for (const r of [{ from: 9, to: 12 }, { from: 22, to: 6 }, { from: 0, to: 5 }, { from: 23, to: 24 }]) {
+      expect(hoursToRanges(rangesToHours([r]))).toEqual([r])
+    }
+  })
+
+  it('終了に選べるのは、開始の次の時から翌日の開始の1時間前まで（23通り。開始と同じ時は選べない）', () => {
+    const c = endChoices(22)
+    expect(c).toHaveLength(23)
+    expect(c[0]).toEqual({ to: 23, nextDay: false })
+    expect(c[1]).toEqual({ to: 24, nextDay: false })
+    expect(c[2]).toEqual({ to: 1, nextDay: true })
+    expect(c.at(-1)).toEqual({ to: 21, nextDay: true })
+    expect(c.some((x) => x.to === 22)).toBe(false)
+    expect(endChoices(0).at(-1)).toEqual({ to: 23, nextDay: false }) // 0時開始に 24 は選べない（終日になる）
+  })
+
+  it('「9時〜12時」「22時〜翌6時」', () => {
+    expect(rangeLabel({ from: 9, to: 12 })).toBe('9時〜12時')
+    expect(rangeLabel({ from: 22, to: 6 })).toBe('22時〜翌6時')
+    expect(rangeLabel({ from: 20, to: 24 })).toBe('20時〜24時')
+  })
+})
+
+describe('1日の使われ方（サーバーの選び方と同じ）', () => {
+  it('時間を決めた文が当たればそれだけ、無ければ時間なしの文、それも無ければ休み', () => {
+    const owners = ownersByHour([[6, 7], null], false)
+    expect(owners[6]).toEqual([0])
+    expect(owners[12]).toEqual([1])
+    expect(ownersByHour([[6, 7]], false)[12]).toEqual([])
+  })
+
+  it('Yay は当たった文の先頭の1つだけ', () => {
+    expect(ownersByHour([null, null], true)[3]).toEqual([0])
+    expect(ownersByHour([null, null], false)[3]).toEqual([0, 1])
+  })
+
+  it('同じ文が続く時間をひとつの帯にまとめる', () => {
+    const segs = daySegments(ownersByHour([[6, 7, 8], null], true))
+    expect(segs).toEqual([
+      { from: 0, length: 6, owners: [1] },
+      { from: 6, length: 3, owners: [0] },
+      { from: 9, length: 15, owners: [1] },
+    ])
+  })
+
+  it('休みの時間も帯になる', () => {
+    expect(daySegments(ownersByHour([[9, 10]], true)).map((s) => s.owners)).toEqual([[], [0], []])
   })
 })

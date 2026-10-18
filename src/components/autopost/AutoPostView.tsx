@@ -26,6 +26,7 @@ import {
 import { readAutopostTab, rememberAutopostTab, type AutopostTab } from '../../lib/autopost/tab'
 import { Icon } from '../Icon'
 import { PauseControl, PosterStatusLine } from './ChannelControls'
+import { DayOverview } from './DayTimeline'
 import { HoursPicker } from './HoursPicker'
 import { RestartControl } from './RestartControl'
 import { XAutopilotPanel } from './XAutopilotPanel'
@@ -316,6 +317,14 @@ export function AutoPostView() {
       />
 
       <section className="surface-card autopost__card">
+        {draft.some((slot) => slot.hours !== null) && (
+          // 書きかけの時間帯でそのまま描く（直すとすぐ帯が変わる）。まだ時間を選んでいない文は、帯では終日として扱う
+          <DayOverview
+            hours={draft.map((slot) => (slot.hours && slot.hours.length === 0 ? null : slot.hours))}
+            oneOnly={current === 'yay'}
+            nowHour={snap.schedule.hour}
+          />
+        )}
         {draft.length === 0 ? (
           // 保存済みの文が1つも無い投稿先。空の欄をひとつ出しておく。
           <Box
@@ -460,8 +469,8 @@ function Box({ index, total, slot, nowActive, maxLength, onChange, onRemove }: B
         placeholder="ここに投稿する文を書きます"
       />
       <div className="autopost__box-foot">
-        <HoursPicker hours={slot.hours} onChange={(hours) => onChange({ ...slot, hours })} name={name} />
         <div className={`autopost__count${length > maxLength ? ' over' : ''}`}>{length}文字</div>
+        <HoursPicker hours={slot.hours} onChange={(hours) => onChange({ ...slot, hours })} name={name} />
       </div>
     </div>
   )
