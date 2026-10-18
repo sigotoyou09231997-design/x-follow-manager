@@ -249,4 +249,97 @@ describe('ChannelTextRow（トップの一番上の、いま投稿されてい�
       view.unmount()
     })
   })
+
+  describe('文を足す・外す（時間帯ごとに文を変えるため）', () => {
+    const add = () => fireEvent.click(screen.getByRole('button', { name: /文を追加/ }))
+    const newBox = () => screen.getByRole('textbox', { name: 'ディスコードの新しい文' }) as HTMLTextAreaElement
+
+    it('「文を追加」で新しい入力欄と、開いた状態の時間帯が出る。押すまでは出さない', () => {
+      render(<ChannelTextRow snapshot={snap()} onChanged={() => {}} />)
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+      add()
+      expect(newBox().value).toBe('')
+      // 時間帯を決めるのが目的なので、選ぶ欄は最初から開いている
+      expect(screen.getByRole('button', { name: '9時台' })).toBeInTheDocument()
+    })
+
+    it('文と時間帯を決めて足すと、今の文の後ろに加わる。今の文は触らない', async () => {
+      const onChanged = vi.fn()
+      api.saveMessages.mockResolvedValue(snap({ messages: ['いまの文', '夜の文'], version: 5 }))
+      render(<ChannelTextRow snapshot={snap({ hours: [[6, 7, 8]] })} onChanged={onChanged} />)
+      add()
+      fireEvent.change(newBox(), { target: { value: '夜の文' } })
+      fireEvent.click(screen.getByRole('button', { name: /^夜/ }))
+      fireEvent.click(screen.getByRole('button', { name: '文を追加する' }))
+      await waitFor(() =>
+        expect(api.saveMessages).toHaveBeenCalledWith('discord', ['いまの文', '夜の文'], 4, [[6, 7, 8], [21, 22, 23]])
+      )
+      expect(onChanged).toHaveBeenCalled()
+      expect(await screen.findByText(/文を足しました/)).toBeInTheDocument()
+    })
+
+    it('文が空のまま足そうとしても保存しない', async () => {
+      render(<ChannelTextRow snapshot={snap()} onChanged={() => {}} />)
+      add()
+      fireEvent.click(screen.getByRole('button', { name: '文を追加する' }))
+      expect(await screen.findByRole('alert')).toHaveTextContent('文が空です')
+      expect(api.saveMessages).not.toHaveBeenCalled()
+    })
+
+    it('「やめる」で足すのをやめられる。保存はしない', () => {
+      render(<ChannelTextRow snapshot={snap()} onChanged={() => {}} />)
+      add()
+      fireEvent.click(screen.getByRole('button', { name: 'やめる' }))
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+      expect(api.saveMessages).not.toHaveBeenCalled()
+    })
+
+    it('文が1つも無い投稿先でも、ここから最初の文を足せる', async () => {
+      api.saveMessages.mockResolvedValue(snap())
+      render(<ChannelTextRow snapshot={snap({ messages: [], hours: [], version: 0 })} onChanged={() => {}} />)
+      add()
+      fireEvent.change(newBox(), { target: { value: '最初の文' } })
+      fireEvent.click(screen.getByRole('button', { name: '文を追加する' }))
+      await waitFor(() => expect(api.saveMessages).toHaveBeenCalledWith('discord', ['最初の文'], 0, [null]))
+    })
+
+    it('持てる数までいっぱいなら、追加の入口を出さない', () => {
+      render(<ChannelTextRow snapshot={snap({ messages: ['A', 'B'], limits: { maxLength: 1000, maxMessages: 2 } })} onChanged={() => {}} />)
+      expect(screen.queryByRole('button', { name: /文を追加/ })).not.toBeInTheDocument()
+    })
+
+    it('文が複数あるとき、編集の中から「この文を外す」で外せる。ほかの文と時間帯はそのまま', async () => {
+      api.saveMessages.mockResolvedValue(snap())
+      render(<ChannelTextRow snapshot={snap({ messages: ['朝の文', '夜の文'], hours: [[6, 7], [21, 22]] })} onChanged={() => {}} />)
+      fireEvent.click(screen.getByRole('button', { name: 'ディスコードの1つ目の文を編集' }))
+      fireEvent.click(screen.getByRole('button', { name: 'この文を外す' }))
+      await waitFor(() => expect(api.saveMessages).toHaveBeenCalledWith('discord', ['夜の文'], 4, [[21, 22]]))
+      expect(await screen.findByText(/外しました/)).toBeInTheDocument()
+    })
+
+    it('最後の1つは外せない（投稿する文が無くなるため）', () => {
+      render(<ChannelTextRow snapshot={snap()} onChanged={() => {}} />)
+      fireEvent.click(screen.getByRole('button', { name: 'ディスコードの投稿する文を編集' }))
+      expect(screen.queryByRole('button', { name: 'この文を外す' })).not.toBeInTheDocument()
+    })
+
+    it('文が複数あるとき、いま使われている文に「いま投稿中」の印が付く', () => {
+      render(
+        <ChannelTextRow
+          snapshot={snap({
+            messages: ['朝の文', '夜の文'],
+            hours: [[6, 7], null],
+            schedule: { hour: 7, activeIndexes: [0], idle: false, nextHour: null },
+          })}
+          onChanged={() => {}}
+        />
+      )
+      expect(screen.getAllByText('いま投稿中')).toHaveLength(1)
+    })
+
+    it('文が1つだけのときは「いま投稿中」を出さない（当たり前なので）', () => {
+      render(<ChannelTextRow snapshot={snap()} onChanged={() => {}} />)
+      expect(screen.queryByText('いま投稿中')).not.toBeInTheDocument()
+    })
+  })
 })

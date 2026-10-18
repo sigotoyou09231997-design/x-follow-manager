@@ -8,7 +8,7 @@ import { HoursPicker } from './HoursPicker'
 
 // トップの1画面の一番上で、ディスコード／Yay の「いま投稿されている文」を1行ずつ見せ、過去の文をドロップダウンから選んで切り替える。
 // 文と、その文を投稿する時間帯は、この行の「編集」でその場で直せる。
-// 順番に回す文を増やす・外す、は詳細の画面（AutoPostView）。
+// 文を足す（時間帯ごとに文を変えるときも、ここで足す）・外すもここでできる。順番の入れ替えなどは詳細の画面（AutoPostView）。
 
 interface Props {
   /** 名前の見出しを出すか。稼働スイッチの行の下に置くとき（行に名前がある）は false。 */
@@ -30,6 +30,8 @@ interface Editing {
   index: number
   text: string
   hours: Hours
+  /** 新しく足す文。保存したときに末尾に加わる（index は今の文の数）。 */
+  isNew?: boolean
 }
 
 export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) {
@@ -87,17 +89,54 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
     setEditing({ index, text: snapshot.messages[index] ?? '', hours: snapshot.hours[index] ?? null })
   }
 
+  function startAdd() {
+    if (saving || editSaving) return
+    setNotice(undefined)
+    setEditing({ index: snapshot.messages.length, text: '', hours: null, isNew: true })
+  }
+
+  /** 文を1つ外す。外した文は「過去の文」に残るので、あとから選び直せる。最後の1つは外せない（投稿する文が無くなるため）。 */
+  async function removeEdit() {
+    if (!editing || editing.isNew || editSaving || saving || snapshot.messages.length <= 1) return
+    const next = slotsOf(snapshot).filter((_, i) => i !== editing.index)
+    setEditSaving(true)
+    setNotice(undefined)
+    try {
+      onChanged(
+        await saveMessages(
+          snapshot.channel,
+          next.map((slot) => slot.text),
+          snapshot.version,
+          next.map((slot) => slot.hours)
+        )
+      )
+      setEditing(null)
+      setNotice({ text: '外しました（外した文は、過去の文から選び直せます）', kind: 'ok' })
+    } catch (err) {
+      if (err instanceof SaveConflictError) {
+        onChanged(err.snapshot)
+        setEditing(null)
+      }
+      setNotice({ text: err instanceof Error ? err.message : String(err), kind: 'err' })
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
   async function saveEdit() {
     if (!editing || editSaving || saving) return
     const base = slotsOf(snapshot)
-    if (base[editing.index] === undefined) return
-    const next: Slot[] = normalize(base.map((slot, i) => (i === editing.index ? { text: editing.text, hours: editing.hours } : slot)))
+    if (!editing.isNew && base[editing.index] === undefined) return
+    const edited: Slot = { text: editing.text, hours: editing.hours }
+    const next: Slot[] = normalize(editing.isNew ? [...base, edited] : base.map((slot, i) => (i === editing.index ? edited : slot)))
     if (!isValid(next, snapshot.limits.maxLength)) {
       const cut = next[editing.index]
       setNotice({
         text:
           cut.text.length === 0
-            ? '文が空です。書いてから保存してください（この文をやめるときは、詳細の画面で外します）'
+            ? editing.isNew
+              ? '文が空です。書いてから保存してください（やめるときは「やめる」）'
+              : '文が空です。書いてから保存してください（この文をやめるときは「この文を外す」）'
             : cut.text.length > snapshot.limits.maxLength
               ? `文が長すぎます（${snapshot.limits.maxLength}文字まで）`
               : '投稿する時間を、1時間以上選んでください',
@@ -106,7 +145,7 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
       return
     }
     // 何も変えていなければ、保存せず閉じる（版を無駄に進めない）。
-    if (JSON.stringify(next) === JSON.stringify(normalize(base))) {
+    if (!editing.isNew && JSON.stringify(next) === JSON.stringify(normalize(base))) {
       setEditing(null)
       setNotice(undefined)
       return
@@ -123,12 +162,12 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
         )
       )
       setEditing(null)
-      setNotice({ text: '保存しました（次の投稿から、この文になります）', kind: 'ok' })
+      setNotice({ text: editing.isNew ? '文を足しました（次の投稿から、時間帯に合えば使われます）' : '保存しました（次の投稿から、この文になります）', kind: 'ok' })
     } catch (err) {
       // 別の端末で先に保存されていたら、最新の中身だけ取り込む（書いた内容は消さない）。文の数が減っていたら、書きかけは閉じる。
       if (err instanceof SaveConflictError) {
         onChanged(err.snapshot)
-        if (err.snapshot.messages.length <= editing.index) setEditing(null)
+        if (!editing.isNew && err.snapshot.messages.length <= editing.index) setEditing(null)
       }
       setNotice({ text: err instanceof Error ? err.message : String(err), kind: 'err' })
     } finally {
@@ -140,14 +179,14 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
     <div className="channel-row" role="group" aria-label={`${name}の投稿文`}>
       {showName && <strong className="channel-row__name">{name}</strong>}
 
-      {snapshot.messages.length === 0 ? (
-        <p className="channel-row__empty">まだ文がありません。「文や回数を変える」で書いてください。</p>
+      {snapshot.messages.length === 0 && !editing ? (
+        <p className="channel-row__empty">まだ文がありません。下の「文を追加」で書いてください。</p>
       ) : (
         <ul className="channel-row__list">
           {snapshot.messages.map((text, i) => {
             const hours = snapshot.hours[i] ?? null
             const label = snapshot.messages.length > 1 ? `${i + 1}つ目の文` : '投稿する文'
-            if (editing?.index === i) {
+            if (editing?.index === i && !editing.isNew) {
               const length = editing.text.trim().length
               return (
                 <li key={i} className="channel-row__item channel-row__item--editing">
@@ -169,6 +208,11 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
                     <button type="button" className="btn btn--primary btn--small" onClick={() => void saveEdit()} disabled={editSaving}>
                       {editSaving ? '保存しています…' : '保存する'}
                     </button>
+                    {snapshot.messages.length > 1 && (
+                      <button type="button" className="btn btn--ghost btn--small channel-row__remove" onClick={() => void removeEdit()} disabled={editSaving}>
+                        この文を外す
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn btn--ghost btn--small"
@@ -189,6 +233,9 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
                 <div className="channel-row__head">
                   {snapshot.messages.length > 1 && <span className="channel-row__no">{i + 1}つ目</span>}
                   {hours !== null && <span className="channel-row__hours">{hoursLabel(hours)}</span>}
+                  {snapshot.messages.length > 1 && snapshot.schedule.activeIndexes.includes(i) && (
+                    <span className="autopost__now">いま投稿中</span>
+                  )}
                   <button
                     type="button"
                     className="btn btn--ghost btn--small channel-row__edit"
@@ -205,6 +252,56 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
             )
           })}
         </ul>
+      )}
+
+      {editing?.isNew && (
+        <div className="channel-row__item channel-row__item--editing channel-row__new">
+          <span className="channel-row__no">新しい文</span>
+          <textarea
+            className="channel-row__textarea"
+            value={editing.text}
+            rows={Math.min(8, Math.max(3, editing.text.split('\n').length + 1))}
+            onChange={(e) => setEditing({ ...editing, text: e.target.value })}
+            aria-label={`${name}の新しい文`}
+            placeholder="ここに投稿する文を書きます"
+            disabled={editSaving}
+            autoFocus
+          />
+          <div className="channel-row__edit-foot">
+            <HoursPicker
+              hours={editing.hours}
+              onChange={(next) => setEditing({ ...editing, hours: next })}
+              name={`${name}の新しい文`}
+              defaultOpen
+            />
+            <span className={`autopost__count${editing.text.trim().length > snapshot.limits.maxLength ? ' over' : ''}`}>
+              {editing.text.trim().length}文字
+            </span>
+          </div>
+          <div className="channel-row__edit-actions">
+            <button type="button" className="btn btn--primary btn--small" onClick={() => void saveEdit()} disabled={editSaving}>
+              {editSaving ? '保存しています…' : '文を追加する'}
+            </button>
+            <button
+              type="button"
+              className="btn btn--ghost btn--small"
+              onClick={() => {
+                setEditing(null)
+                setNotice(undefined)
+              }}
+              disabled={editSaving}
+            >
+              やめる
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!editing && snapshot.messages.length < snapshot.limits.maxMessages && (
+        <button type="button" className="btn btn--ghost btn--small channel-row__add" onClick={startAdd} disabled={saving}>
+          <Icon name="plus" size={14} />
+          文を追加（時間帯ごとに変えられます）
+        </button>
       )}
 
       {past.length === 0 ? (

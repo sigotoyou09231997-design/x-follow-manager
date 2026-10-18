@@ -10,10 +10,12 @@ interface Props {
   onChange: (hours: Hours) => void
   /** 画面の読み上げ用。文が複数あるときは「2つ目の文」のように、どの文の時間帯かを伝える。 */
   name: string
+  /** 最初から開いておく（新しく文を足すときは、時間帯を決めるのが目的なので）。 */
+  defaultOpen?: boolean
 }
 
-export function HoursPicker({ hours, onChange, name }: Props) {
-  const [open, setOpen] = useState(false)
+export function HoursPicker({ hours, onChange, name, defaultOpen = false }: Props) {
+  const [open, setOpen] = useState(defaultOpen)
   const empty = hours !== null && hours.length === 0
   // 1つも選ばれていないと保存できない。閉じたままだと理由が見えないので、開いたままにする。
   const shown = open || empty

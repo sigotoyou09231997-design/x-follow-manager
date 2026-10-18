@@ -1224,3 +1224,12 @@
     grid-template-columns: repeat(12, minmax(0, 1fr));
   }
 }
+
+.channel-row__add {
+  align-self: flex-start;
+}
+
+.channel-row__remove {
+  margin-left: auto;
+  color: var(--danger);
+}
