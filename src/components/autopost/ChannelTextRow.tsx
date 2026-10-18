@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CHANNEL_LABELS, SaveConflictError, saveMessages, type ChannelSnapshot } from '../../lib/autopost/api'
-import { flat, withArchived } from '../../lib/autopost/draft'
+import { flat, slotsOf, withArchived } from '../../lib/autopost/draft'
+import { hoursLabel } from '../../lib/autopost/hours'
 
 // トップの1画面の一番上で、ディスコード／Yay の「いま投稿されている文」を1行ずつ見せ、過去の文をドロップダウンから選んで切り替える。
 // 文を自分で書き換える・順番に回す文を増やす・外す、は詳細の画面（AutoPostView）。
@@ -34,15 +35,23 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
     if (picked === '' || saving) return
     const text = past[Number(picked)]
     if (text === undefined) return
-    const next = withArchived(snapshot.messages, text, snapshot.limits.maxMessages)
-    if (next === snapshot.messages) {
+    const draft = slotsOf(snapshot)
+    const next = withArchived(draft, text, snapshot.limits.maxMessages)
+    if (next === draft) {
       setNotice({ text: `${name}は、順番に回す文がいっぱいです。「文や回数を変える」で、外してから選んでください`, kind: 'err' })
       return
     }
     setSaving(true)
     setNotice(undefined)
     try {
-      onChanged(await saveMessages(snapshot.channel, next, snapshot.version))
+      onChanged(
+        await saveMessages(
+          snapshot.channel,
+          next.map((slot) => slot.text),
+          snapshot.version,
+          next.map((slot) => slot.hours)
+        )
+      )
       setPicked('')
       setNotice({ text: '切り替えました（次の投稿から、この文になります）', kind: 'ok' })
     } catch (err) {
@@ -62,12 +71,16 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
         <p className="channel-row__empty">まだ文がありません。「文や回数を変える」で書いてください。</p>
       ) : (
         <ul className="channel-row__list">
-          {snapshot.messages.map((text, i) => (
-            <li key={i} className="channel-row__item">
-              {snapshot.messages.length > 1 && <span className="channel-row__no">{i + 1}つ目</span>}
-              <span className="channel-row__body">{text}</span>
-            </li>
-          ))}
+          {snapshot.messages.map((text, i) => {
+            const hours = snapshot.hours[i] ?? null
+            return (
+              <li key={i} className="channel-row__item">
+                {snapshot.messages.length > 1 && <span className="channel-row__no">{i + 1}つ目</span>}
+                {hours !== null && <span className="channel-row__hours">{hoursLabel(hours)}</span>}
+                <span className="channel-row__body">{text}</span>
+              </li>
+            )
+          })}
         </ul>
       )}
 

@@ -23,6 +23,9 @@ function snap(patch: Partial<ChannelSnapshot> = {}): ChannelSnapshot {
     pausedAt: null,
     pauseReady: true,
     limits: { maxLength: 1000, maxMessages: 10 },
+    // 時間帯は、ことわりが無ければ全部の文が終日。いまの時間は全部の文が使われている
+    hours: (patch.messages ?? ['いまの文']).map(() => null),
+    schedule: { hour: 12, activeIndexes: (patch.messages ?? ['いまの文']).map((_, i) => i), idle: false, nextHour: null },
     ...patch,
   }
 }
@@ -55,7 +58,7 @@ describe('ChannelTextRow（トップの一番上の、いま投稿されてい�
     expect(api.saveMessages).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'この文にする' }))
-    await waitFor(() => expect(api.saveMessages).toHaveBeenCalledWith('discord', ['前の文その1'], 4))
+    await waitFor(() => expect(api.saveMessages).toHaveBeenCalledWith('discord', ['前の文その1'], 4, [null]))
     expect(onChanged).toHaveBeenCalledWith(next)
     expect(await screen.findByText(/切り替えました（次の投稿から/)).toBeInTheDocument()
   })
@@ -65,7 +68,7 @@ describe('ChannelTextRow（トップの一番上の、いま投稿されてい�
     render(<ChannelTextRow snapshot={snap({ messages: ['A', 'B'] })} onChanged={() => {}} />)
     fireEvent.change(select(), { target: { value: '0' } })
     fireEvent.click(screen.getByRole('button', { name: 'この文にする' }))
-    await waitFor(() => expect(api.saveMessages).toHaveBeenCalledWith('discord', ['A', 'B', '前の文その1'], 4))
+    await waitFor(() => expect(api.saveMessages).toHaveBeenCalledWith('discord', ['A', 'B', '前の文その1'], 4, [null, null, null]))
   })
 
   it('回す文がいっぱいなら、保存せず、外してから選ぶよう伝える', async () => {
@@ -99,5 +102,24 @@ describe('ChannelTextRow（トップの一番上の、いま投稿されてい�
   it('文が1つも無ければ、その旨を出す', () => {
     render(<ChannelTextRow snapshot={snap({ messages: [] })} onChanged={() => {}} />)
     expect(screen.getByText(/まだ文がありません/)).toBeInTheDocument()
+  })
+
+  it('時間帯を決めた文には、その時間帯を添えて見せる', () => {
+    render(
+      <ChannelTextRow
+        snapshot={snap({ messages: ['朝の文', '夜の文'], hours: [[6, 7, 8], null] })}
+        onChanged={() => {}}
+      />
+    )
+    expect(screen.getByText('6〜9時')).toBeInTheDocument()
+    expect(screen.queryByText('終日')).not.toBeInTheDocument() // 決めていない文には何も付けない
+  })
+
+  it('文が1つのとき履歴から選び直しても、その文の時間帯は残る', async () => {
+    api.saveMessages.mockResolvedValue(snap())
+    render(<ChannelTextRow snapshot={snap({ messages: ['いまの文'], hours: [[9, 10]] })} onChanged={() => {}} />)
+    fireEvent.change(select(), { target: { value: '0' } })
+    fireEvent.click(screen.getByRole('button', { name: 'この文にする' }))
+    await waitFor(() => expect(api.saveMessages).toHaveBeenCalledWith('discord', ['前の文その1'], 4, [[9, 10]]))
   })
 })

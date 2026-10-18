@@ -1,11 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
-import type { ChannelName, PosterStatus } from './autopostDoc.js'
+import type { ChannelName, Hours, PosterStatus } from './autopostDoc.js'
 
 /** 投稿先1つぶん。まだ何も保存していない投稿先は version 0・文なしで返す。 */
 export interface ChannelRow {
   channel: ChannelName
   messages: string[]
+  /** messages と同じ並びで、それぞれの文を投稿してよい時間帯。null は終日。 */
+  hours: Hours[]
   archive: string[]
   version: number
   savedAt: string | null
@@ -22,6 +24,7 @@ export function emptyChannel(channel: ChannelName): ChannelRow {
   return {
     channel,
     messages: [],
+    hours: [],
     archive: [],
     version: 0,
     savedAt: null,
@@ -51,7 +54,7 @@ export interface AutopostStore {
   saveText(
     userId: string,
     channel: ChannelName,
-    next: { messages: string[]; archive: string[] },
+    next: { messages: string[]; hours: Hours[]; archive: string[] },
     baseVersion: number
   ): Promise<ChannelRow | null>
   writeStatus(userId: string, channel: ChannelName, status: PosterStatus): Promise<void>
@@ -64,9 +67,40 @@ export interface AutopostStore {
   userIdForPosterKey(tokenHash: string): Promise<string | null>
 }
 
+/**
+ * 保存先（messages 列。jsonb）での文の形。時間帯を決めていない文は、これまでどおりの文字列のまま。
+ * 時間帯を決めた文だけ { text, hours } にする。列を足さずに済むので、SQL を流す前から使え、
+ * 時間帯を知らない古い読み手にも「時間帯を決めていない文」は今までどおり読める。
+ */
+type StoredMessage = string | { text: string; hours: number[] }
+
+export function encodeMessages(messages: string[], hours: Hours[]): StoredMessage[] {
+  return messages.map((text, i) => {
+    const h = hours[i] ?? null
+    return h ? { text, hours: h } : text
+  })
+}
+
+/** 保存先の文を、文と時間帯に分ける。読めない形の要素は捨てる（画面が開けなくなるよりよい）。 */
+export function decodeMessages(raw: unknown): { messages: string[]; hours: Hours[] } {
+  const messages: string[] = []
+  const hours: Hours[] = []
+  for (const item of Array.isArray(raw) ? raw : []) {
+    if (typeof item === 'string') {
+      messages.push(item)
+      hours.push(null)
+    } else if (item && typeof item === 'object' && typeof (item as { text?: unknown }).text === 'string') {
+      const h = (item as { hours?: unknown }).hours
+      messages.push((item as { text: string }).text)
+      hours.push(Array.isArray(h) && h.length > 0 && h.every((n) => Number.isInteger(n) && n >= 0 && n <= 23) ? h : null)
+    }
+  }
+  return { messages, hours }
+}
+
 interface DbRow {
   channel: ChannelName
-  messages: string[] | null
+  messages: StoredMessage[] | null
   archive: string[] | null
   version: number
   saved_at: string | null
@@ -80,7 +114,7 @@ function toChannelRow(channel: ChannelName, row: DbRow | null, pause: PauseLooku
   const base: ChannelRow = row
     ? {
         ...emptyChannel(channel),
-        messages: row.messages ?? [],
+        ...decodeMessages(row.messages),
         archive: row.archive ?? [],
         version: row.version,
         savedAt: row.saved_at,
@@ -151,7 +185,7 @@ export function supabaseAutopostStore(client: SupabaseClient = getSupabaseAdmin(
 
     async saveText(userId, channel, next, baseVersion) {
       const patch = {
-        messages: next.messages,
+        messages: encodeMessages(next.messages, next.hours),
         archive: next.archive,
         version: baseVersion + 1,
         saved_at: new Date().toISOString(),

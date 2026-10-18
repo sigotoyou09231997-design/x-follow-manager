@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
-import { PauseNotReadyError, supabaseAutopostStore } from './autopostStore.js'
+import { decodeMessages, encodeMessages, PauseNotReadyError, supabaseAutopostStore } from './autopostStore.js'
 
 // Supabase（PostgREST）に実際に送る要求の形を確かめる。
 // 「版が見ていたものと同じときだけ書き換える」「状態の報告は文の列に触らない」は、
@@ -61,7 +61,7 @@ const ROW = {
 describe('supabaseAutopostStore の送る要求', () => {
   it('保存は「見ていた版のときだけ」書き換え、版を1つ進める', async () => {
     const { store, sent } = fakeStore(() => ({ status: 200, body: [ROW] }))
-    const saved = await store.saveText('u1', 'discord', { messages: ['新しい文'], archive: ['古い文'] }, 3)
+    const saved = await store.saveText('u1', 'discord', { messages: ['新しい文'], hours: ['新しい文'].map(() => null), archive: ['古い文'] }, 3)
 
     expect(saved).toMatchObject({ version: 4, messages: ['新しい文'], archive: ['古い文'] })
     expect(channelRequests(sent)).toHaveLength(1)
@@ -76,7 +76,7 @@ describe('supabaseAutopostStore の送る要求', () => {
 
   it('版が進んでいて0行しか更新できなかったら、作り直さず null（取り合いに負けた）', async () => {
     const { store, sent } = fakeStore(() => ({ status: 200, body: [] }))
-    expect(await store.saveText('u1', 'discord', { messages: ['a'], archive: [] }, 3)).toBeNull()
+    expect(await store.saveText('u1', 'discord', { messages: ['a'], hours: ['a'].map(() => null), archive: [] }, 3)).toBeNull()
     expect(sent).toHaveLength(1) // 版が0でなければ、新しい行を作りにいかない
   })
 
@@ -84,7 +84,7 @@ describe('supabaseAutopostStore の送る要求', () => {
     const created = fakeStore((sent) =>
       sent.method === 'PATCH' ? { status: 200, body: [] } : { status: 201, body: { ...ROW, version: 1 } }
     )
-    const saved = await created.store.saveText('u1', 'discord', { messages: ['a'], archive: [] }, 0)
+    const saved = await created.store.saveText('u1', 'discord', { messages: ['a'], hours: ['a'].map(() => null), archive: [] }, 0)
     expect(saved?.version).toBe(1)
     expect(channelRequests(created.sent).map((s) => s.method)).toEqual(['PATCH', 'POST'])
     expect(channelRequests(created.sent)[1].body).toMatchObject({ user_id: 'u1', channel: 'discord', version: 1 })
@@ -94,7 +94,7 @@ describe('supabaseAutopostStore の送る要求', () => {
         ? { status: 200, body: [] }
         : { status: 409, body: { code: '23505', message: 'duplicate key value', details: '', hint: '' } }
     )
-    expect(await raced.store.saveText('u1', 'discord', { messages: ['a'], archive: [] }, 0)).toBeNull()
+    expect(await raced.store.saveText('u1', 'discord', { messages: ['a'], hours: ['a'].map(() => null), archive: [] }, 0)).toBeNull()
   })
 
   it('状態の報告は status の列だけを送る（文・履歴・版を上書きしない）', async () => {
@@ -115,6 +115,7 @@ describe('supabaseAutopostStore の送る要求', () => {
     expect(await store.getChannel('u1', 'yay')).toEqual({
       channel: 'yay',
       messages: [],
+      hours: [],
       archive: [],
       version: 0,
       savedAt: null,
@@ -214,5 +215,27 @@ describe('supabaseAutopostStore の送る要求', () => {
       await expect(store.setPaused('u1', 'discord', true)).rejects.toBeInstanceOf(PauseNotReadyError)
       expect(sent.some((s) => s.method === 'POST')).toBe(false)
     })
+  })
+})
+
+describe('時間帯の保存形（messages 列の中に持つ。SQL を足さない）', () => {
+  it('時間帯を決めていない文は文字列のまま、決めた文だけ { text, hours }', () => {
+    expect(encodeMessages(['a', 'b'], [null, [9, 10]])).toEqual(['a', { text: 'b', hours: [9, 10] }])
+  })
+
+  it('読むときは文と時間帯に分ける。昔の形（文字列だけ）もそのまま読める', () => {
+    expect(decodeMessages(['a', { text: 'b', hours: [9, 10] }])).toEqual({ messages: ['a', 'b'], hours: [null, [9, 10]] })
+    expect(decodeMessages(['a', 'b'])).toEqual({ messages: ['a', 'b'], hours: [null, null] })
+  })
+
+  it('読めない形の要素は捨て、壊れた時間帯は終日として読む（画面が開けなくなるよりよい）', () => {
+    expect(decodeMessages(['a', 1, { text: 'b', hours: ['x'] }, null])).toEqual({ messages: ['a', 'b'], hours: [null, null] })
+    expect(decodeMessages('not array')).toEqual({ messages: [], hours: [] })
+  })
+
+  it('保存では時間帯つきの形で送る', async () => {
+    const { store, sent } = fakeStore(() => ({ status: 200, body: [ROW] }))
+    await store.saveText('u1', 'discord', { messages: ['a', 'b'], hours: [[6], null], archive: [] }, 3)
+    expect(channelRequests(sent)[0].body).toMatchObject({ messages: [{ text: 'a', hours: [6] }, 'b'] })
   })
 })

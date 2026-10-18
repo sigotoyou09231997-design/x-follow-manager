@@ -45,7 +45,10 @@ function channel(patch: Partial<ChannelSnapshot> & Pick<ChannelSnapshot, 'channe
     paused: false,
     pausedAt: null,
     pauseReady: true,
-    limits: { maxLength: 1000, maxMessages: patch.channel === 'yay' ? 1 : 10 },
+    limits: { maxLength: 1000, maxMessages: patch.channel === 'yay' ? 5 : 10 },
+    // 時間帯は、ことわりが無ければ全部の文が終日。いまの時間は全部の文が使われている
+    hours: (patch.messages ?? []).map(() => null),
+    schedule: { hour: 12, activeIndexes: (patch.messages ?? []).map((_, i) => i), idle: false, nextHour: null },
     ...patch,
   }
 }
@@ -113,7 +116,7 @@ describe('AutoPostView', () => {
     expect(screen.getByText(/次の投稿から/)).toBeInTheDocument()
 
     fireEvent.click(save)
-    await waitFor(() => expect(api.saveMessages).toHaveBeenCalledWith('discord', ['直した文'], 3))
+    await waitFor(() => expect(api.saveMessages).toHaveBeenCalledWith('discord', ['直した文'], 3, [null]))
     expect(await screen.findByText('保存しました（次の投稿から反映されます）')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '保存する' })).toBeDisabled() // 書きかけは手放した
   })
@@ -140,7 +143,7 @@ describe('AutoPostView', () => {
     // 取り込んだ最新の版で、もう一度保存できる
     api.saveMessages.mockResolvedValue({ ...newer, messages: ['自分が書いた文'], version: 5 })
     fireEvent.click(screen.getByRole('button', { name: '保存する' }))
-    await waitFor(() => expect(api.saveMessages).toHaveBeenLastCalledWith('discord', ['自分が書いた文'], 4))
+    await waitFor(() => expect(api.saveMessages).toHaveBeenLastCalledWith('discord', ['自分が書いた文'], 4, [null]))
   })
 
   it('投稿先を切り替えても書きかけは残り、未保存の印が付く', async () => {
@@ -340,6 +343,115 @@ describe('AutoPostView', () => {
       fireEvent.click(screen.getByRole('tab', { name: 'X' }))
       fireEvent.click(screen.getByRole('tab', { name: /ディスコード/ }))
       await waitFor(() => expect(box().value).toBe('直しかけの文'))
+    })
+  })
+
+  describe('文ごとの投稿する時間帯', () => {
+    const picker = (name = '投稿する文') => screen.getByRole('button', { name: new RegExp(`^${name}の投稿する時間帯`) })
+
+    it('初めは「終日」。開いて朝を選んで保存すると、時間帯も一緒に送る', async () => {
+      api.saveMessages.mockResolvedValue({ ...snapshots().discord, hours: [[5, 6, 7, 8, 9, 10]], version: 4 })
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      expect(picker()).toHaveTextContent('終日')
+
+      fireEvent.click(picker())
+      fireEvent.click(screen.getByRole('button', { name: /^朝/ }))
+      expect(picker()).toHaveTextContent('5〜11時')
+
+      const save = screen.getByRole('button', { name: '保存する' })
+      expect(save).toBeEnabled() // 文は同じでも、時間帯を変えたので書きかけ
+      fireEvent.click(save)
+      await waitFor(() =>
+        expect(api.saveMessages).toHaveBeenCalledWith('discord', ['保存してある文'], 3, [[5, 6, 7, 8, 9, 10]])
+      )
+    })
+
+    it('1時間ずつ付け外しできる。終日から1時間外すと、その時間だけ抜ける', async () => {
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      fireEvent.click(picker())
+      fireEvent.click(screen.getByRole('button', { name: '3時台' }))
+      expect(screen.getByRole('button', { name: '3時台' })).toHaveAttribute('aria-pressed', 'false')
+      expect(screen.getByRole('button', { name: '4時台' })).toHaveAttribute('aria-pressed', 'true')
+      expect(picker()).toHaveTextContent('4時〜翌3時') // 夜をまたいでつながる
+    })
+
+    it('時間を1つも選ばないと保存できず、理由が出る。「終日」に戻せば保存できる', async () => {
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      fireEvent.click(picker())
+      fireEvent.click(screen.getByRole('button', { name: '終日' }))
+      // 9時だけにして、それを外す
+      fireEvent.click(screen.getByRole('button', { name: /^朝/ }))
+      for (const h of [5, 6, 7, 8, 9, 10]) fireEvent.click(screen.getByRole('button', { name: `${h}時台` }))
+      expect(screen.getByRole('alert')).toHaveTextContent('時間を1つ以上選ぶか')
+      expect(screen.getByRole('button', { name: '保存する' })).toBeDisabled()
+
+      fireEvent.click(screen.getByRole('button', { name: '終日' }))
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '保存する' })).toBeDisabled() // 保存してある内容と同じに戻った
+    })
+
+    it('時間帯を決めてある文は、閉じたままでも時間帯が見える', async () => {
+      api.fetchSnapshots.mockResolvedValue({
+        ...snapshots(),
+        discord: channel({
+          channel: 'discord',
+          messages: ['朝の文', '夜の文'],
+          hours: [[6, 7, 8], [22, 23, 0, 1]],
+          version: 2,
+        }),
+      })
+      render(<AutoPostView />)
+      await waitFor(() => expect(screen.getAllByRole('textbox')).toHaveLength(2))
+      expect(picker('1つ目の文')).toHaveTextContent('6〜9時')
+      expect(picker('2つ目の文')).toHaveTextContent('22時〜翌2時')
+    })
+
+    it('いま使われている文に「いま投稿中」の印を付ける。書きかけのあいだは外す', async () => {
+      api.fetchSnapshots.mockResolvedValue({
+        ...snapshots(),
+        discord: channel({
+          channel: 'discord',
+          messages: ['朝の文', '夜の文'],
+          hours: [[6, 7, 8], null],
+          schedule: { hour: 7, activeIndexes: [0], idle: false, nextHour: null },
+          version: 2,
+        }),
+      })
+      render(<AutoPostView />)
+      await waitFor(() => expect(screen.getAllByRole('textbox')).toHaveLength(2))
+      expect(screen.getAllByText('いま投稿中')).toHaveLength(1)
+
+      fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: '夜の文を直した' } })
+      expect(screen.queryByText('いま投稿中')).not.toBeInTheDocument()
+    })
+
+    it('使える文が無い時間は、投稿を休んでいることと再開の時刻を知らせる', async () => {
+      api.fetchSnapshots.mockResolvedValue({
+        ...snapshots(),
+        discord: channel({
+          channel: 'discord',
+          messages: ['朝の文'],
+          hours: [[6, 7, 8]],
+          schedule: { hour: 3, activeIndexes: [], idle: true, nextHour: 6 },
+          status: { lastPost: null, today: 1, at: new Date().toISOString(), paused: true },
+          version: 2,
+        }),
+      })
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('朝の文'))
+      expect(screen.getByText('投稿を休む時間帯です')).toBeInTheDocument() // 「再開待ち」ではない
+      expect(screen.getByText(/いま（3時台）に使える文が無いので、投稿を休んでいます（6時から再開）/)).toBeInTheDocument()
+    })
+
+    it('Yay は時間帯ごとに文を足せる', async () => {
+      render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      fireEvent.click(screen.getByRole('tab', { name: /Yay/ }))
+      fireEvent.click(await screen.findByRole('button', { name: '時間帯ごとの文を追加' }))
+      expect(screen.getAllByRole('textbox')).toHaveLength(2)
     })
   })
 })

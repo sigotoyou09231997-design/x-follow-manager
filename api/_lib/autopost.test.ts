@@ -139,7 +139,7 @@ describe('画面向け /api/autopost', () => {
     const { channels } = r.body as { channels: Record<string, { messages: string[]; version: number; limits: { maxMessages: number } }> }
     expect(Object.keys(channels).sort()).toEqual(['discord', 'yay'])
     expect(channels.discord).toMatchObject({ messages: [], version: 0, limits: { maxMessages: 10 } })
-    expect(channels.yay.limits.maxMessages).toBe(1)
+    expect(channels.yay.limits.maxMessages).toBe(5) // 時間帯ごとに文を変えるため
   })
 
   it('保存すると版が進み、差し替えで外れた文が履歴に残る（新しい順）', async () => {
@@ -177,7 +177,7 @@ describe('画面向け /api/autopost', () => {
     expect((await save(['  \n '])).status).toBe(400)
     expect((await save(['あ'.repeat(1001)])).status).toBe(400)
     expect((await save(Array.from({ length: 11 }, (_, i) => `文${i}`))).status).toBe(400)
-    expect((await save(['1つ目', '2つ目'], 'yay')).status).toBe(400) // yay は1つだけ
+    expect((await save(Array.from({ length: 6 }, (_, i) => `文${i}`), 'yay')).status).toBe(400) // yay は5つまで
     expect(t.store.rows.size).toBe(0)
   })
 
@@ -295,11 +295,48 @@ describe('Mac の投稿役向け（合鍵）', () => {
     const discord = await call(t.posterText, { method: 'GET', ...AS_MAC })
     expect(discord).toEqual({
       status: 200,
-      body: { messages: ['a', 'b'], updatedAt: '2026-10-07T12:00:00.000Z', paused: false, pausedAt: null },
+      body: { messages: ['a', 'b'], updatedAt: '2026-10-07T12:00:00.000Z', paused: false, pausedAt: null, idle: false },
     })
 
     const yay = await call(t.posterText, { method: 'GET', ...AS_MAC, query: { ch: 'yay' } })
     expect((yay.body as { messages: string[] }).messages).toEqual(['やっほー'])
+  })
+
+  describe('時間帯ごとの文', () => {
+    const at = (hour: number) => () => new Date(Date.UTC(2026, 9, 18, (hour - 9 + 24) % 24, 30)) // 日本時間の「時」
+    const save = (channel: string, messages: string[], hours: unknown) =>
+      call(t.screen, { method: 'POST', ...AS_OWNER, body: { channel, messages, hours, baseVersion: 0 } })
+
+    it('投稿役には、いまの時間に使う文だけを渡す（選び分けはサーバーがやるので、投稿役を入れ替えなくてよい）', async () => {
+      await save('discord', ['朝の文', 'いつもの文'], [[6, 7, 8], null])
+      const morning = await call(createPosterTextHandler({ store: t.store }, at(7)), { method: 'GET', ...AS_MAC })
+      expect(morning.body).toMatchObject({ messages: ['朝の文'], paused: false, idle: false })
+      const noon = await call(createPosterTextHandler({ store: t.store }, at(12)), { method: 'GET', ...AS_MAC })
+      expect(noon.body).toMatchObject({ messages: ['いつもの文'], paused: false, idle: false })
+    })
+
+    it('使える文が無い時間は、投稿役が見合わせるように paused: true（idle 付き）で答える', async () => {
+      await save('discord', ['朝の文'], [[6, 7, 8]])
+      const night = await call(createPosterTextHandler({ store: t.store }, at(3)), { method: 'GET', ...AS_MAC })
+      expect(night.body).toMatchObject({ messages: [], paused: true, idle: true })
+    })
+
+    it('画面には時間帯と、いまの選び分けを返す', async () => {
+      await save('yay', ['朝の文', 'いつもの文'], [[6, 7, 8], null])
+      const r = await call(createAutopostHandler({ store: t.store, authenticate: async () => OWNER }, at(7)), {
+        method: 'GET',
+        ...AS_OWNER,
+      })
+      const yay = (r.body as { channels: Record<string, { hours: unknown; schedule: unknown }> }).channels.yay
+      expect(yay.hours).toEqual([[6, 7, 8], null])
+      expect(yay.schedule).toEqual({ hour: 7, activeIndexes: [0], idle: false, nextHour: null })
+    })
+
+    it('時間帯の形がおかしければ保存しない', async () => {
+      expect((await save('discord', ['a'], [[]])).status).toBe(400)
+      expect((await save('discord', ['a', 'b'], [null])).status).toBe(400)
+      expect(t.store.rows.size).toBe(0)
+    })
   })
 
   describe('止められているか', () => {
