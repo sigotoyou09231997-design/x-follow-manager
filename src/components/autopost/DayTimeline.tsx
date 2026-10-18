@@ -1,7 +1,7 @@
-import { daySegments, ownersByHour, type Hours } from '../../lib/autopost/hours'
+import { circularSegments, ownersByHour, segmentHas, segmentLabel, type Hours } from '../../lib/autopost/hours'
 
-// 1日（0時〜24時）を横長の帯にして、どの時間にどの文が使われるかを見せる。
-// 「何時から何時までがどの文か」と「どの文も使われず休む時間」を、文字を読まなくても分かるようにするための図。
+// 1日の使われ方を見せる。トップ・詳細の「1日の流れ」は、時刻の順に「何時から何時まで → どの文」を並べた一覧。
+// 文の時間帯を選ぶ欄の中には、その文を使う時間だけを塗った細い帯（HoursStrip）を出す。
 
 const TICKS = [0, 6, 12, 18, 24]
 
@@ -18,51 +18,55 @@ function Ticks() {
 }
 
 interface OverviewProps {
-  /** 文ごとの時間帯（文の並び順）。 */
+  /** 文（文の並び順）。一覧に、どの文かが分かるよう先頭を出す。 */
+  texts: string[]
+  /** 文ごとの時間帯（texts と同じ並び）。 */
   hours: Hours[]
   /** Yay のように、1回に1つの文だけ投稿する投稿先。 */
   oneOnly?: boolean
-  /** いま（日本時間の何時か）。分かれば、帯の上に印を付ける。 */
+  /** いま（日本時間の何時か）。分かれば、その行に印を付ける。 */
   nowHour?: number
 }
 
-/** 文が複数あるときの、1日の使われ方。数字は「何つ目の文か」。斜線は、どの文も使われず投稿を休む時間。 */
-export function DayOverview({ hours, oneOnly = false, nowHour }: OverviewProps) {
-  const segments = daySegments(ownersByHour(hours, oneOnly))
-  const resting = segments.some((s) => s.owners.length === 0)
+const excerpt = (text: string) => text.replace(/\s*\n\s*/g, ' ').trim()
+
+/**
+ * 「何時から何時までは、どの文が投稿されるか」を、時刻の順に1行ずつ並べた一覧。
+ * どの文も使われず投稿を休む時間も、1行として出す。
+ */
+export function DayOverview({ texts, hours, oneOnly = false, nowHour }: OverviewProps) {
+  const segments = circularSegments(ownersByHour(hours, oneOnly))
   return (
-    <figure className="dayline" aria-label="1日の使われ方">
-      <div className="dayline__bar" role="list">
+    <section className="daytable" aria-label="1日の流れ">
+      <h4 className="daytable__title">1日の流れ</h4>
+      <ol className="daytable__list">
         {segments.map((seg) => {
           const rest = seg.owners.length === 0
-          const multi = seg.owners.length > 1
-          const label = rest ? (seg.length >= 3 ? '休み' : '') : multi ? (seg.length >= 4 ? '順に回す' : '') : String(seg.owners[0] + 1)
-          const tone = rest ? 'rest' : multi ? 'multi' : `t${seg.owners[0] % 4}`
+          const now = nowHour !== undefined && segmentHas(seg, nowHour)
           return (
-            <span
-              key={seg.from}
-              role="listitem"
-              className={`dayline__seg dayline__seg--${tone}`}
-              style={{ flexGrow: seg.length }}
-              title={`${seg.from}時〜${seg.from + seg.length}時: ${
-                rest ? '投稿を休む' : multi ? `${seg.owners.map((o) => o + 1).join('・')}つ目の文を順に回す` : `${seg.owners[0] + 1}つ目の文`
-              }`}
-            >
-              {label}
-            </span>
+            <li key={seg.from} className={`daytable__row${rest ? ' daytable__row--rest' : ''}${now ? ' daytable__row--now' : ''}`}>
+              <span className="daytable__time">{segmentLabel(seg)}</span>
+              <span className="daytable__what">
+                {rest ? (
+                  <span className="daytable__text">投稿を休みます</span>
+                ) : seg.owners.length > 1 ? (
+                  <>
+                    <b className="daytable__no">{seg.owners.map((o) => o + 1).join('・')}</b>
+                    <span className="daytable__text">つ目を順に投稿</span>
+                  </>
+                ) : (
+                  <>
+                    <b className="daytable__no">{seg.owners[0] + 1}</b>
+                    <span className="daytable__text">{excerpt(texts[seg.owners[0]] ?? '')}</span>
+                  </>
+                )}
+              </span>
+              {now && <span className="daytable__now">いま</span>}
+            </li>
           )
         })}
-        {nowHour !== undefined && (
-          <span className="dayline__now" style={{ left: `${((nowHour + 0.5) / 24) * 100}%` }} aria-label={`いま ${nowHour}時台`}>
-            <i>いま</i>
-          </span>
-        )}
-      </div>
-      <Ticks />
-      <figcaption className="dayline__caption">
-        数字は、その時間に投稿される文（何つ目か）。{resting ? '斜線の時間は、どの文も使われないので投稿を休みます。' : ''}
-      </figcaption>
-    </figure>
+      </ol>
+    </section>
   )
 }
 

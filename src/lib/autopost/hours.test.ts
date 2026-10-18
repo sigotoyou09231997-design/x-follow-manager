@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ALL_HOURS,
   HOUR_PRESETS,
+  circularSegments,
   daySegments,
   endChoices,
   hoursLabel,
@@ -12,6 +13,8 @@ import {
   rangeLabel,
   rangesToHours,
   sameHours,
+  segmentHas,
+  segmentLabel,
 } from './hours'
 
 describe('hoursLabel', () => {
@@ -141,5 +144,37 @@ describe('1日の使われ方（サーバーの選び方と同じ）', () => {
 
   it('休みの時間も帯になる', () => {
     expect(daySegments(ownersByHour([[9, 10]], true)).map((s) => s.owners)).toEqual([[], [0], []])
+  })
+})
+
+describe('夜をまたぐ区間', () => {
+  // 1つ目 22時〜翌5時、2つ目 9時〜20時。5〜9時と20〜22時はどの文も使われない（休み）
+  const owners = ownersByHour([[22, 23, 0, 1, 2, 3, 4], [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]], true)
+
+  it('0時をまたいで同じ文が続く区間は1つにまとめる。並びは開始の時刻順', () => {
+    expect(circularSegments(owners)).toEqual([
+      { from: 5, length: 4, owners: [] },
+      { from: 9, length: 11, owners: [1] },
+      { from: 20, length: 2, owners: [] },
+      { from: 22, length: 7, owners: [0] },
+    ])
+  })
+
+  it('同じ文が丸1日続くなら、区間は1つ', () => {
+    expect(circularSegments(ownersByHour([null], true))).toEqual([{ from: 0, length: 24, owners: [0] }])
+  })
+
+  it('区間の表示。夜をまたぐものは「翌」、丸1日は「終日」', () => {
+    const segs = circularSegments(owners)
+    expect(segs.map(segmentLabel)).toEqual(['5時〜9時', '9時〜20時', '20時〜22時', '22時〜翌5時'])
+    expect(segmentLabel({ from: 0, length: 24, owners: [0] })).toBe('終日')
+  })
+
+  it('いまの時が入っている区間を見つけられる（夜をまたぐ区間も）', () => {
+    const segs = circularSegments(owners)
+    expect(segs.findIndex((s) => segmentHas(s, 8))).toBe(0)
+    expect(segs.findIndex((s) => segmentHas(s, 9))).toBe(1)
+    expect(segs.findIndex((s) => segmentHas(s, 3))).toBe(3) // 0時台〜4時台は、22時から続く区間
+    expect(segs.findIndex((s) => segmentHas(s, 23))).toBe(3)
   })
 })

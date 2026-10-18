@@ -252,8 +252,28 @@
 }
 
 .autopost__msg--ok {
-  background: var(--success-bg);
-  color: var(--success-strong);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-left: 4px solid var(--success);
+  background: color-mix(in srgb, var(--success) 20%, var(--surface));
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+/* 保存・切り替えができたことを、文字より先に目に入る印で伝える */
+.autopost__msg--ok::before {
+  content: '✓';
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--success);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
 }
 
 .autopost__msg--err {
@@ -789,6 +809,10 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
+  /* 色を付けたとき文字が縁に付かないよう余白を取り、外側を負の余白で戻す（見た目の位置は変わらない） */
+  margin: 0 -8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
 }
 
 .channel-row__no {
@@ -815,6 +839,9 @@
 /* その場で直しているあいだの1つぶん。 */
 .channel-row__item--editing {
   gap: 6px;
+  /* 書いている途中（まだ保存していない）は、保存済みの行と見分けがつくよう青緑の面にする */
+  background: var(--accent-bg);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .channel-row__textarea {
@@ -1361,79 +1388,6 @@
   background: var(--fill);
 }
 
-.dayline__seg {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  border-right: 2px solid var(--surface);
-}
-
-.dayline__seg:last-of-type {
-  border-right: 0;
-}
-
-/* 色は文ごとに4通りを回す。数字でも見分けられるので、色だけには頼らない */
-.dayline__seg--t0 {
-  background: var(--accent-bg);
-  color: var(--accent);
-}
-
-.dayline__seg--t1 {
-  background: color-mix(in srgb, var(--text-h) 14%, transparent);
-  color: var(--text-h);
-}
-
-.dayline__seg--t2 {
-  background: var(--warning-bg);
-  color: var(--warning);
-}
-
-.dayline__seg--t3 {
-  background: var(--success-bg);
-  color: var(--success-strong);
-}
-
-.dayline__seg--multi {
-  background: var(--accent-bg);
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-/* 休み: 斜線 */
-.dayline__seg--rest {
-  background: repeating-linear-gradient(135deg, transparent 0 5px, var(--border) 5px 6px);
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.dayline__now {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: var(--text-h);
-  pointer-events: none;
-}
-
-.dayline__now i {
-  position: absolute;
-  top: 2px;
-  left: 4px;
-  padding: 0 4px;
-  border-radius: 4px;
-  background: var(--text-h);
-  color: var(--bg);
-  font-size: 10px;
-  font-style: normal;
-  line-height: 1.5;
-  white-space: nowrap;
-}
-
 .dayline__ticks {
   position: relative;
   height: 14px;
@@ -1455,12 +1409,6 @@
   transform: translateX(-100%);
 }
 
-.dayline__caption {
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--text-muted);
-}
-
 /* 1つの文の時間帯だけを見せる細い帯 */
 .dayline--strip .dayline__bar {
   height: 14px;
@@ -1475,4 +1423,153 @@
 
 .dayline__cell--on {
   background: var(--accent);
+}
+
+/* ---------------------------------------------------------------- 保存できたときの印 */
+
+/* 保存できた行を、緑に染めて、ゆっくり元の色に戻す。 */
+.channel-row__item--saved,
+.autopost__box--saved {
+  animation: saved-flash 3.6s ease-out;
+}
+
+@keyframes saved-flash {
+  0%,
+  45% {
+    background: color-mix(in srgb, var(--success) 24%, transparent);
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--success) 60%, transparent);
+  }
+  100% {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px transparent;
+  }
+}
+
+/* 動きを減らす設定では、ゆっくり戻さず、印を付けているあいだ同じ色のままにする。 */
+@media (prefers-reduced-motion: reduce) {
+  .channel-row__item--saved,
+  .autopost__box--saved {
+    animation: none;
+    background: color-mix(in srgb, var(--success) 24%, transparent);
+  }
+}
+
+.channel-row__saved,
+.autopost__saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--success);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.autopost__box--saved {
+  padding: 8px;
+  margin: -8px;
+  border-radius: var(--radius-sm);
+}
+
+.autopost__box--saved .autopost__saved {
+  align-self: flex-start;
+}
+
+/* ---------------------------------------------------------------- 1日の流れ（何時から何時まで → どの文） */
+
+.daytable {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.daytable__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.daytable__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.daytable__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.daytable__time {
+  flex: none;
+  min-width: 6.6em;
+  white-space: nowrap;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-h);
+}
+
+.daytable__what {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-h);
+}
+
+.daytable__no {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.daytable__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 休み: 文字を薄くして、投稿される行と見分ける（色は付けない。正常な動き） */
+.daytable__row--rest .daytable__time,
+.daytable__row--rest .daytable__what {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* いま: この行だけ面を付ける */
+.daytable__row--now {
+  background: var(--accent-bg);
+}
+
+.daytable__now {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--text-h);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 700;
 }

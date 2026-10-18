@@ -26,6 +26,9 @@ const short = (text: string) => {
   return line.length > OPTION_LENGTH ? `${line.slice(0, OPTION_LENGTH)}…` : line
 }
 
+/** 保存できた行に印を付けておく長さ。 */
+const SAVED_MARK_MS = 4000
+
 /** 「編集」を押した1つぶんの書きかけ。保存するまで、サーバーの文は変わらない。 */
 interface Editing {
   index: number
@@ -42,6 +45,14 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
   const [editSaving, setEditSaving] = useState(false)
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState<{ text: string; kind: 'ok' | 'err' }>()
+  // 保存できた行（何つ目か）。しばらくのあいだ、その行の色を変えて「保存しました」の札を出す。
+  // 知らせの文だけだと、行から離れた下の方に出て、保存できたのか分かりにくかった。
+  const [saved, setSaved] = useState<number | null>(null)
+  useEffect(() => {
+    if (saved === null) return
+    const timer = setTimeout(() => setSaved(null), SAVED_MARK_MS)
+    return () => clearTimeout(timer)
+  }, [saved])
 
   // 書きかけの間は、更新バナーが自動でページを読み込み直して入力を消さないよう、申告しておく。
   const editingRef = useRef(false)
@@ -74,6 +85,7 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
         )
       )
       setPicked('')
+      setSaved(next.length === 1 || next.length <= draft.length ? 0 : next.length - 1)
       setNotice({ text: '切り替えました（次の投稿から、この文になります）', kind: 'ok' })
     } catch (err) {
       // 別の端末で先に保存されていたら、最新の中身だけ取り込む（選んだ文は、選び直してもらう）
@@ -112,6 +124,7 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
         )
       )
       setEditing(null)
+      setSaved(null)
       setNotice({ text: '外しました（外した文は、過去の文から選び直せます）', kind: 'ok' })
     } catch (err) {
       if (err instanceof SaveConflictError) {
@@ -162,6 +175,7 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
           next.map((slot) => slot.hours)
         )
       )
+      setSaved(editing.index)
       setEditing(null)
       setNotice({ text: editing.isNew ? '文を足しました（次の投稿から、時間帯に合えば使われます）' : '保存しました（次の投稿から、この文になります）', kind: 'ok' })
     } catch (err) {
@@ -181,7 +195,7 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
       {showName && <strong className="channel-row__name">{name}</strong>}
 
       {snapshot.hours.some((h) => h !== null) && (
-        <DayOverview hours={snapshot.hours} oneOnly={snapshot.channel === 'yay'} nowHour={snapshot.schedule.hour} />
+        <DayOverview texts={snapshot.messages} hours={snapshot.hours} oneOnly={snapshot.channel === 'yay'} nowHour={snapshot.schedule.hour} />
       )}
 
       {snapshot.messages.length === 0 && !editing ? (
@@ -234,12 +248,18 @@ export function ChannelTextRow({ snapshot, onChanged, showName = true }: Props) 
               )
             }
             return (
-              <li key={i} className="channel-row__item">
+              <li key={i} className={`channel-row__item${saved === i ? ' channel-row__item--saved' : ''}`}>
                 <div className="channel-row__head">
                   {snapshot.messages.length > 1 && <span className="channel-row__no">{i + 1}つ目</span>}
                   {hours !== null && <span className="channel-row__hours">{hoursLabel(hours)}</span>}
                   {snapshot.messages.length > 1 && snapshot.schedule.activeIndexes.includes(i) && (
                     <span className="autopost__now">いま投稿中</span>
+                  )}
+                  {saved === i && (
+                    <span className="channel-row__saved" aria-hidden="true">
+                      <Icon name="check" size={13} />
+                      保存しました
+                    </span>
                   )}
                   <button
                     type="button"

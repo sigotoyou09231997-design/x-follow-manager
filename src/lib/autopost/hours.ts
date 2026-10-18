@@ -130,3 +130,31 @@ export function daySegments(owners: number[][]): Segment[] {
   })
   return segments
 }
+
+/**
+ * 1日を、同じ文が使われている連続した時間ごとに区切る。0時をまたいで同じ文が続くとき（22時〜翌5時など）は1つにまとめる。
+ * 並びは「開始の時刻」の小さい順。まとめた区間は、夜の開始の時刻（22時）の位置に来る。
+ */
+export function circularSegments(owners: number[][]): Segment[] {
+  const segments = daySegments(owners)
+  if (segments.length > 1) {
+    const first = segments[0]
+    const last = segments[segments.length - 1]
+    if (JSON.stringify(first.owners) === JSON.stringify(last.owners)) {
+      segments.shift()
+      last.length += first.length
+    }
+  }
+  return segments
+}
+
+/** いまの「時」が、この区間に入っているか。夜をまたぐ区間も扱う。 */
+export function segmentHas(seg: Segment, hour: number): boolean {
+  return (hour - seg.from + 24) % 24 < seg.length
+}
+
+/** 区間の時間帯の表示。「9時〜20時」「22時〜翌5時」。丸1日なら「終日」。 */
+export function segmentLabel(seg: Segment): string {
+  if (seg.length >= 24) return '終日'
+  return rangeLabel({ from: seg.from, to: ((seg.from + seg.length - 1) % 24) + 1 })
+}
