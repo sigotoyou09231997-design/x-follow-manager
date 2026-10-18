@@ -19,11 +19,14 @@ import {
   livenessOf,
   normalize,
   notYetPosted,
+  slotsOf,
   withArchived,
+  type Slot,
 } from '../../lib/autopost/draft'
 import { readAutopostTab, rememberAutopostTab, type AutopostTab } from '../../lib/autopost/tab'
 import { Icon } from '../Icon'
 import { PauseControl, PosterStatusLine } from './ChannelControls'
+import { HoursPicker } from './HoursPicker'
 import { RestartControl } from './RestartControl'
 import { XAutopilotPanel } from './XAutopilotPanel'
 
@@ -32,12 +35,18 @@ export { AutoPostHome } from './AutoPostHome'
 
 const CHANNEL_INFO: Record<ChannelName, string> = {
   discord: 'discord-ch.site の募集掲示板に、約10分おきに投稿される文です。',
-  yay: 'Yay のタイムラインと、参加中のサークル全部に、5分ごとに投稿される文です（前の投稿は消されます）。',
+  yay: 'Yay のタイムラインと、参加中のサークル全部に、5分ごとに投稿される文です（前の投稿は消されます）。時間帯ごとに文を変えるときは、文を足してください。',
+}
+
+const HOURS_NOTE: Record<ChannelName, string> = {
+  discord:
+    '文ごとに「投稿する時間帯」を決められます。時間を決めた文は、その時間になるとその文だけを順に投稿し、当たる文が無い時間は、時間を決めていない文を順に回します。',
+  yay: '文ごとに「投稿する時間帯」を決められます。いまの時間に当たる文のうち、いちばん上の1つを投稿します（時間を決めていない文は、当たる文が無い時間に使います）。',
 }
 
 /** 書きかけ。見ていた版を覚えておき、サーバー側が進んで中身も同じになったら、書きかけを手放して追従する。 */
 interface Edit {
-  list: string[]
+  list: Slot[]
   base: number
 }
 
@@ -75,18 +84,18 @@ export function AutoPostView() {
   const [pauseError, setPauseError] = useState<string>()
 
   // 書きかけ（＝その投稿先の文が、保存済みと違う状態）かどうかを、投稿先ごとに出す。
-  const draftOf = (channel: ChannelName): string[] => {
+  const draftOf = (channel: ChannelName): Slot[] => {
     const snap = snapshots?.[channel]
     if (!snap) return []
     const edit = edits[channel]
-    if (!edit) return snap.messages
+    if (!edit) return slotsOf(snap)
     // サーバー側が進んでいて、書きかけも同じ中身に戻っているなら、書きかけは手放す。
-    const follow = edit.base !== snap.version && !isDirty(edit.list, snap.messages)
-    return follow ? snap.messages : edit.list
+    const follow = edit.base !== snap.version && !isDirty(edit.list, slotsOf(snap))
+    return follow ? slotsOf(snap) : edit.list
   }
   const dirtyOf = (channel: ChannelName): boolean => {
     const snap = snapshots?.[channel]
-    return !!snap && isDirty(draftOf(channel), snap.messages)
+    return !!snap && isDirty(draftOf(channel), slotsOf(snap))
   }
   const anyDirty = CHANNEL_NAMES.some(dirtyOf)
 
@@ -110,7 +119,7 @@ export function AutoPostView() {
   const dirty = dirtyOf(current)
   const valid = !!snap && isValid(draft, snap.limits.maxLength)
 
-  function setDraft(list: string[]) {
+  function setDraft(list: Slot[]) {
     if (!snap) return
     setEdits((prev) => ({ ...prev, [current]: { list, base: snap.version } }))
   }
@@ -145,7 +154,12 @@ export function AutoPostView() {
     setSaving(true)
     setMessage(undefined)
     try {
-      const next = await saveMessages(channel, draft, snap.version)
+      const next = await saveMessages(
+        channel,
+        draft.map((slot) => slot.text),
+        snap.version,
+        draft.map((slot) => slot.hours)
+      )
       applySnapshot(next)
       // 返事を待つあいだに打ち足されていたら、その入力は消さない。
       setEdits((prev) => {
@@ -307,20 +321,22 @@ export function AutoPostView() {
           <Box
             index={0}
             total={1}
-            value=""
+            slot={{ text: '', hours: null }}
             maxLength={snap.limits.maxLength}
-            onChange={(v) => setDraft([v])}
+            onChange={(slot) => setDraft([slot])}
             onRemove={() => undefined}
           />
         ) : (
-          draft.map((text, i) => (
+          draft.map((slot, i) => (
             <Box
               key={i}
               index={i}
               total={draft.length}
-              value={text}
+              slot={slot}
+              // 「いま投稿される」の印は、保存してある文の番号で決まるので、書きかけの間は出さない（番号がずれる）
+              nowActive={!dirty && snap.schedule.activeIndexes.includes(i)}
               maxLength={snap.limits.maxLength}
-              onChange={(v) => setDraft(draft.map((t, j) => (j === i ? v : t)))}
+              onChange={(next) => setDraft(draft.map((s, j) => (j === i ? next : s)))}
               onRemove={() => setDraft(draft.filter((_, j) => j !== i))}
             />
           ))
@@ -343,9 +359,13 @@ export function AutoPostView() {
             </button>
           )}
           {snap.limits.maxMessages > 1 && draft.length < snap.limits.maxMessages && (
-            <button type="button" className="btn btn--ghost" onClick={() => setDraft([...(draft.length ? draft : ['']), ''])}>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => setDraft([...(draft.length ? draft : [{ text: '', hours: null }]), { text: '', hours: null }])}
+            >
               <Icon name="plus" size={16} />
-              順番に回す文を追加
+              {current === 'yay' ? '時間帯ごとの文を追加' : '順番に回す文を追加'}
             </button>
           )}
         </div>
@@ -365,6 +385,13 @@ export function AutoPostView() {
             'いま投稿されている文です。直して保存すると、次の投稿から切り替わります。'
           )}
         </p>
+        {snap.schedule.idle && !snap.paused && (
+          <p className="autopost__note autopost__note--idle" role="status">
+            いま（{snap.schedule.hour}時台）に使える文が無いので、投稿を休んでいます
+            {snap.schedule.nextHour !== null ? `（${snap.schedule.nextHour}時から再開）` : ''}。
+          </p>
+        )}
+        <p className="autopost__note">{HOURS_NOTE[current]}</p>
         {message && (
           <p className={`autopost__msg autopost__msg--${message.kind}`} role={message.kind === 'err' ? 'alert' : 'status'}>
             {message.text}
@@ -402,31 +429,40 @@ export function AutoPostView() {
 interface BoxProps {
   index: number
   total: number
-  value: string
+  slot: Slot
+  /** いまの時間に、この文が投稿に使われている（保存してある内容のとき）。 */
+  nowActive?: boolean
   maxLength: number
-  onChange: (value: string) => void
+  onChange: (slot: Slot) => void
   onRemove: () => void
 }
 
-function Box({ index, total, value, maxLength, onChange, onRemove }: BoxProps) {
-  const length = value.trim().length
+function Box({ index, total, slot, nowActive, maxLength, onChange, onRemove }: BoxProps) {
+  const length = slot.text.trim().length
+  const name = total > 1 ? `${index + 1}つ目の文` : '投稿する文'
   return (
     <div className="autopost__box">
       {total > 1 && (
         <div className="autopost__box-head">
-          <span>{index + 1}つ目</span>
+          <span>
+            {index + 1}つ目
+            {nowActive && <span className="autopost__now">いま投稿中</span>}
+          </span>
           <button type="button" className="btn btn--ghost btn--small" onClick={onRemove}>
             この文を外す
           </button>
         </div>
       )}
       <AutoTextarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={total > 1 ? `${index + 1}つ目の文` : '投稿する文'}
+        value={slot.text}
+        onChange={(e) => onChange({ ...slot, text: e.target.value })}
+        aria-label={name}
         placeholder="ここに投稿する文を書きます"
       />
-      <div className={`autopost__count${length > maxLength ? ' over' : ''}`}>{length}文字</div>
+      <div className="autopost__box-foot">
+        <HoursPicker hours={slot.hours} onChange={(hours) => onChange({ ...slot, hours })} name={name} />
+        <div className={`autopost__count${length > maxLength ? ' over' : ''}`}>{length}文字</div>
+      </div>
     </div>
   )
 }

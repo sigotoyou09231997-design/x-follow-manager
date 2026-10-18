@@ -47,6 +47,9 @@ function channel(patch: Partial<ChannelSnapshot> & Pick<ChannelSnapshot, 'channe
     pausedAt: null,
     pauseReady: true,
     limits: { maxLength: 1000, maxMessages: 10 },
+    // 時間帯は、ことわりが無ければ全部の文が終日。いまの時間は全部の文が使われている
+    hours: (patch.messages ?? ['文']).map(() => null),
+    schedule: { hour: 12, activeIndexes: (patch.messages ?? ['文']).map((_, i) => i), idle: false, nextHour: null },
     ...patch,
   }
 }

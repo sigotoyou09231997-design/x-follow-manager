@@ -1,4 +1,5 @@
 import { requireSupabase } from '../supabase'
+import type { Hours } from './hours'
 
 // 掲示板・Yay の自動投稿（Mac で動く投稿役）の文と状態を、サーバー（/api/autopost）と
 // やり取りする。Supabase のアクセストークンを添えて、サーバー側で本人確認する。
@@ -22,9 +23,23 @@ export interface PosterStatus {
   at: string
 }
 
+/** いま（日本時間の何時か）どの文が使われるか。サーバーが決めて返す。 */
+export interface Schedule {
+  hour: number
+  /** いま投稿に使う文（messages の何番目か）。 */
+  activeIndexes: number[]
+  /** 文はあるのに、この時間に使える文が無く、投稿を休んでいる。 */
+  idle: boolean
+  /** 休んでいるとき、次に投稿が始まる「時」。 */
+  nextHour: number | null
+}
+
 export interface ChannelSnapshot {
   channel: ChannelName
   messages: string[]
+  /** messages と同じ並びで、それぞれの文を投稿する時間帯。null は終日。 */
+  hours: Hours[]
+  schedule: Schedule
   /** 差し替えで外れた前の文。新しいものが先。 */
   archive: string[]
   /** 文を保存するたびに +1。別の端末で先に保存されたかどうかの目印。 */
@@ -91,11 +106,13 @@ export async function fetchSnapshots(): Promise<Snapshots> {
 export async function saveMessages(
   channel: ChannelName,
   messages: string[],
-  baseVersion: number
+  baseVersion: number,
+  hours: Hours[]
 ): Promise<ChannelSnapshot> {
   const { status, data } = await call<{ snapshot: ChannelSnapshot; error?: string }>('POST', {
     channel,
     messages,
+    hours,
     baseVersion,
   })
   if (status === 409) throw new SaveConflictError(failureMessage(status, data), data.snapshot)

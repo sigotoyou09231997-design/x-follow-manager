@@ -1018,3 +1018,163 @@
   font-weight: 500;
   opacity: 0.9;
 }
+
+/* ---------------------------------------------------------------- 文ごとの「投稿する時間帯」 */
+
+.autopost__box-foot {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.autopost__box-foot .hours {
+  flex: 1;
+  min-width: 0;
+}
+
+.autopost__now {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--success-bg);
+  color: var(--success-strong);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.autopost__note--idle {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.hours__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--fill);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.hours__toggle strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+/* 時間を決めてある文は、終日の文と見分けがつくように色を付ける */
+.hours--set .hours__toggle {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.hours--set .hours__toggle strong {
+  color: var(--accent);
+}
+
+.hours__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.hours__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hours__preset {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.hours__preset span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.hours__preset[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.hours__grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.hours__cell {
+  min-height: 40px; /* 指で押せる大きさ */
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.hours__cell[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.hours__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.hours__hint--err {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.channel-row__hours {
+  align-self: flex-start;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .hours__grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+}

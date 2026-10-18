@@ -8,10 +8,13 @@ const MAX_ARCHIVE = 100
 
 export type ChannelName = 'discord' | 'yay'
 
-/** 投稿先ごとに回せる文の数。discord は順に回す（最大10）、yay は1つだけ。 */
+/**
+ * 投稿先ごとに持てる文の数。discord は順に回す（最大10）。
+ * yay は1回に1つだけ投稿する。複数持てるのは「時間帯ごとに文を変える」ため（いまの時間に合う、いちばん上の1つが使われる）。
+ */
 export const CHANNELS: Record<ChannelName, { maxMessages: number }> = {
   discord: { maxMessages: 10 },
-  yay: { maxMessages: 1 },
+  yay: { maxMessages: 5 },
 }
 
 export function isChannelName(value: unknown): value is ChannelName {
@@ -38,21 +41,103 @@ export function cleanMessages(input: unknown, maxMessages: number): string[] {
   })
 }
 
-/** 文を差し替えたあとの messages と archive。外れた古い文は archive（履歴）へ移す。 */
+/**
+ * 文を投稿してよい時間帯。日本時間の「時」（0〜23）を小さい順に並べたもの。null は終日（いつでも）。
+ * 「9」なら 9:00〜9:59。24時間ぜんぶ選んだものは null に直す（同じ意味を2通りで持たない）。
+ */
+export type Hours = number[] | null
+
+const HOUR_ZONE = 'Asia/Tokyo'
+
+/** 時間帯を整える。形が違えば DocError（画面にそのまま出せる日本語）。 */
+export function cleanHours(input: unknown, count: number): Hours[] {
+  if (!Array.isArray(input) || input.length !== count) throw new DocError('時間帯の数が文の数と合いません')
+  return input.map((h, i) => {
+    if (h === null) return null
+    const name = count === 1 ? '時間帯' : `${i + 1}つ目の時間帯`
+    if (!Array.isArray(h) || h.length === 0) {
+      throw new DocError(`${name}が選ばれていません。時間を1つ以上選ぶか、「終日」にしてください`)
+    }
+    if (!h.every((n) => Number.isInteger(n) && n >= 0 && n <= 23)) throw new DocError(`${name}が正しくありません`)
+    const sorted = [...new Set(h as number[])].sort((a, b) => a - b)
+    return sorted.length === 24 ? null : sorted
+  })
+}
+
+/**
+ * 文を差し替えたあとの messages・hours・archive。外れた古い文は archive（履歴）へ移す。
+ * hoursInput が無いとき（時間帯を知らない古い画面からの保存）は、同じ文に付いていた時間帯を引き継ぐ。
+ * 黙って終日に戻してしまうと、休ませていた時間にも投稿が始まってしまうため。
+ */
 export function applySave(
-  current: { messages: string[]; archive: string[] },
+  current: { messages: string[]; hours: Hours[]; archive: string[] },
   input: unknown,
-  maxMessages: number
-): { messages: string[]; archive: string[] } {
+  maxMessages: number,
+  hoursInput?: unknown
+): { messages: string[]; hours: Hours[]; archive: string[] } {
   const messages = cleanMessages(input, maxMessages)
+  const hours =
+    hoursInput === undefined
+      ? messages.map((m) => {
+          const at = current.messages.indexOf(m)
+          return at >= 0 ? (current.hours[at] ?? null) : null
+        })
+      : cleanHours(hoursInput, messages.length)
   const archive = [...current.archive]
   for (const old of current.messages) {
     if (!messages.includes(old) && !archive.includes(old)) archive.push(old)
   }
   return {
     messages,
+    hours,
     archive: archive.filter((a) => !messages.includes(a)).slice(-MAX_ARCHIVE),
   }
+}
+
+/** いまの日本時間の「時」（0〜23）。Mac や Vercel の時計の地域には頼らない。 */
+export function hourInJapan(date: Date): number {
+  const text = new Intl.DateTimeFormat('en-US', { timeZone: HOUR_ZONE, hour: 'numeric', hourCycle: 'h23' }).format(date)
+  return Number(text) % 24
+}
+
+export interface Schedule {
+  /** 判定に使った日本時間の「時」。 */
+  hour: number
+  /** いま投稿に使う文（messages の何番目か）。 */
+  activeIndexes: number[]
+  /** 文はあるのに、この時間に使える文が無く、投稿を休んでいる。 */
+  idle: boolean
+  /** 休んでいるとき、次に投稿が始まる「時」。この先も使える文が無ければ null。 */
+  nextHour: number | null
+}
+
+/**
+ * その「時」に投稿に使う文。時間を決めた文が当たっていれば、その文だけを使う（朝の文を決めたら、朝は朝の文だけになる）。
+ * 当たる文が無い時間は、時間を決めていない文を使う。それも無ければ空（＝その時間は投稿を休む）。
+ */
+export function activeIndexesAt(hours: Hours[], hour: number): number[] {
+  const timed = hours.flatMap((h, i) => (h?.includes(hour) ? [i] : []))
+  if (timed.length > 0) return timed
+  return hours.flatMap((h, i) => (h === null ? [i] : []))
+}
+
+/** 投稿先ごとの、いまの時間に使う文。yay は1回に1つだけ投稿するので、当たった文の先頭だけ。 */
+export function scheduleAt(channel: ChannelName, hours: Hours[], date: Date): Schedule {
+  const limit = (indexes: number[]) => (channel === 'yay' ? indexes.slice(0, 1) : indexes)
+  const hour = hourInJapan(date)
+  const activeIndexes = limit(activeIndexesAt(hours, hour))
+  const idle = hours.length > 0 && activeIndexes.length === 0
+  let nextHour: number | null = null
+  if (idle) {
+    for (let step = 1; step <= 24; step++) {
+      const h = (hour + step) % 24
+      if (activeIndexesAt(hours, h).length > 0) {
+        nextHour = h
+        break
+      }
+    }
+  }
+  return { hour, activeIndexes, idle, nextHour }
 }
 
 export interface PosterStatus {

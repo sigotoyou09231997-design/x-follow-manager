@@ -67,7 +67,14 @@ export function PauseControl({ snapshot, now, busy, error, onChange }: PauseCont
     : null
 
   const text: Record<typeof state, { title: string; detail: string }> = {
-    running: { title: '自動で投稿しています', detail: PAUSE_DETAIL[snapshot.channel] },
+    running: snapshot.schedule.idle
+      ? {
+          title: '投稿を休む時間帯です',
+          detail: `いま（${snapshot.schedule.hour}時台）に使える文が無いので、投稿を見合わせています${
+            snapshot.schedule.nextHour !== null ? `（${snapshot.schedule.nextHour}時から再開）` : ''
+          }。`,
+        }
+      : { title: '自動で投稿しています', detail: PAUSE_DETAIL[snapshot.channel] },
     pausing: {
       title: '停止を依頼しました',
       detail: macSilent
@@ -183,7 +190,13 @@ export function ChannelSwitchRow({ snapshot, now, busy, error, onChange }: Chann
         : 'Macからの報告はまだありません'
 
   const view: Record<typeof state, { tone: SwitchTone; status: string }> = {
-    running: { tone: liveness === 'alive' ? 'on' : 'warn', status: running },
+    running:
+      snapshot.schedule.idle && liveness === 'alive'
+        ? {
+            tone: 'off',
+            status: `いまは投稿を休む時間帯です${snapshot.schedule.nextHour !== null ? `（${snapshot.schedule.nextHour}時から再開）` : ''}`,
+          }
+        : { tone: liveness === 'alive' ? 'on' : 'warn', status: running },
     pausing: {
       tone: 'warn',
       status:

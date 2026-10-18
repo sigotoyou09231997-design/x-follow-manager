@@ -8,7 +8,9 @@ import {
   hashPosterKey,
   isChannelName,
   readPosterReport,
+  scheduleAt,
   type ChannelName,
+  type Hours,
 } from './autopostDoc.js'
 import { PauseNotReadyError, supabaseAutopostStore, type AutopostStore, type ChannelRow } from './autopostStore.js'
 import { NOT_READY, RestartNotReadyError, supabaseRestartStore, type RestartStore } from './restartStore.js'
@@ -18,7 +20,7 @@ import { NOT_READY, RestartNotReadyError, supabaseRestartStore, type RestartStor
 //     GET  = 全投稿先の文・履歴・状態（?part=restart なら、再起動の依頼の状態だけ）
 //     POST = 文の保存／止める・再開する（{ channel, paused }）／投稿役の再起動を依頼する（{ restart: true }）
 //   投稿側（Mac。合鍵が要る）…………………………… api/poster-text.ts / api/poster-status.ts / api/poster-command.ts
-//     GET  = 投稿する文と、止められているかを読む
+//     GET  = 投稿する文（いまの時間に使う文だけ）と、止められているかを読む
 //     POST = 「動いている・最後の投稿・いま止まっているか」を報告する
 //     poster-command … 画面からの「再起動」の依頼を受け取り、結果を書き戻す（_lib/posterCommandHandler.ts）
 //
@@ -46,10 +48,13 @@ function readBody(req: VercelRequest): Record<string, unknown> | null {
   }
 }
 
-function snapshot(row: ChannelRow) {
+function snapshot(row: ChannelRow, at: Date) {
   return {
     channel: row.channel,
     messages: row.messages,
+    hours: row.hours,
+    // いま（日本時間の何時か）どの文が使われるか。画面が「いまの文」の印と、休んでいる時間の案内に使う
+    schedule: scheduleAt(row.channel, row.hours, at),
     archive: [...row.archive].reverse(), // 新しいものが先
     version: row.version,
     savedAt: row.savedAt,
@@ -104,7 +109,7 @@ export function createAutopostHandler(deps?: Deps, now: () => Date = () => new D
 
         const names = Object.keys(CHANNELS) as ChannelName[]
         const rows = await Promise.all(names.map((name) => store.getChannel(userId, name)))
-        return res.status(200).json({ channels: Object.fromEntries(rows.map((r) => [r.channel, snapshot(r)])) })
+        return res.status(200).json({ channels: Object.fromEntries(rows.map((r) => [r.channel, snapshot(r, now())])) })
       }
 
       const body = readBody(req)
@@ -134,7 +139,7 @@ export function createAutopostHandler(deps?: Deps, now: () => Date = () => new D
           return res.status(400).json({ error: 'リクエストの形式が不正です' })
         }
         try {
-          return res.status(200).json({ snapshot: snapshot(await store.setPaused(userId, channel, body.paused)) })
+          return res.status(200).json({ snapshot: snapshot(await store.setPaused(userId, channel, body.paused), now()) })
         } catch (error) {
           if (error instanceof PauseNotReadyError) return res.status(503).json({ error: PAUSE_SETUP_MESSAGE })
           throw error
@@ -147,9 +152,9 @@ export function createAutopostHandler(deps?: Deps, now: () => Date = () => new D
       }
 
       const current = await store.getChannel(userId, channel)
-      let next: { messages: string[]; archive: string[] }
+      let next: { messages: string[]; hours: Hours[]; archive: string[] }
       try {
-        next = applySave(current, body.messages, CHANNELS[channel].maxMessages)
+        next = applySave(current, body.messages, CHANNELS[channel].maxMessages, body.hours)
       } catch (error) {
         if (error instanceof DocError) return res.status(400).json({ error: error.message })
         throw error
@@ -161,10 +166,10 @@ export function createAutopostHandler(deps?: Deps, now: () => Date = () => new D
         const latest = await store.getChannel(userId, channel)
         return res.status(409).json({
           error: '別の端末で先に更新されています。内容を確かめてから、もう一度保存してください',
-          snapshot: snapshot(latest),
+          snapshot: snapshot(latest, now()),
         })
       }
-      return res.status(200).json({ snapshot: snapshot(saved) })
+      return res.status(200).json({ snapshot: snapshot(saved, now()) })
     } catch (error) {
       return failure(res, error)
     }
@@ -178,7 +183,7 @@ export async function posterUserId(store: AutopostStore, authorization: string |
   return store.userIdForPosterKey(hashPosterKey(key))
 }
 
-export function createPosterTextHandler(deps?: Pick<Deps, 'store'>) {
+export function createPosterTextHandler(deps?: Pick<Deps, 'store'>, now: () => Date = () => new Date()) {
   return async function posterText(req: VercelRequest, res: VercelResponse) {
     res.setHeader('cache-control', 'no-store')
     if (req.method !== 'GET') return res.status(405).json({ error: 'method not allowed' })
@@ -192,13 +197,19 @@ export function createPosterTextHandler(deps?: Pick<Deps, 'store'>) {
       const row = await store.getChannel(userId, channel)
       // 止めているあいだは、文が無くても答える（投稿役が知りたいのは「止められているか」のほう）。
       if (row.messages.length === 0 && !row.paused) return res.status(404).json({ error: '文がまだ保存されていません' })
+      // 時間帯ごとの文の選び分けは、ここ（サーバー）でやる。投稿役は「渡された文を順に使う」だけでよく、
+      // 投稿役を入れ替えなくても時間帯が効く。
+      const { activeIndexes, idle } = scheduleAt(channel, row.hours, now())
+      // 使える文が無い時間は、投稿役が見合わせるように「止められている」と答える。文を空で返しても、
+      // 投稿役は読めない文として手元に控えた古い文で続けてしまう。画面の止めるとは区別できるよう idle も付ける。
       // paused は、止める機能より前の投稿役は読まない。そういう投稿役は止まらないので、
       // 画面は投稿役の報告（status.paused）が返るまで「停止中」と言い切らない。
       return res.status(200).json({
-        messages: row.messages,
+        messages: activeIndexes.map((i) => row.messages[i]),
         updatedAt: row.savedAt,
-        paused: row.paused,
+        paused: row.paused || idle,
         pausedAt: row.pausedAt,
+        idle,
       })
     } catch (error) {
       return failure(res, error)
