@@ -120,7 +120,7 @@ export function PauseControl({ snapshot, now, busy, error, onChange }: PauseCont
 
 // ------------------------------------------------------------------ トップの1画面用（1行のスイッチ）
 
-export type SwitchTone = 'on' | 'off' | 'warn'
+export type SwitchTone = 'on' | 'off' | 'warn' | 'rest'
 
 /** 投稿先ごとの札のアイコン。行が文字だけで始まると、どのサービスの行か一瞬で判別できない。 */
 const CHANNEL_ICONS: Record<ChannelName, IconName> = {
@@ -132,7 +132,10 @@ interface SwitchRowProps {
   name: string
   /** 行の左に置く札のアイコン。無ければ札を出さない（ディスコード・Yay をまとめた案内の行など）。 */
   icon?: IconName
-  /** on: 動いている／off: 止まっている／warn: 応答なし・依頼中・準備中など、見てほしい状態。 */
+  /**
+   * on: 動いている／off: 止まっている／warn: 応答なし・依頼中・準備中など、見てほしい状態。
+   * rest: 文の時間帯の外で、投稿を休んでいる。動いていて正常な状態なので、止まっている・要注意の橙は付けない。
+   */
   tone: SwitchTone
   status: ReactNode
   /** 失敗などの補足。状態の下に赤字で出る。 */
@@ -213,7 +216,7 @@ export function ChannelSwitchRow({ snapshot, now, busy, error, onChange }: Chann
     running:
       snapshot.schedule.idle && liveness === 'alive'
         ? {
-            tone: 'off',
+            tone: 'rest',
             status: `いまは投稿を休む時間帯です${snapshot.schedule.nextHour !== null ? `（${snapshot.schedule.nextHour}時から再開）` : ''}`,
           }
         : { tone: liveness === 'alive' ? 'on' : 'warn', status: running },

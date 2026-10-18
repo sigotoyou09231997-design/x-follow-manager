@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChannelSnapshot } from '../../lib/autopost/api'
 
@@ -105,14 +105,14 @@ describe('ChannelTextRow（トップの一番上の、いま投稿されてい�
   })
 
   it('時間帯を決めた文には、その時間帯を添えて見せる', () => {
-    render(
+    const { container } = render(
       <ChannelTextRow
         snapshot={snap({ messages: ['朝の文', '夜の文'], hours: [[6, 7, 8], null] })}
         onChanged={() => {}}
       />
     )
-    expect(screen.getByText('6時〜9時')).toBeInTheDocument()
-    expect(screen.queryByText('終日')).not.toBeInTheDocument() // 決めていない文には何も付けない
+    const badges = Array.from(container.querySelectorAll('.channel-row__hours')).map((n) => n.textContent)
+    expect(badges).toEqual(['6時〜9時']) // 決めていない文には何も付けない
   })
 
   it('文が1つのとき履歴から選び直しても、その文の時間帯は残る', async () => {
@@ -330,6 +330,101 @@ describe('ChannelTextRow（トップの一番上の、いま投稿されてい�
     it('文が1つだけのときは「いま投稿中」を出さない（当たり前なので）', () => {
       render(<ChannelTextRow snapshot={snap()} onChanged={() => {}} />)
       expect(screen.queryByText('いま投稿中')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('1日の流れ（何時から何時まで → どの文）', () => {
+    const rows = (container: HTMLElement) =>
+      Array.from(container.querySelectorAll('.daytable__row')).map((r) => r.textContent?.replace(/\s+/g, ' ').trim())
+
+    it('時刻の順に「何時から何時まで → どの文か」を並べ、どの文も使われない時間は「投稿を休みます」と出す', () => {
+      const { container } = render(
+        <ChannelTextRow
+          snapshot={snap({
+            messages: ['甘々寝落ち\n24', '甘えたい'],
+            hours: [[22, 23, 0, 1, 2, 3, 4], [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]],
+            schedule: { hour: 8, activeIndexes: [], idle: true, nextHour: 9 },
+          })}
+          onChanged={() => {}}
+        />
+      )
+      expect(rows(container)).toEqual([
+        '5時〜9時投稿を休みますいま',
+        '9時〜20時2甘えたい',
+        '20時〜22時投稿を休みます',
+        '22時〜翌5時1甘々寝落ち 24', // 夜をまたぐ時間は1行。文の改行は1行にして出す
+      ])
+    })
+
+    it('いまの時間の行だけに「いま」の印が付く', () => {
+      const { container } = render(
+        <ChannelTextRow
+          snapshot={snap({ messages: ['朝', '夜'], hours: [[6, 7, 8], [20, 21]], schedule: { hour: 7, activeIndexes: [0], idle: false, nextHour: null } })}
+          onChanged={() => {}}
+        />
+      )
+      expect(container.querySelectorAll('.daytable__now')).toHaveLength(1)
+      expect(container.querySelector('.daytable__row--now')).toHaveTextContent('6時〜9時')
+    })
+
+    it('時間帯を決めた文が無ければ出さない', () => {
+      const { container } = render(<ChannelTextRow snapshot={snap()} onChanged={() => {}} />)
+      expect(container.querySelector('.daytable')).toBeNull()
+    })
+  })
+
+  describe('保存できたとき（色が変わって、保存できたと分かる）', () => {
+    const openEdit = () => fireEvent.click(screen.getByRole('button', { name: 'ディスコードの投稿する文を編集' }))
+
+    it('保存した行に色の印と「保存しました」の札が付き、しばらくすると外れる', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      try {
+        api.saveMessages.mockResolvedValue(snap({ messages: ['書き換えた文'], version: 5 }))
+        const { container, rerender } = render(<ChannelTextRow snapshot={snap()} onChanged={() => {}} />)
+        openEdit()
+        expect(container.querySelector('.channel-row__item--editing')).not.toBeNull() // 書いている途中は別の色
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: '書き換えた文' } })
+        fireEvent.click(screen.getByRole('button', { name: '保存する' }))
+        await waitFor(() => expect(container.querySelector('.channel-row__item--saved')).not.toBeNull())
+        expect(container.querySelector('.channel-row__item--editing')).toBeNull()
+        expect(container.querySelector('.channel-row__saved')).toHaveTextContent('保存しました')
+
+        // 親が保存の返事を取り込んで描き直しても、印は残る
+        rerender(<ChannelTextRow snapshot={snap({ messages: ['書き換えた文'], version: 5 })} onChanged={() => {}} />)
+        expect(container.querySelector('.channel-row__item--saved')).not.toBeNull()
+
+        act(() => {
+          vi.advanceTimersByTime(4100)
+        })
+        expect(container.querySelector('.channel-row__item--saved')).toBeNull()
+        expect(container.querySelector('.channel-row__saved')).toBeNull()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('保存に失敗したときは、色の印を付けない', async () => {
+      api.saveMessages.mockRejectedValue(new Error('保存できませんでした'))
+      const { container } = render(<ChannelTextRow snapshot={snap()} onChanged={() => {}} />)
+      openEdit()
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: '書き換えた文' } })
+      fireEvent.click(screen.getByRole('button', { name: '保存する' }))
+      expect(await screen.findByRole('alert')).toHaveTextContent('保存できませんでした')
+      expect(container.querySelector('.channel-row__item--saved')).toBeNull()
+    })
+
+    it('足した文の行に印が付く', async () => {
+      api.saveMessages.mockResolvedValue(snap({ messages: ['いまの文', '夜の文'], version: 5 }))
+      const view = render(<ChannelTextRow snapshot={snap()} onChanged={() => {}} />)
+      fireEvent.click(screen.getByRole('button', { name: /文を追加/ }))
+      fireEvent.change(screen.getByRole('textbox', { name: 'ディスコードの新しい文' }), { target: { value: '夜の文' } })
+      fireEvent.click(screen.getByRole('button', { name: '文を追加する' }))
+      await waitFor(() => expect(api.saveMessages).toHaveBeenCalled())
+      view.rerender(<ChannelTextRow snapshot={snap({ messages: ['いまの文', '夜の文'], version: 5 })} onChanged={() => {}} />)
+      const items = Array.from(view.container.querySelectorAll('.channel-row__item'))
+      expect(items).toHaveLength(2)
+      expect(items[1].classList.contains('channel-row__item--saved')).toBe(true)
+      expect(items[0].classList.contains('channel-row__item--saved')).toBe(false)
     })
   })
 })

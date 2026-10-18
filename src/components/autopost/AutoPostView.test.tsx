@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AutoPostView } from './AutoPostView'
 import type { ChannelSnapshot, Snapshots } from '../../lib/autopost/api'
@@ -439,7 +439,7 @@ describe('AutoPostView', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument() // 「時間を選んでください」にはならない
     })
 
-    it('時間帯を決めた文があると、1日のどの時間にどの文が使われるかの帯が出る。休む時間も分かる', async () => {
+    it('時間帯を決めた文があると、「何時から何時まで → どの文」の一覧が出る。休む時間も1行になる', async () => {
       api.fetchSnapshots.mockResolvedValue({
         ...snapshots(),
         discord: channel({
@@ -452,18 +452,27 @@ describe('AutoPostView', () => {
       })
       render(<AutoPostView />)
       await waitFor(() => expect(screen.getAllByRole('textbox')).toHaveLength(2))
-      const line = screen.getByRole('figure', { name: '1日の使われ方' })
-      expect(line).toHaveTextContent('休み')
-      expect(line).toHaveTextContent('斜線の時間は、どの文も使われないので投稿を休みます')
-      expect(line.querySelector('[title^="6時〜10時"]')).toHaveTextContent('1')
-      expect(line.querySelector('[title^="21時〜24時"]')).toHaveTextContent('2')
-      expect(line).toHaveTextContent('いま')
+      const rows = Array.from(screen.getByRole('region', { name: '1日の流れ' }).querySelectorAll('.daytable__row')).map((r) =>
+        r.textContent?.replace(/\s+/g, ' ').trim()
+      )
+      expect(rows).toEqual(['0時〜6時投稿を休みます', '6時〜10時1朝の文いま', '10時〜21時投稿を休みます', '21時〜24時2夜の文'])
+    })
+
+    it('一覧は、書いている途中の文と時間帯でそのまま変わる', async () => {
+      api.fetchSnapshots.mockResolvedValue({
+        ...snapshots(),
+        discord: channel({ channel: 'discord', messages: ['朝の文', '夜の文'], hours: [[6, 7, 8], null], version: 2 }),
+      })
+      render(<AutoPostView />)
+      await waitFor(() => expect(screen.getAllByRole('textbox')).toHaveLength(2))
+      fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: '朝の文を直した' } })
+      expect(screen.getByRole('region', { name: '1日の流れ' })).toHaveTextContent('朝の文を直した')
     })
 
     it('時間帯を決めた文が無ければ、帯は出さない', async () => {
       render(<AutoPostView />)
       await waitFor(() => expect(box().value).toBe('保存してある文'))
-      expect(screen.queryByRole('figure', { name: '1日の使われ方' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: '1日の流れ' })).not.toBeInTheDocument()
     })
 
     it('時間帯を決めてある文は、閉じたままでも時間帯が見える', async () => {
@@ -526,5 +535,35 @@ describe('AutoPostView', () => {
       fireEvent.click(await screen.findByRole('button', { name: '時間帯ごとの文を追加' }))
       expect(screen.getAllByRole('textbox')).toHaveLength(2)
     })
+  })
+
+  it('保存できたら、文の欄に色の印と「保存しました」の札が付き、しばらくすると外れる', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      api.saveMessages.mockResolvedValue({ ...snapshots().discord, messages: ['直した文'], version: 4 })
+      const { container } = render(<AutoPostView />)
+      await waitFor(() => expect(box().value).toBe('保存してある文'))
+      expect(container.querySelector('.autopost__box--saved')).toBeNull()
+      fireEvent.change(box(), { target: { value: '直した文' } })
+      fireEvent.click(screen.getByRole('button', { name: '保存する' }))
+      await waitFor(() => expect(container.querySelector('.autopost__box--saved')).not.toBeNull())
+      expect(container.querySelector('.autopost__saved')).toHaveTextContent('保存しました')
+      act(() => {
+        vi.advanceTimersByTime(4100)
+      })
+      expect(container.querySelector('.autopost__box--saved')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('保存に失敗したときは、色の印を付けない', async () => {
+    api.saveMessages.mockRejectedValue(new Error('保存できませんでした'))
+    const { container } = render(<AutoPostView />)
+    await waitFor(() => expect(box().value).toBe('保存してある文'))
+    fireEvent.change(box(), { target: { value: '直した文' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存する' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('保存できませんでした')
+    expect(container.querySelector('.autopost__box--saved')).toBeNull()
   })
 })

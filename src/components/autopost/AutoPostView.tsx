@@ -81,6 +81,8 @@ export function AutoPostView() {
   const [edits, setEdits] = useState<Partial<Record<ChannelName, Edit>>>({})
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ text: string; kind: 'ok' | 'err' }>()
+  // 保存できた直後だけ、文の欄の色を変える（下の知らせだけだと、保存できたのか分かりにくい）
+  const [justSaved, setJustSaved] = useState(false)
   const [pauseBusy, setPauseBusy] = useState(false)
   const [pauseError, setPauseError] = useState<string>()
 
@@ -154,6 +156,7 @@ export function AutoPostView() {
     const sent = JSON.stringify(normalize(draft))
     setSaving(true)
     setMessage(undefined)
+    setJustSaved(false)
     try {
       const next = await saveMessages(
         channel,
@@ -168,6 +171,7 @@ export function AutoPostView() {
         if (live && JSON.stringify(normalize(live.list)) !== sent) return prev
         return without(prev, channel)
       })
+      setJustSaved(true)
       setMessage({ text: '保存しました（次の投稿から反映されます）', kind: 'ok' })
     } catch (err) {
       if (err instanceof SaveConflictError) applySnapshot(err.snapshot) // 書いた内容は消さず、最新だけ取り込む
@@ -190,6 +194,12 @@ export function AutoPostView() {
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [])
+
+  useEffect(() => {
+    if (!justSaved) return
+    const timer = setTimeout(() => setJustSaved(false), 4000)
+    return () => clearTimeout(timer)
+  }, [justSaved])
 
   useEffect(() => {
     if (message?.kind !== 'ok') return
@@ -320,6 +330,7 @@ export function AutoPostView() {
         {draft.some((slot) => slot.hours !== null) && (
           // 書きかけの時間帯でそのまま描く（直すとすぐ帯が変わる）。まだ時間を選んでいない文は、帯では終日として扱う
           <DayOverview
+            texts={draft.map((slot) => slot.text)}
             hours={draft.map((slot) => (slot.hours && slot.hours.length === 0 ? null : slot.hours))}
             oneOnly={current === 'yay'}
             nowHour={snap.schedule.hour}
@@ -344,6 +355,7 @@ export function AutoPostView() {
               slot={slot}
               // 「いま投稿される」の印は、保存してある文の番号で決まるので、書きかけの間は出さない（番号がずれる）
               nowActive={!dirty && snap.schedule.activeIndexes.includes(i)}
+              saved={justSaved && !dirty}
               maxLength={snap.limits.maxLength}
               onChange={(next) => setDraft(draft.map((s, j) => (j === i ? next : s)))}
               onRemove={() => setDraft(draft.filter((_, j) => j !== i))}
@@ -441,16 +453,24 @@ interface BoxProps {
   slot: Slot
   /** いまの時間に、この文が投稿に使われている（保存してある内容のとき）。 */
   nowActive?: boolean
+  /** 保存できた直後。色を変えて「保存しました」を出す。 */
+  saved?: boolean
   maxLength: number
   onChange: (slot: Slot) => void
   onRemove: () => void
 }
 
-function Box({ index, total, slot, nowActive, maxLength, onChange, onRemove }: BoxProps) {
+function Box({ index, total, slot, nowActive, saved, maxLength, onChange, onRemove }: BoxProps) {
   const length = slot.text.trim().length
   const name = total > 1 ? `${index + 1}つ目の文` : '投稿する文'
   return (
-    <div className="autopost__box">
+    <div className={`autopost__box${saved ? ' autopost__box--saved' : ''}`}>
+      {saved && (
+        <span className="autopost__saved" aria-hidden="true">
+          <Icon name="check" size={13} />
+          保存しました
+        </span>
+      )}
       {total > 1 && (
         <div className="autopost__box-head">
           <span>
