@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { deleteScheduledPost, updateScheduledPost } from '../../lib/schedule/postsStore'
 import { describeRepeatRule } from '../../lib/schedule/repeat'
+import { EmptyState } from '../EmptyState'
 import { Icon } from '../Icon'
 import type { ScheduledPost } from '../../lib/schedule/types'
 import { isAutopilotPost } from '../../lib/xAutopilot/types'
@@ -44,9 +45,11 @@ interface Props {
   posts: ScheduledPost[]
   onChanged: () => void
   onEdit: (post: ScheduledPost) => void
+  /** 1件も無いときに出す「投稿を作る」の行き先。渡されなければボタンを出さない。 */
+  onCompose?: () => void
 }
 
-export function ScheduledPostList({ posts, onChanged, onEdit }: Props) {
+export function ScheduledPostList({ posts, onChanged, onEdit, onCompose }: Props) {
   const [filter, setFilter] = useState<Filter>('all')
   const [busyId, setBusyId] = useState<string>()
   const [error, setError] = useState<string>()
@@ -116,7 +119,25 @@ export function ScheduledPostList({ posts, onChanged, onEdit }: Props) {
 
       {error && <p className="post-list__error">{error}</p>}
 
-      {visible.length === 0 && <p className="post-list__empty">該当する投稿はありません。</p>}
+      {visible.length === 0 && (
+        <EmptyState
+          icon="calendar"
+          title="該当する投稿はありません。"
+          description={
+            filter === 'all'
+              ? 'まだ予約がありません。「投稿を作る」から、日時を決めて並べられます。'
+              : '別の絞り込みに切り替えると、ほかの予約が見られます。'
+          }
+          action={
+            filter === 'all' && onCompose ? (
+              <button type="button" className="btn btn--primary btn--small" onClick={onCompose}>
+                <Icon name="plus" size={15} />
+                投稿を作る
+              </button>
+            ) : undefined
+          }
+        />
+      )}
 
       <ul className="post-list__items">
         {visible.map((post) => {

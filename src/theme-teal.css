@@ -176,10 +176,13 @@
 }
 
 /* ---------------------------------------------------------------------------
-   2. 数字の主役（ホームの「フォロー整理」）— 青緑の光を載せた黒いカード
+   2. 数字の主役 — 青緑の光を載せた黒いカード
       手本の「今月のお金」と同じ作り。光沢が、現れたあと一度だけ斜めに流れる。
+      ホームの「フォロー整理」(.home-metrics) と、自動投稿トップの「今月のAI料金」(.usage-meter)。
+      どちらも、その画面を開いて最初に見る数字なので、ほかの白いカードと同じ重さに見せない。
    ------------------------------------------------------------------------ */
-.home-metrics {
+.home-metrics,
+.usage-meter {
   position: relative;
   overflow: hidden;
   isolation: isolate;
@@ -208,7 +211,18 @@
   color: var(--teal-400);
 }
 
-.home-metrics::after {
+/* 料金のカードは、進捗バーの色と残りの文言はそのまま。黒い面に乗って読めなくなる分だけ振り直す。 */
+.usage-meter {
+  /* 棒の溝。薄い黒（--fill）は黒い面の上では消えるので、白を薄く重ねる。 */
+  --fill: rgba(255, 255, 255, 0.16);
+  /* 8割超え（橙 #b25b00）・上限到達（赤 #d70015）は、黒い面の上では沈んで読めない。
+     黒地でも 4.5:1 を超える明るい側へ振る（#ffb02e ≈ 8.8:1、#ff7a6e ≈ 6.3:1）。 */
+  --warning: #ffb02e;
+  --danger: #ff7a6e;
+}
+
+.home-metrics::after,
+.usage-meter::after {
   content: '';
   position: absolute;
   inset: -40% -60%;
@@ -345,10 +359,54 @@
   letter-spacing: -0.02em;
 }
 
+/* ---------------------------------------------------------------------------
+   7. 画面が開いた瞬間、カードが上から順に現れる — 2026-10-19
+      どの画面も静止したまま一度に出ていたので、下からふわっと、40msずつ遅らせて出す。
+      入れ物（.xap--summary）と前面に被せるシート（.composer-sheet）は外す。
+      入れ物まで動かすと中のカードと二重に薄れ、シートは自前の出現（composer-sheet-rise）を上書きしてしまう。
+   ------------------------------------------------------------------------ */
+@keyframes teal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+:is(.autopost-home, .schedule-view, .tidy-view, .autopost-home > .xap--summary) > *:not(.composer-sheet, .xap--summary) {
+  animation: teal-rise 240ms var(--ease-out-expo) both;
+}
+
+:is(.autopost-home, .schedule-view, .tidy-view, .autopost-home > .xap--summary)
+  > :nth-child(2):not(.composer-sheet, .xap--summary) {
+  animation-delay: 40ms;
+}
+
+:is(.autopost-home, .schedule-view, .tidy-view, .autopost-home > .xap--summary)
+  > :nth-child(3):not(.composer-sheet, .xap--summary) {
+  animation-delay: 80ms;
+}
+
+:is(.autopost-home, .schedule-view, .tidy-view, .autopost-home > .xap--summary)
+  > :nth-child(4):not(.composer-sheet, .xap--summary) {
+  animation-delay: 120ms;
+}
+
+/* 5枚目より下は、待たされている感じが出るのでここで止める。 */
+:is(.autopost-home, .schedule-view, .tidy-view, .autopost-home > .xap--summary)
+  > :nth-child(n + 5):not(.composer-sheet, .xap--summary) {
+  animation-delay: 160ms;
+}
+
 /* 動きを減らす設定の人には、出現の動き・光沢・弾みをやめる。 */
 @media (prefers-reduced-motion: reduce) {
   .home-metrics::after,
-  .filter-tab--active {
+  .usage-meter::after,
+  .filter-tab--active,
+  :is(.autopost-home, .schedule-view, .tidy-view, .autopost-home > .xap--summary) > * {
     animation: none;
   }
 }

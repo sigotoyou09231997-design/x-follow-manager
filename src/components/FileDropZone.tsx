@@ -62,6 +62,11 @@ export function FileDropZone({ onFile, disabled, variant = 'panel', label }: Pro
         </span>
       ) : (
         <>
+          {/* 灰色の点線と文字だけだと、置ける所なのか壊れているのか分からないので、
+              ほかの空の状態（EmptyState）と同じ「線画→題名→1行説明」の形に揃える。 */}
+          <span className="file-drop__art" aria-hidden="true">
+            <Icon name="download" size={32} />
+          </span>
           <p className="file-drop__title">Xアーカイブ ZIP をドロップ</p>
           <p className="file-drop__hint">またはクリックしてファイルを選択</p>
         </>

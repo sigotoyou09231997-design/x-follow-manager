@@ -257,12 +257,27 @@ function App() {
               「設定へ戻ってやり直す」手間が無くなる。 */}
           {needsArchive && (
             <div className="surface-card onboarding">
-              <h2 className="onboarding__title">まずアーカイブを読み込みます</h2>
-              <p className="onboarding__hint">
-                Xの「設定とプライバシー → アカウント → データのアーカイブをダウンロード」から取得したZIPファイルをそのまま読み込めます。
-                非相互フォローの整理はこのブラウザ内だけで完結し、外部サーバーとは通信しません。
-              </p>
-              <FileDropZone onFile={handleFile} disabled={importing} />
+              <div className="onboarding__main">
+                <h2 className="onboarding__title">まずアーカイブを読み込みます</h2>
+                <p className="onboarding__hint">
+                  Xからダウンロードしたアーカイブ（ZIP）を、そのまま読み込めます。
+                </p>
+                <FileDropZone onFile={handleFile} disabled={importing} />
+              </div>
+
+              {/* 取り方は本文に混ぜて書いてあったが、広い画面で点線の枠の横に大きな余白が残るので、
+                  3手順として横に並べ直した（文の内容は同じ）。 */}
+              <aside className="onboarding__steps">
+                <h3 className="onboarding__steps-title">アーカイブの取り方</h3>
+                <ol>
+                  <li>Xの「設定とプライバシー」を開く</li>
+                  <li>「アカウント → データのアーカイブをダウンロード」を押す</li>
+                  <li>届いたZIPを、左の枠に放り込む</li>
+                </ol>
+                <p className="onboarding__steps-note">
+                  非相互フォローの整理はこのブラウザ内だけで完結し、外部サーバーとは通信しません。
+                </p>
+              </aside>
             </div>
           )}
 

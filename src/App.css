@@ -524,7 +524,7 @@ input[type='checkbox'] {
   padding: 40px 0;
 }
 
-/* 空の状態は「何も無い理由」と「次にできること」を一緒に置く。
+/* 空の状態は「線画 → 題名 → 1行説明 →（あれば）ボタン」の形で揃える（EmptyState.tsx）。
    文字だけを中央に置くと、壊れているのか空なのか区別が付かない。 */
 .empty-state {
   display: flex;
@@ -539,9 +539,32 @@ input[type='checkbox'] {
   box-shadow: var(--shadow-sm);
 }
 
+/* 線画は丸い薄い青緑の面に載せる。面を敷かないと、灰色の文字の上に線画が1つ浮くだけで
+   「何かの読み込みに失敗した絵」に見える。 */
+.empty-state__art {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.empty-state__title {
+  color: var(--text-h);
+  font-size: 15px;
+  font-weight: 600;
+}
+
 .empty-state__hint {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.empty-state .btn {
+  margin-top: 10px;
 }
 
 /* アーカイブに画像が無いので、頭文字のモノグラムでアバターを作る。 */
@@ -624,6 +647,15 @@ input[type='checkbox'] {
   padding: 22px 18px;
 }
 
+.onboarding__main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
 .onboarding__title {
   font-size: 20px;
   font-weight: 700;
@@ -638,16 +670,71 @@ input[type='checkbox'] {
   line-height: 1.8;
 }
 
+/* アーカイブの取り方。点線の枠の横に添えて、広い画面で右側が空かないようにする。 */
+.onboarding__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.onboarding__steps-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.onboarding__steps ol {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.onboarding__steps-note {
+  font-size: 12px;
+}
+
+/* 点線の枠と手順を横に並べる。縦に積むと、PC幅では枠の左右に大きな余白が残る。 */
+@media (min-width: 900px) {
+  .onboarding {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);
+    align-items: start;
+    gap: 28px;
+    padding: 28px;
+  }
+}
+
 .file-drop {
   width: 100%;
   max-width: 560px;
   border: 1.5px dashed var(--border-strong);
   border-radius: var(--radius);
-  padding: 40px 20px;
+  padding: 28px 20px;
   text-align: center;
   background: var(--surface-2);
   cursor: pointer;
   transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+
+/* 置ける所だと分かるように、ほかの空の状態（.empty-state__art）と同じ線画の札を上に置く。 */
+.file-drop__art {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  background: var(--accent-bg);
+  color: var(--accent);
 }
 
 .file-drop:hover,
@@ -952,6 +1039,42 @@ input[type='checkbox'] {
   background: var(--surface-2);
 }
 
+/* とても広い画面では、1行ずつの一覧が横に伸びきって、名前と時刻のあいだが大きく空く。
+   2列に折り返して、空きを埋めると同時にスクロールの長さを半分にする。 */
+@media (min-width: 1400px) {
+  .account-table {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* 2列では「前の兄弟」が「1つ上の行」とは限らない。上の行があるのは3つ目から。 */
+  .account-row + .account-row::before {
+    content: none;
+  }
+
+  .account-row:nth-child(n + 3)::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 72px;
+    right: 0;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* 列のあいだの縦線。box-shadow で引くと、確認中の1件の印（--focused の内側の影）を
+     上書きして消してしまうので、別の疑似要素で引く。 */
+  .account-row:nth-child(even)::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 1px;
+    background: var(--border);
+  }
+}
+
 /* いま確認している1件。色だけだと一覧の中で埋もれるので、
    面を青く敷いて「開いているのはこれ」と分かるようにする。 */
 .account-row--selected,
@@ -1240,6 +1363,22 @@ input[type='checkbox'] {
    設定
    ============================================================ */
 
+/* 広い画面では、同じ幅のカードが縦一列に続くのをやめて2列に流す。
+   grid にすると、背の高いカードと低いカードが同じ行に並んで下に穴が開くので、
+   段組（columns）で詰めて流す。1枚のカードが列をまたいで割れないよう break-inside を切る。 */
+@media (min-width: 1280px) {
+  .settings-view {
+    display: block;
+    columns: 2;
+    column-gap: 20px;
+  }
+
+  .settings-view > * {
+    break-inside: avoid;
+    margin-bottom: 16px;
+  }
+}
+
 .settings-section {
   padding: 20px;
   display: flex;
@@ -1343,6 +1482,36 @@ input[type='checkbox'] {
   }
 }
 
+/* 広い画面では、中身の最大幅の制限をやめる（本人の要望「画面横幅いっぱい」）。
+   1320px で止めていたので、1440px の画面でも左右に 60px ずつ使われない帯が残っていた。
+   ヘッダーと本文は同じ左右の余白にする（ずれるとロゴと1枚目のカードの頭が揃わない）。 */
+@media (min-width: 1280px) {
+  .app-body {
+    max-width: none;
+  }
+
+  .main-content {
+    padding: 20px 32px 0;
+  }
+
+  .app-header {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+}
+
+@media (min-width: 1700px) {
+  .main-content {
+    padding-left: 48px;
+    padding-right: 48px;
+  }
+
+  .app-header {
+    padding-left: 48px;
+    padding-right: 48px;
+  }
+}
+
 @media (max-width: 1023px) {
   .main-content {
     max-width: 780px;
@@ -1414,16 +1583,25 @@ input[type='checkbox'] {
     opacity: 0.85;
   }
 
-  /* 一覧＋詳細の2カラム以外は、横に伸びきると読みにくいので幅を止める。 */
-  .autopost,
+  /* 文を書き換える画面（自動投稿の詳細）だけは幅を止める。入力欄が横いっぱいに伸びると、
+     1行が長くなりすぎて書きにくい。トップ（.autopost-home）はここに含めない。 */
+  .autopost:not(.autopost-home) {
+    width: 100%;
+    max-width: 860px;
+    /* 左のメニューが無くなったので、狭い画面は中央に置く */
+    margin-inline: auto;
+  }
+
+  /* ほかの画面は横幅を使い切る（本人の要望「画面横幅いっぱいに広げて、ダイナミックな形に」）。
+     以前は 720px で止めていたので、1440px では左右に 350px ずつ余白が残り、
+     同じ大きさの白いカードが中央に1列だけ並ぶ見た目になっていた。
+     伸ばしたぶんは、各画面が下の2段組（bento）・複数列で埋める。 */
   .history-view,
   .settings-view,
   .schedule-view,
   .onboarding {
     width: 100%;
-    max-width: 720px;
-    /* 左のメニューが無くなったので、狭い画面は中央に置く */
-    margin-inline: auto;
+    max-width: none;
   }
 }
 
@@ -1653,6 +1831,34 @@ input[type='checkbox'] {
 
 .stat--danger .stat__value {
   color: var(--danger);
+}
+
+/* 広い画面では、主役（予約中の件数）を大きく左に、補助の5マスを小さく右に添える。
+   縦に積むと、どちらも同じ横幅の帯になって主従が見えない。 */
+@media (min-width: 1024px) {
+  .stat-strip {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .stat-hero {
+    flex: 1 1 58%;
+    padding: 26px 32px;
+  }
+
+  .stat-hero__value {
+    font-size: 56px;
+  }
+
+  .stat-hero__label,
+  .stat-hero__next-value {
+    font-size: 16px;
+  }
+
+  .stat-grid {
+    flex: 1 1 42%;
+  }
 }
 
 /* --- アップデートの帯 --- */
@@ -2638,6 +2844,18 @@ input[type='checkbox'] {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* 広い画面では、1件ずつのカードを横にも並べる（縦1列だと、横幅いっぱいに広げたぶんが
+   そのまま空白になり、少ない件数でも延々と下にスクロールすることになる）。
+   幅が足りなければ自動で1列に戻る。 */
+@media (min-width: 1024px) {
+  .post-list__items {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    align-items: start;
+    gap: 14px;
+  }
 }
 
 .post-item {

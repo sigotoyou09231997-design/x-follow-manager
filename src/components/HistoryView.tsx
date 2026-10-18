@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Avatar } from './Avatar'
+import { EmptyState } from './EmptyState'
 import { relativeTime } from '../lib/relativeTime'
 import type { AccountRecord } from '../lib/types'
 
@@ -33,12 +34,11 @@ export function HistoryView({ accounts, limit, heading = '履歴', overline = 'T
       </header>
 
       {items.length === 0 ? (
-        <div className="empty-state">
-          <p>まだ記録がありません。</p>
-          <p className="empty-state__hint">
-            フォロー整理で「残す」「解除済み」にしたアカウントが、ここに新しい順で並びます。
-          </p>
-        </div>
+        <EmptyState
+          icon="history"
+          title="まだ記録がありません。"
+          description="フォロー整理で「残す」「解除済み」にしたアカウントが、ここに新しい順で並びます。"
+        />
       ) : (
         <ol className="timeline">
           {items.map(({ account, at }) => (

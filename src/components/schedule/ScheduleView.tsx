@@ -197,6 +197,7 @@ export function ScheduleView({
           posts={posts}
           onChanged={() => void reload()}
           onEdit={(post) => openCompose(post)}
+          onCompose={() => openCompose()}
         />
       )}
     </div>

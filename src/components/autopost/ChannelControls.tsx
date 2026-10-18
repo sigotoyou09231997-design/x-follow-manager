@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import type { ChannelName, ChannelSnapshot } from '../../lib/autopost/api'
 import { CHANNEL_LABELS } from '../../lib/autopost/api'
 import { agoLabel, livenessOf, pauseStateOf } from '../../lib/autopost/draft'
+import { Icon, type IconName } from '../Icon'
 
 // ディスコード・Yay の「Macは動いているか」と「止める／再開する」。
 // 文を書き換える画面（AutoPostView）と、トップの1画面（AutoPostHome）で同じものを使う。
@@ -121,8 +122,16 @@ export function PauseControl({ snapshot, now, busy, error, onChange }: PauseCont
 
 export type SwitchTone = 'on' | 'off' | 'warn'
 
+/** 投稿先ごとの札のアイコン。行が文字だけで始まると、どのサービスの行か一瞬で判別できない。 */
+const CHANNEL_ICONS: Record<ChannelName, IconName> = {
+  discord: 'board',
+  yay: 'users',
+}
+
 interface SwitchRowProps {
   name: string
+  /** 行の左に置く札のアイコン。無ければ札を出さない（ディスコード・Yay をまとめた案内の行など）。 */
+  icon?: IconName
   /** on: 動いている／off: 止まっている／warn: 応答なし・依頼中・準備中など、見てほしい状態。 */
   tone: SwitchTone
   status: ReactNode
@@ -134,14 +143,24 @@ interface SwitchRowProps {
 /**
  * 「名前・いまの状態・押すボタン」を1行にしたスイッチ。トップの1画面で、X・ディスコード・Yay を同じ形で縦に並べる。
  * 詳しい説明は出さない（文を変える画面にある）。
+ *
+ * 行の頭は、どのサービスかを示すアイコンの札。動いているかどうかの点は、札ではなく状態の文の先頭に置く
+ * （札と点を横に2つ並べると、どちらが「状態」なのか分からなくなるため）。
  */
-export function SwitchRow({ name, tone, status, note, action }: SwitchRowProps) {
+export function SwitchRow({ name, icon, tone, status, note, action }: SwitchRowProps) {
   return (
     <div className={`switch-row switch-row--${tone}`}>
-      <span className={`autopost__dot autopost__dot--${tone === 'on' ? 'on' : tone === 'warn' ? 'warn' : 'idle'}`} aria-hidden="true" />
+      {icon && (
+        <span className="switch-row__badge" aria-hidden="true">
+          <Icon name={icon} size={16} />
+        </span>
+      )}
       <div className="switch-row__text">
         <strong>{name}</strong>
-        <span>{status}</span>
+        <span className="switch-row__status">
+          <span className={`autopost__dot autopost__dot--${tone === 'on' ? 'on' : tone === 'warn' ? 'warn' : 'idle'}`} aria-hidden="true" />
+          {status}
+        </span>
         {note && (
           <span className="autopost__pause-error" role="alert">
             {note}
@@ -167,9 +186,10 @@ const timeLabel = (iso: string) =>
 /** ディスコード／Yay を、止める・再開するの1行にしたもの。押したあとの状態の見分け方は PauseControl と同じ。 */
 export function ChannelSwitchRow({ snapshot, now, busy, error, onChange }: ChannelSwitchRowProps) {
   const name = CHANNEL_LABELS[snapshot.channel]
+  const icon = CHANNEL_ICONS[snapshot.channel]
 
   if (!snapshot.pauseReady) {
-    return <SwitchRow name={name} tone="warn" status="止める機能は準備中です（supabase/sql/006_autopost_pause.sql を実行すると使えます）" />
+    return <SwitchRow name={name} icon={icon} tone="warn" status="止める機能は準備中です（supabase/sql/006_autopost_pause.sql を実行すると使えます）" />
   }
 
   const state = pauseStateOf(snapshot)
@@ -221,5 +241,5 @@ export function ChannelSwitchRow({ snapshot, now, busy, error, onChange }: Chann
     </button>
   )
 
-  return <SwitchRow name={name} tone={view[state].tone} status={view[state].status} note={error} action={action} />
+  return <SwitchRow name={name} icon={icon} tone={view[state].tone} status={view[state].status} note={error} action={action} />
 }

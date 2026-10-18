@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type RefObject } from 'react'
 import { PageHero } from '../components/PageHero'
 import { AccountRow } from './AccountRow'
 import { AccountReviewPanel } from './AccountReviewPanel'
+import { EmptyState } from './EmptyState'
 import { Icon } from './Icon'
 import { downloadCsv } from '#csv'
 import type { AccountRecord, AccountStatus } from '../lib/types'
@@ -253,18 +254,31 @@ export function FollowTidyView({
       <div className="tidy-layout">
         <div className="tidy-layout__list">
           {filtered.length === 0 ? (
-            <div className="empty-state">
-              <p>
-                {filter === 'pending' && !search.trim()
-                  ? '未確認のアカウントはありません。すべて確認済みです。'
-                  : '該当するアカウントがありません'}
-              </p>
-              <p className="empty-state__hint">
-                {filter === 'pending' && !search.trim()
-                  ? '「すべて」に切り替えると、確認済みも含めて見られます。'
-                  : '検索語を消すか、別のフィルタに切り替えてみてください。'}
-              </p>
-            </div>
+            filter === 'pending' && !search.trim() ? (
+              <EmptyState
+                icon="check"
+                title="未確認のアカウントはありません。すべて確認済みです。"
+                description="「すべて」に切り替えると、確認済みも含めて見られます。"
+                action={
+                  <button type="button" className="btn btn--secondary btn--small" onClick={() => onFilterChange('all')}>
+                    すべてを見る
+                  </button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon="search"
+                title="該当するアカウントがありません"
+                description="検索語を消すか、別のフィルタに切り替えてみてください。"
+                action={
+                  search.trim() ? (
+                    <button type="button" className="btn btn--secondary btn--small" onClick={() => onSearchChange('')}>
+                      検索語を消す
+                    </button>
+                  ) : undefined
+                }
+              />
+            )
           ) : (
             <>
               <div className="account-table">

@@ -514,6 +514,7 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
         <section className="surface-card switch-list" aria-label="稼働スイッチ">
           <SwitchRow
             name="X"
+            icon="x-logo"
             tone={state.enabled ? (state.lastError ? 'warn' : 'on') : 'off'}
             status={state.enabled ? `自動運転中・今日の投稿 ${todayCount}/${state.settings.postsPerDay}本${waitingCount > 0 ? `・確認待ち${waitingCount}件` : ''}` : ready ? '自動運転は止まっています' : '先に、Xとの連携と文体のまとめが必要です'}
             note={state.enabled && state.lastError ? `補充を止めています: ${state.lastError}` : undefined}

@@ -622,15 +622,42 @@
   padding: 14px 16px;
 }
 
-/* 行の区切りは細い線だけ。アイコンの右（文字の頭）から引く。 */
+/* 行の区切りは細い線だけ。札の右（文字の頭）から引く。 */
 .switch-row + .switch-row::before {
   content: '';
   position: absolute;
   top: 0;
-  left: 36px;
+  left: 56px;
   right: 0;
   height: 1px;
   background: var(--border);
+}
+
+/* 投稿先の札。行が文字だけで始まると、どのサービスの行か一瞬で判別できない。
+   面は --accent-bg（テーマで切り替わる薄い青緑）にする。--teal-50 は明るい色で固定なので、
+   ダークでは薄い面に青緑の字が乗って読めなくなる（.link-row__icon と同じ作り）。 */
+.switch-row__badge {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-tag, 8px);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+/* 動いているかどうかの点は、札と横に並べると「どちらが状態か」が分からなくなるので、状態の文の頭に置く。 */
+.switch-row__status {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.switch-row__status .autopost__dot {
+  /* baseline で並べると点が文字の上端に寄るので、文字の中心あたりまで下げる。 */
+  align-self: flex-start;
+  margin-top: 6px;
 }
 
 /* 止まっている・見てほしい状態は、行の面を薄い色にして、止め忘れ・止まりっぱなしに気づけるようにする。 */
@@ -676,7 +703,9 @@
   background: var(--surface);
 }
 
-.app-shell[data-screen='home'] .surface-card {
+/* 料金のカードだけは黒地の主役（theme-teal.css）なので、白いカード用の枠線を上から塗らない
+   （塗ると、黒い面のまわりに明るい灰色の線が出る）。 */
+.app-shell[data-screen='home'] .surface-card:not(.usage-meter) {
   border-color: var(--border-strong);
   box-shadow: var(--shadow-rest);
 }
@@ -710,7 +739,7 @@
   content: '';
   position: absolute;
   top: 0;
-  left: 36px;
+  left: 56px;
   right: 0;
   height: 1px;
   background: var(--border);
@@ -725,9 +754,9 @@
   background: transparent;
 }
 
-/* 文の部分は、行の名前の頭にそろえる（点の幅＋間隔＋左の余白）。 */
+/* 文の部分は、行の名前の頭にそろえる（札の幅＋間隔＋左の余白）。 */
 .channel-block__text {
-  padding: 0 16px 14px 36px;
+  padding: 0 16px 14px 56px;
 }
 
 .channel-block__text .channel-row {
@@ -916,13 +945,15 @@
   background: var(--surface);
 }
 
-/* トップの「今月のAI料金」。金額を大きく、上限に対する割合を棒で。8割を超えたらオレンジ、上限に達したら赤。 */
+/* トップの「今月のAI料金」。金額を大きく、上限に対する割合を棒で。8割を超えたらオレンジ、上限に達したら赤。
+   面は theme-teal.css が黒地＋青緑の光にしている（アプリを開いて最初に見える、いちばん目立ってよい数字なので、
+   ほかの白いカードと同じ重さに見えないようにする）。 */
 .usage-meter {
   --meter: var(--accent);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px 16px;
+  gap: 10px;
+  padding: 18px 18px 16px;
 }
 
 .usage-meter--warn {
@@ -963,10 +994,10 @@
 }
 
 .usage-meter__amount strong {
-  font-size: 28px;
+  font-size: 34px;
   font-weight: 700;
   line-height: 1.2;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   color: var(--text-h);
 }
 
@@ -1241,6 +1272,74 @@
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
+}
+
+/* ============================================================
+   広い画面のトップ（2段組 / bento）— 2026-10-19
+   同じ大きさのカードを縦一列に並べるだけだと、PC幅では中央に細い列が1本立つだけで
+   左右が空く。主役（今月の料金）を大きく左に、稼働スイッチと入口を右に添えて、横幅を使い切る。
+   スマホ幅は縦1列のまま（押しやすさ優先）。
+   ============================================================ */
+
+@media (min-width: 1024px) {
+  .autopost-home {
+    /* .autopost の 720px / 中央寄せを外す。 */
+    max-width: none;
+    margin-inline: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr);
+    gap: 18px 20px;
+    align-content: start;
+  }
+
+  /* 既定は横いっぱいの1行。見出し・お知らせ・再起動の案内・「読み込み中…」のように
+     2段組のどちらかに決め打ちできないものが、勝手に半分の幅へ落ちないようにする。 */
+  .autopost-home > *,
+  .autopost-home > .xap--summary > * {
+    grid-column: 1 / -1;
+  }
+
+  /* X の自動運転の中身（料金・スイッチ・予定）は、入れ物を外してトップの2段組に直接並べる
+     （入れ物のままだと、中の3枚がこの grid の1マスに縦積みされてしまう）。 */
+  .autopost-home > .xap--summary {
+    display: contents;
+  }
+
+  .autopost-home .usage-meter {
+    grid-column: 1;
+    padding: 26px 28px;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .autopost-home .usage-meter__amount strong {
+    font-size: 44px;
+  }
+
+  /* スイッチは2段ぶんの高さを取り、その左に「料金」と「予定」を縦に積む。
+     1段だけにすると、背の高いスイッチに合わせて料金のカードが伸び、
+     中に大きな空白が1枚できてしまう（左右で高さが揃わないため）。 */
+  .autopost-home .switch-list {
+    grid-column: 2;
+    grid-row: span 2;
+    align-self: start;
+  }
+
+  .autopost-home .xap--summary > section[aria-label='これから投稿される予定'] {
+    grid-column: 1;
+  }
+
+  /* 料金が読めない（未設定・読み込み失敗）ときは左が空くので、スイッチを横いっぱいにする。 */
+  .autopost-home:not(:has(.usage-meter)) .switch-list {
+    grid-column: 1 / -1;
+  }
+
+  /* 予定の「投稿可能」「確認待ち」は、縦積みだと下の枠が画面の外に出る。横に並べて同時に見せる。 */
+  .xap__zones {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    align-items: start;
+  }
 }
 
 /* ---------------------------------------------------------------- 1日の使われ方の帯 */
