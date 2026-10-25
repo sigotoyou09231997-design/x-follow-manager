@@ -128,6 +128,16 @@ describe('XAutopilotPanel: 文体', () => {
     expect(screen.queryByRole('button', { name: /^文体をまとめ直す/ })).not.toBeInTheDocument()
   })
 
+  it('新しい投稿が0件なら、まとめ直しはせず（費用を使わず）、取り込み済みの最新の日付を伝える', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile() })
+    const st = withProfile()
+    api.readAutopilotHistory.mockResolvedValue({ state: st, result: { fetched: 0, added: 0, total: 125 } })
+    render(<XAutopilotPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: /最新の投稿を取り込んで/ }))
+    expect(await screen.findByText(/新しい投稿はありませんでした（取り込み済みの最新は .+ の投稿）。文体はそのままです/)).toBeInTheDocument()
+    expect(api.buildAutopilotProfile).not.toHaveBeenCalled()
+  })
+
   it('取り込みに失敗したら、まとめ直しは行わない（理由を出す）', async () => {
     api.fetchAutopilot.mockResolvedValue({ state: withProfile() })
     api.readAutopilotHistory.mockRejectedValue(new XAutopilotError('続けて読み込めません。1分ほど待ってからもう一度お試しください', 429))
