@@ -1317,9 +1317,6 @@
     margin-inline: 0;
     display: grid;
     grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr);
-    /* 見出し / 料金 / 予定。右のスイッチ（背が高い）が2段をまたぐので、余った高さは最後の段（予定）に吸わせる。
-       全部 auto だと、予定が空（確認待ちが0件）のとき、余りが料金の段にも配られて、料金のカードが縦に大きく伸びる。 */
-    grid-template-rows: auto auto 1fr;
     gap: 18px 20px;
     align-content: start;
   }
@@ -1335,6 +1332,15 @@
      （入れ物のままだと、中の3枚がこの grid の1マスに縦積みされてしまう）。 */
   .autopost-home > .xap--summary {
     display: contents;
+  }
+
+  /* 左の列: 料金（上）と予定（下）。右のスイッチと同じ1行に置き、高さを引き伸ばさない。 */
+  .autopost-home .xap__main {
+    grid-column: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    align-self: start;
   }
 
   .autopost-home .usage-meter {
@@ -1353,12 +1359,7 @@
      中に大きな空白が1枚できてしまう（左右で高さが揃わないため）。 */
   .autopost-home .switch-list {
     grid-column: 2;
-    grid-row: span 2;
     align-self: start;
-  }
-
-  .autopost-home .xap--summary > section[aria-label='これから投稿される予定'] {
-    grid-column: 1;
   }
 
   /* 料金が読めない（未設定・読み込み失敗）ときは左が空くので、スイッチを横いっぱいにする。 */
@@ -1577,4 +1578,23 @@
   color: var(--bg);
   font-size: 13px;
   font-weight: 700;
+}
+
+/* 狭い画面（縦1列）: 左の列の入れ物は無いものとして、料金 → スイッチ → 予定 の順に並べる。 */
+@media (max-width: 1023px) {
+  .xap--summary .xap__main {
+    display: contents;
+  }
+
+  .xap--summary .usage-meter {
+    order: 1;
+  }
+
+  .xap--summary .switch-list {
+    order: 2;
+  }
+
+  .xap--summary section[aria-label='これから投稿される予定'] {
+    order: 3;
+  }
 }

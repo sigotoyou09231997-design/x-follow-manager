@@ -513,7 +513,11 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
           </p>
         )}
         {/* 今月のAI料金。トップのいちばん上（稼働スイッチの上）に、上限に対する割合の棒つきで出す。 */}
-        <UsageMeter usage={state.usage} budgetYen={state.settings.monthlyBudgetYen} />
+        {/* 料金と予定は左の列（xap__main）にまとめる。右のスイッチは背が高いので、同じ行の高さに合わせて料金のカードを伸ばさないため。 */}
+        <div className="xap__main">
+          <UsageMeter usage={state.usage} budgetYen={state.settings.monthlyBudgetYen} />
+          {upcomingSection}
+        </div>
         <section className="surface-card switch-list" aria-label="稼働スイッチ">
           <SwitchRow
             name="X"
@@ -525,7 +529,6 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
           />
           {children}
         </section>
-        {upcomingSection}
       </div>
     )
   }
