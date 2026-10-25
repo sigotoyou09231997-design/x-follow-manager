@@ -216,14 +216,26 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
       () => setNotice({ text: '読み込んで、文体をまとめました', kind: 'ok' })
     )
 
-  const doReadNew = () =>
-    act('read', () => readAutopilotHistory(), (reply) => {
-      const r = reply.result as { fetched: number; added: number } | undefined
-      setNotice({ text: r ? `新しく ${r.added} 件を取り込みました（読み取り ${r.fetched} 件）` : '取り込みました', kind: 'ok' })
-    })
-
-  const doRebuild = () =>
-    act('profile', saveThen(buildAutopilotProfile), () => setNotice({ text: '文体をまとめ直しました', kind: 'ok' }))
+  // 最新の投稿を取り込んで、そのまま文体に反映する（取り込むだけでは、文体のまとめは変わらないため、1つの操作にした）。
+  // 取り込みで何件増えたかは、まとめ直しが終わったあとの知らせに出す。
+  const doRefreshStyle = () => {
+    let added: { fetched: number; added: number } | undefined
+    return act(
+      'refresh',
+      saveThen(async () => {
+        setStep('最新の投稿を取り込んでいます…')
+        const read = await readAutopilotHistory()
+        added = read.result as { fetched: number; added: number } | undefined
+        setStep('文体をまとめています…（30秒ほどかかります）')
+        return buildAutopilotProfile()
+      }),
+      () =>
+        setNotice({
+          text: added ? `新しく ${added.added} 件を取り込み（読み取り ${added.fetched} 件）、文体に反映しました` : '取り込んで、文体に反映しました',
+          kind: 'ok',
+        })
+    )
+  }
 
   const doPreview = () =>
     act('preview', saveThen(previewAutopilotPost), (reply) => setPreview(reply.preview))
@@ -527,8 +539,7 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
             connected={connected}
             blocked={blocked}
             onSetup={() => void doSetup()}
-            onReadNew={() => void doReadNew()}
-            onRebuild={() => void doRebuild()}
+            onRefresh={() => void doRefreshStyle()}
           />
         </div>
         <section className="surface-card switch-list" aria-label="稼働スイッチ">
@@ -575,8 +586,7 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
         connected={connected}
         blocked={blocked}
         onSetup={() => void doSetup()}
-        onReadNew={() => void doReadNew()}
-        onRebuild={() => void doRebuild()}
+        onRefresh={() => void doRefreshStyle()}
       />
 
       <section className="surface-card xap__card" aria-label="試し書き">
@@ -779,12 +789,12 @@ interface StyleCardProps {
   /** 設定に直す所がある（保存済みの設定とずれたまま動かさない）。 */
   blocked: boolean
   onSetup: () => void
-  onReadNew: () => void
-  onRebuild: () => void
+  /** 最新の投稿を取り込み、そのまま文体に反映する。 */
+  onRefresh: () => void
 }
 
 // 文体のまとめの中身（要約・語尾・話題）は、ここには出さない。本人の希望で、裏（Supabase の x_autopilot.profile）でだけ見られる。
-function StyleCard({ state, quality, busy, step, working, connected, blocked, onSetup, onReadNew, onRebuild }: StyleCardProps) {
+function StyleCard({ state, quality, busy, step, working, connected, blocked, onSetup, onRefresh }: StyleCardProps) {
   const { history } = state
   const first = !state.profileReady
   const rebuildYen = aiCostYen(quality, TYPICAL_TOKENS.profileInput, TYPICAL_TOKENS.profileOutput)
@@ -813,18 +823,14 @@ function StyleCard({ state, quality, busy, step, working, connected, blocked, on
             {busy === 'setup' ? (step ?? '実行しています…') : `過去の投稿を読んで、文体をまとめる（約${formatYen(setupYen(quality))}）`}
           </button>
         ) : (
-          <>
-            <button type="button" className="btn btn--secondary" onClick={onReadNew} disabled={!connected || working}>
-              {busy === 'read' ? '読み込んでいます…' : '新しい投稿だけ取り込む（ほぼ無料）'}
-            </button>
-            <button type="button" className="btn btn--ghost" onClick={onRebuild} disabled={working || blocked}>
-              {busy === 'profile' ? 'まとめています…' : `文体をまとめ直す（約${formatYen(rebuildYen)}）`}
-            </button>
-          </>
+          <button type="button" className="btn btn--secondary" onClick={onRefresh} disabled={!connected || working || blocked}>
+            {busy === 'refresh' ? (step ?? '実行しています…') : `最新の投稿を取り込んで、文体に反映する（約${formatYen(rebuildYen)}）`}
+          </button>
         )}
       </div>
-      {busy === 'setup' && step && <p className="xap__muted">{step}</p>}
+      {(busy === 'setup' || busy === 'refresh') && step && <p className="xap__muted">{step}</p>}
       {first && <p className="xap__muted">Xの自分の投稿（返信とリポストを除く最大200件）を読みます。読み取りは1件約0.15円です。</p>}
+      {!first && <p className="xap__muted">前回より新しい投稿（返信・リポストを除く、1回で最大200件）を読んで、文体をまとめ直します。読み取りは1件約0.15円です。</p>}
     </section>
   )
 }
