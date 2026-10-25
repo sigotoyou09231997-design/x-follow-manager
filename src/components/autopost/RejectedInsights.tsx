@@ -62,6 +62,23 @@ export function RejectedInsights({ rejected, kept }: Props) {
               <p className="xap__muted">この話題は、次の文では選びません。</p>
             </div>
           )}
+
+          {analysis.shapes.length > 0 && (
+            <div>
+              <h3 className="rejected-insights__sub">よく取り消される文の形</h3>
+              <ul className="rejected-insights__chips">
+                {analysis.shapes.map((s) => (
+                  <li key={s.label} className="rejected-insights__chip">
+                    <span>{s.label}</span>
+                    <small>
+                      取り消し{s.rejected}回{s.kept > 0 ? `・残した文に${s.kept}回` : ''}
+                    </small>
+                  </li>
+                ))}
+              </ul>
+              <p className="xap__muted">言葉が違っても、この形になる書き方は避けます（型・書き出し・締めが強く偏っていれば、案に入っていたら作り直させます）。</p>
+            </div>
+          )}
         </>
       )}
     </section>

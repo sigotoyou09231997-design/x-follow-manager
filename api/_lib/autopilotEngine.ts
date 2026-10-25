@@ -15,6 +15,7 @@ import { REFILL_MIN_LEAD_MS } from '../../src/lib/xAutopilot/approve.js'
 import { frequentWords, overusedIn, pickFreshThemes } from '../../src/lib/xAutopilot/words.js'
 import { isTripleBeat, lengthProblem, openingOf, pickVariety, repeatedEndings, repeatedOpenings } from '../../src/lib/xAutopilot/variety.js'
 import { analyzeRejected, blockedWords, describeRejectedTopics, rejectedWordLines } from '../../src/lib/xAutopilot/rejectedAnalysis.js'
+import { blockedShapes, describeRejectedShapes, shapesIn } from '../../src/lib/xAutopilot/rejectedShape.js'
 import { isLateMorningSlot } from '../../src/lib/xAutopilot/morning.js'
 import { localDate, localMonth, normalizeSettings, planSlots, settingsProblems, type Slot } from '../../src/lib/xAutopilot/slots.js'
 import {
@@ -325,6 +326,8 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
   // 取り消し3本以上で割合が高い言葉は「使わない」（案に入っていたら書き直させる）。一覧と話題は、AIにも伝える。
   const rejectedAnalysis = analyzeRejected(ctx.rejected, autoTexts)
   const rejectedBlocked = blockedWords(rejectedAnalysis)
+  // 言葉でなく「形」（型・書き出し・締め）で、取り消されてばかりのもの。AIにも伝え、強く偏った形は検査でも落とす。
+  const rejectedShapeBlocked = blockedShapes(rejectedAnalysis.shapes, rejectedAnalysis.total, autoTexts.length)
 
   // 毎回同じ骨組みにならないよう、枠ごとに「型」と「長さ」を決めて指定し、最近の投稿で何度も使っている書き出し・締めは避けさせる。
   // 守られなかった案（長さが範囲の外・最近と同じ書き出し）は、理由を伝えて書き直させる。
@@ -348,6 +351,7 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
       rejected: ctx.rejected.slice(0, REJECTED_FOR_PROMPT),
       rejectedWords: rejectedWordLines(rejectedAnalysis),
       rejectedTopics: describeRejectedTopics(rejectedAnalysis),
+      rejectedShapes: describeRejectedShapes(rejectedAnalysis.shapes),
       recentStyle,
       crowded: crowdedList.map(describeCrowded),
       neglected,
@@ -381,6 +385,8 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
       if (open.length >= 3 && recentOpenings.filter((o) => o === open).length >= 2) problems.push(`書き出し「${open}」が、最近の投稿と同じ`)
       // 「A、B、C。」の3つ並べが最近の投稿にもあれば、続けさせない（同じ骨組みで単調になるため）。
       if (isTripleBeat(text) && recentForShape.some(isTripleBeat)) problems.push('短い言葉を3つ並べるだけの型が、最近の投稿と同じ')
+      const shapeHit = shapesIn(text, rejectedShapeBlocked)
+      if (shapeHit.length > 0) problems.push(`本人が何度も取り消している形（${shapeHit.join('・')}）になっている`)
       const refused = overusedIn(text, rejectedBlocked)
       if (refused.length > 0) problems.push(`本人が何度も取り消している言葉（${refused.join('・')}）を含んでいる`)
     }
