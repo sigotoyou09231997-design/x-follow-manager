@@ -10,12 +10,13 @@ import {
   previewPost,
   readHistory,
   refill,
+  revisePost,
   saveSettings,
   usageFor,
   type EngineDeps,
 } from './autopilotEngine.js'
 import { AutopilotNotReadyError, supabaseAutopilotStore, type AutopilotRow } from './autopilotStore.js'
-import { writeAutopilotPost, writeProfile } from './autopilotWriter.js'
+import { reviseAutopilotPost, writeAutopilotPost, writeProfile } from './autopilotWriter.js'
 import { anthropicApiKey, apiKeyShape, RefusedError } from './postWriter.js'
 import { getAccessToken } from './xToken.js'
 import { fetchOwnPosts, XApiError } from './xClient.js'
@@ -26,6 +27,7 @@ import { fetchOwnPosts, XApiError } from './xClient.js'
 //   { action: 'readHistory', limit?, full? }      … 自分の過去の投稿を X から読む（読んだ件数ぶん課金）
 //   { action: 'buildProfile' }                    … 履歴から文体をまとめる（AI）
 //   { action: 'preview' }                         … 保存せずに1本書いてみる（AI）
+//   { action: 'revise', text, instruction? }      … 予約してある1本を、AIが本人の文体に整える（保存はしない。直した案を返す）
 //   { action: 'enable' } / { action: 'disable' }  … 自動運転の ON / OFF
 //   { action: 'refill' }                          … 空いた枠（「取り消す」で外した枠）を、いちばん近い時刻から1つ、別の文で作り直す（AI）
 // 中身は autopilotEngine.ts。ここは「誰が・何を頼んだか」の確認と、失敗の日本語化だけを持つ。
@@ -50,6 +52,7 @@ function defaultDeps(startedAt = Date.now()): HandlerDeps {
       fetchOwnPosts,
       writeProfile,
       writePost: writeAutopilotPost,
+      revisePost: reviseAutopilotPost,
       aiTimeoutMs: AI_TIMEOUT_MS,
       canStartAi: () => Date.now() - startedAt < AI_START_BUDGET_MS,
     },
@@ -167,6 +170,18 @@ export function createAutopilotHandler(deps?: HandlerDeps) {
           return res.status(200).json({
             state: await stateNow(),
             preview: { text: result.text ?? null, problems: result.problems },
+          })
+        }
+
+        case 'revise': {
+          if (typeof body.text !== 'string') return res.status(400).json({ error: '直したい文章がありません' })
+          const result = await revisePost(engine, userId, {
+            text: body.text,
+            instruction: typeof body.instruction === 'string' ? body.instruction : undefined,
+          })
+          return res.status(200).json({
+            state: await stateNow(),
+            revised: { text: result.text ?? null, problems: result.problems },
           })
         }
 

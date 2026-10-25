@@ -6,6 +6,7 @@ import {
   previewAutopilotPost,
   readAutopilotHistory,
   refillAutopilot,
+  reviseAutopilotPost,
   saveAutopilotSettings,
   startAutopilot,
   stopAutopilot,
@@ -406,6 +407,11 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
           saving={editing.saving}
           error={editing.error}
           onSave={(text, at, timeChanged) => void saveEdit(post.id, text, at, timeChanged)}
+          onRevise={async (text, instruction) => {
+            // 費用が出る操作なので、ほかのAI操作と重ならないよう run を通す（状態も取り直される）
+            const reply = await run('revise', () => reviseAutopilotPost(text, instruction))
+            return reply.revised ?? { text: null, problems: ['AIが直した案を返しませんでした'] }
+          }}
           onCancel={() => setEditing(undefined)}
         />
       </li>

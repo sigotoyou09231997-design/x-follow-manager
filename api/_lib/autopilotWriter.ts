@@ -312,3 +312,51 @@ export async function writeAutopilotPost(input: WriteAutopilotPostInput): Promis
   })
   return posts[0]?.segments[0]?.trim() || undefined
 }
+
+// ------------------------------------------------------------------ 3. 書いてある1本を整える
+
+export const REVISE_SYSTEM_PROMPT = `あなたはX(旧Twitter)の投稿を整える編集者です。ご本人がすでに予約している1本の文章を読んで、
+【この人らしさ】と【お手本】に沿った言い回しに整えます。直した文は、そのまま本人の名前で投稿されます。
+
+守ること:
+- 元の文の意味・話題・言いたいことは変えない。事実・数字・固有名詞・体験・予定を足さない、消さない
+- 語調・一人称・語尾・文の長さ・改行・絵文字の使い方は、【この人らしさ】と【お手本】から読み取って合わせる
+- 直す所が無ければ、ほとんどそのまま返してよい（無理に変えない）
+- 【ご本人の指示】があれば、それを優先する（「短く」「やわらかく」など）。指示が元の意味を変える内容でも、事実は作らない
+- 天気・気温の話、URL、未成年を連想させる表現は入れない
+- 説明や前置きは書かない。直した投稿の本文だけを返す
+
+${WRITING_RULES}`
+
+export interface ReviseAutopilotPostInput {
+  apiKey: string
+  quality: Quality
+  profile: StyleProfile
+  samples: HistoryPost[]
+  /** いまの本文。 */
+  text: string
+  /** ご本人の指示（任意）。 */
+  instruction?: string
+  timeoutMs?: number
+  onUsage?: (usage: Usage) => void
+}
+
+/** 書いてある1本を、本人の文体に整えた本文にする。作れなかったときは undefined。 */
+export async function reviseAutopilotPost(input: ReviseAutopilotPostInput): Promise<string | undefined> {
+  const sections = [`【この人らしさ】\n${describeProfile(input.profile)}`]
+  if (input.samples.length) {
+    sections.push(`【お手本】（この人の実際の投稿。書き方の参考。内容は流用しない）\n${input.samples.map((p, i) => `【例${i + 1}】\n${p.text}`).join('\n\n')}`)
+  }
+  sections.push(`【直したい文章】\n${input.text}`)
+  if (input.instruction?.trim()) sections.push(`【ご本人の指示】\n${input.instruction.trim()}`)
+  const posts = await writePosts({
+    apiKey: input.apiKey,
+    system: REVISE_SYSTEM_PROMPT,
+    user: sections.join('\n\n'),
+    model: QUALITY_MODELS[input.quality].id,
+    effort: 'low',
+    timeoutMs: input.timeoutMs,
+    onUsage: input.onUsage,
+  })
+  return posts[0]?.segments[0]?.trim() || undefined
+}

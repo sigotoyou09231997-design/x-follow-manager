@@ -144,6 +144,17 @@ describe('操作', () => {
     expect(store.posts).toHaveLength(0)
   })
 
+  it('文章を整える: 直した案と、検査に落ちた理由（あれば）を返す。予約は作らない・文章が無ければ断る', async () => {
+    const { handler, store } = setup(ready())
+    const r = await call(handler, { ...AS_OWNER, body: { action: 'revise', text: '明日健康診断あるんだけ', instruction: '短く' } })
+    expect(r.status).toBe(200)
+    expect(r.body.revised.text).toBe('明日健康診断あるんだけ（整えた）')
+    expect(r.body.revised.problems).toEqual([])
+    expect(store.posts).toHaveLength(0)
+    const bad = await call(handler, { ...AS_OWNER, body: { action: 'revise' } })
+    expect(bad.status).toBe(400)
+  })
+
   it('ON にすると最初の1本ができ、OFF にすると取り消される', async () => {
     const { handler, store } = setup(ready({ enabled: false }))
     const on = await call(handler, { ...AS_OWNER, body: { action: 'enable' } })
