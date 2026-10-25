@@ -517,6 +517,19 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
         <div className="xap__main">
           <UsageMeter usage={state.usage} budgetYen={state.settings.monthlyBudgetYen} />
           {upcomingSection}
+          {/* いまのXの投稿から、文章の傾向・書き方を取り込む（トップからも押せる。詳細画面と同じ操作）。 */}
+          <StyleCard
+            state={state}
+            quality={form.quality}
+            busy={busy}
+            step={step}
+            working={working}
+            connected={connected}
+            blocked={blocked}
+            onSetup={() => void doSetup()}
+            onReadNew={() => void doReadNew()}
+            onRebuild={() => void doRebuild()}
+          />
         </div>
         <section className="surface-card switch-list" aria-label="稼働スイッチ">
           <SwitchRow

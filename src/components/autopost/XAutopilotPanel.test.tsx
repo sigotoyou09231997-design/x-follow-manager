@@ -491,7 +491,7 @@ describe('XAutopilotPanel: 準備と失敗', () => {
 })
 
 describe('XAutopilotPanel: トップの1画面用（summary）', () => {
-  it('スイッチと「これから投稿される予定」だけを出し、文体・試し書き・細かい設定は出さない', async () => {
+  it('スイッチと「これから投稿される予定」と、文体の取り込みを出し、試し書き・細かい設定は出さない', async () => {
     api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
     posts.list = [post('a')]
     render(<XAutopilotPanel variant="summary" />)
@@ -501,9 +501,20 @@ describe('XAutopilotPanel: トップの1画面用（summary）', () => {
     expect(screen.getByRole('heading', { name: 'Xの、これから投稿される予定' })).toBeInTheDocument()
     expect(screen.getByText('自動運転の本文 a')).toBeInTheDocument()
 
-    expect(screen.queryByText('あなたの文体')).not.toBeInTheDocument()
+    // 文体の取り込みは、トップからも押せる（詳細画面と同じ操作）
+    expect(screen.getByText('あなたの文体')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /新しい投稿だけ取り込む/ })).toBeEnabled()
     expect(screen.queryByText('試しに1本書いてみる')).not.toBeInTheDocument()
     expect(screen.queryByText('1日の投稿数')).not.toBeInTheDocument()
+  })
+
+  it('トップの「新しい投稿だけ取り込む」を押すと、Xの最近の投稿を取り込む', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    api.readAutopilotHistory.mockResolvedValue({ state: withProfile({ enabled: true }), result: { fetched: 4, added: 3, total: 120 } })
+    render(<XAutopilotPanel variant="summary" />)
+    fireEvent.click(await screen.findByRole('button', { name: /新しい投稿だけ取り込む/ }))
+    expect(await screen.findByText('新しく 3 件を取り込みました（読み取り 4 件）')).toBeInTheDocument()
+    expect(api.readAutopilotHistory).toHaveBeenCalledWith()
   })
 
   it('ここからも取り消せて、取り消すと別の文を作り直してもらう（確認なしの設定のとき）', async () => {
