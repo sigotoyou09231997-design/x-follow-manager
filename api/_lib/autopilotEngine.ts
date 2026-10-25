@@ -25,6 +25,7 @@ import {
   pickSamples,
   SIMILARITY_LIMIT,
   uncertainIn,
+  vagueGameIn,
 } from '../../src/lib/xAutopilot/text.js'
 import {
   emptyUsage,
@@ -256,6 +257,9 @@ export function checkPost(text: string, others: string[]): string[] {
   // 作り置きの投稿で、出る日の天気は分からない。本人の指示で、天気・気温の話は書かせない。
   const uncertain = uncertainIn(text)
   if (uncertain.length > 0) problems.push(`天気・気温の話（${uncertain.slice(0, 3).join('・')}）を含んでいる。出る日の天気は分からないので書かない`)
+  // どのゲームか分からない文は書かせない（本人の指示。「回復アイテム、大事にしすぎて結局ずっと使えん」のような文）。
+  const vague = vagueGameIn(text)
+  if (vague.length > 0) problems.push(`どのゲームか分からないゲームの話（${vague.slice(0, 3).join('・')}）。ゲームの話は書かない`)
   if (maxSimilarity(text, others) > SIMILARITY_LIMIT) problems.push('最近の投稿と内容が似すぎている')
   return problems
 }
