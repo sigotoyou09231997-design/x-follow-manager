@@ -1597,4 +1597,8 @@
   .xap--summary section[aria-label='これから投稿される予定'] {
     order: 3;
   }
+
+  .xap--summary section[aria-label='あなたの文体'] {
+    order: 4;
+  }
 }
