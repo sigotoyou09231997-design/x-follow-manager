@@ -1317,6 +1317,9 @@
     margin-inline: 0;
     display: grid;
     grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr);
+    /* 見出し / 料金 / 予定。右のスイッチ（背が高い）が2段をまたぐので、余った高さは最後の段（予定）に吸わせる。
+       全部 auto だと、予定が空（確認待ちが0件）のとき、余りが料金の段にも配られて、料金のカードが縦に大きく伸びる。 */
+    grid-template-rows: auto auto 1fr;
     gap: 18px 20px;
     align-content: start;
   }
