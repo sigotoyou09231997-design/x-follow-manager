@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeRejected, blockedWords, describeRejectedTopics, describeRejectedWords } from './rejectedAnalysis'
+import { analyzeRejected, blockedWords, describeRejectedTopics, describeRejectedWords, rejectedWordLines } from './rejectedAnalysis'
 
 const rejected = [
   '帰り道に焼き芋の匂いがして目で追った。',
@@ -38,6 +38,15 @@ describe('取り消した文の分析', () => {
 
   it('「使わない」と決める言葉は、取り消し3本以上で割合が高いものだけ', () => {
     expect(blockedWords(a)).toEqual(['焼き芋']) // ハイボールは2本だけ → 使わない言葉にはしないが、一覧には出す
+  })
+
+  it('使用禁止の言葉は、AIに渡す一覧の上位14個に入っていなくても、必ず渡す（知らずに書いて検査で落ち続けるのを防ぐ）', () => {
+    // 取り消し5回の言葉が14個あり、その後ろに、取り消し3回で使用禁止になる言葉がある
+    const words = [...Array.from({ length: 14 }, (_, i) => ({ word: `言葉${i}`, rejected: 5, kept: 0 })), { word: '片方', rejected: 3, kept: 0 }]
+    const b = { total: 73, words, topics: [] }
+    expect(blockedWords(b)).toContain('片方')
+    expect(describeRejectedWords(b).join('\n')).not.toContain('片方') // 上位14個には入らない
+    expect(rejectedWordLines(b).join('\n')).toContain('片方（取り消しが多いので使用禁止）')
   })
 
   it('AIに渡す説明は、回数つき。残した文に出ていれば、それも添える', () => {

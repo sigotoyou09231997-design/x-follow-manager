@@ -14,7 +14,7 @@ import {
 import { REFILL_MIN_LEAD_MS } from '../../src/lib/xAutopilot/approve.js'
 import { frequentWords, overusedIn, pickFreshThemes } from '../../src/lib/xAutopilot/words.js'
 import { lengthProblem, openingOf, pickVariety, repeatedEndings, repeatedOpenings } from '../../src/lib/xAutopilot/variety.js'
-import { analyzeRejected, blockedWords, describeRejectedTopics, describeRejectedWords } from '../../src/lib/xAutopilot/rejectedAnalysis.js'
+import { analyzeRejected, blockedWords, describeRejectedTopics, rejectedWordLines } from '../../src/lib/xAutopilot/rejectedAnalysis.js'
 import { isLateMorningSlot } from '../../src/lib/xAutopilot/morning.js'
 import { localDate, localMonth, normalizeSettings, planSlots, settingsProblems, type Slot } from '../../src/lib/xAutopilot/slots.js'
 import {
@@ -339,7 +339,7 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
       samples: pickSamples(ctx.history, SAMPLES_PER_POST, ctx.seed + attempt),
       recent: recentForPrompt,
       rejected: ctx.rejected.slice(0, REJECTED_FOR_PROMPT),
-      rejectedWords: describeRejectedWords(rejectedAnalysis),
+      rejectedWords: rejectedWordLines(rejectedAnalysis),
       rejectedTopics: describeRejectedTopics(rejectedAnalysis),
       recentStyle,
       crowded: crowdedList.map(describeCrowded),
