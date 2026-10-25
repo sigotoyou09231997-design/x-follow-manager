@@ -22,7 +22,6 @@ export const FORMS: WritingForm[] = [
   { name: '気づき', how: '「〜って、〜なんだな」と、気づいたことを言う形にする' },
   { name: '話しかけ', how: '誰かに話しかけるような口調で書く' },
   { name: '否定から入る', how: '「〜じゃなくて、〜」と、ひとつ否定してから言い直す' },
-  { name: '短い3つ', how: '短い3つのまとまりを、改行せずに1つの文章でつないで言い切る' },
   { name: '決めつけ', how: '「〜はたぶん〜」と、軽く決めつけるように言う（根拠のある事実のふりはしない）' },
 ]
 
@@ -40,6 +39,15 @@ export const LENGTHS: LengthTarget[] = [
   { label: 'ふつう', hint: '30〜60字ほど', min: 24, max: 76 },
   { label: '長め', hint: '60〜110字ほど（改行はしない）', min: 50, max: 125 },
 ]
+
+/**
+ * 「ネギ買う、半分余る、結局冷凍する。」のように、短い言葉を読点で3つ並べて終わる型か。
+ * 改行をやめさせたあと、この型ばかりが出て単調になったので、最近の投稿にもあれば続けさせない。
+ */
+export const isTripleBeat = (text: string): boolean => {
+  const parts = text.trim().replace(/[。.!！?？]+$/, '').split('、')
+  return parts.length === 3 && parts.every((p) => p.length >= 2 && p.length <= 14)
+}
 
 /** 小さな文字列から、決まった0以上1未満の数を作る（FNV-1a）。同じ枠なら同じ結果、枠が違えば違う結果。 */
 function hash01(text: string): number {

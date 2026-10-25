@@ -97,6 +97,12 @@ export function memoryStore(initial?: Partial<AutopilotRow>) {
         .filter((p) => p.userId === userId && p.status !== 'canceled' && p.slotKey.slice(0, 10) >= sinceDate)
         .map((p) => p.slotKey)
     },
+    async trimDrafts(userId, keep) {
+      const drafts = posts.filter((p) => p.userId === userId && p.status === 'draft')
+      const extra = drafts.slice(keep)
+      for (const p of extra) p.status = 'canceled'
+      return extra.length
+    },
     async draftCount(userId) {
       return posts.filter((p) => p.userId === userId && p.status === 'draft').length
     },
