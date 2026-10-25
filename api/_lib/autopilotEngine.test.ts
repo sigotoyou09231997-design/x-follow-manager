@@ -591,6 +591,15 @@ describe('試し書き', () => {
     expect(r.text).toBe('AIで開発すると、楽しいけど課金が怖い。と思うことが最近よくある、ただそれだけの話')
   })
 
+  it('短い言葉を3つ並べるだけの型が最近の投稿にもあれば、使えない案にする', async () => {
+    const store = ready()
+    await store.insertPost({ userId: OWNER, at: '2026-10-09T03:00:00Z', text: 'ネギ買う、半分余る、結局冷凍する。', slotKey: '2026-10-09#0', status: 'scheduled' })
+    const { deps, writePost } = makeDeps(store)
+    writePost.mockResolvedValue('卵焼き巻く、崩れる、スクランブルエッグになる。')
+    const r = await previewPost(deps, OWNER)
+    expect(r.problems.join('、')).toContain('3つ並べるだけの型')
+  })
+
   it('どのゲームか分からないゲームの話は、使えない案として理由つきで返す', async () => {
     const store = ready()
     const { deps, writePost } = makeDeps(store)
@@ -722,6 +731,18 @@ describe('ON / OFF / 設定', () => {
       const r = await topUp(deps, await store.get(OWNER), { maxGenerations: 5 })
       expect(r.created).toBe(0)
       expect(store.posts.filter((p) => p.status === 'draft')).toHaveLength(1)
+    })
+
+    it('数えるのと入れるのが同時に重なって2件入っても、入れた直後に古い1件だけ残してほかを取り消す', async () => {
+      const store = ready({ settings: withApproval })
+      // 先に確認待ちが1件ある（ほかの実行が作った）。数えるときだけ「0件」と答える（同時に動いて、どちらも0件と見た状態）
+      await store.insertPost({ userId: OWNER, at: '2026-10-20T03:00:00Z', text: '先に作られた文', slotKey: '2026-10-20#0', status: 'draft' })
+      store.draftCount = async () => 0
+      const { deps } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 1 })
+      const drafts = store.posts.filter((p) => p.status === 'draft')
+      expect(drafts).toHaveLength(1)
+      expect(drafts[0].text).toBe('先に作られた文') // 古いほうを残す
     })
 
     it('確認待ちが無くなる（投稿可能にした・取り消した）と、次の1件を作る', async () => {

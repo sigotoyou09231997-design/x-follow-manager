@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { endingOf, FORMS, lengthProblem, LENGTHS, openingOf, pickVariety, repeatedEndings, repeatedOpenings } from './variety'
+import { endingOf, FORMS, isTripleBeat, lengthProblem, LENGTHS, openingOf, pickVariety, repeatedEndings, repeatedOpenings } from './variety'
 
 describe('型と長さ', () => {
   it('枠が同じなら同じ、違えば、いろいろな型・長さが出る', () => {
@@ -45,5 +45,18 @@ describe('長さの検査', () => {
     expect(lengthProblem('あ', short)).toMatch(/^短すぎる/)
     expect(lengthProblem('あ'.repeat(60), short)).toMatch(/^長すぎる/)
     expect(lengthProblem('あ\nい\nう\nえ\nお\nか\nき\nく\nけ\nこ', short)).toBeUndefined() // 10字
+  })
+})
+
+describe('短い言葉を3つ並べるだけの型', () => {
+  it('「A、B、C。」の3つ並べを見つける', () => {
+    expect(isTripleBeat('ネギ買う、半分余る、結局冷凍する。')).toBe(true)
+    expect(isTripleBeat('卵焼き巻く、崩れる、スクランブルエッグになる。')).toBe(true)
+  })
+
+  it('2つ・4つの並びや、長い文は、3つ並べとは見ない', () => {
+    expect(isTripleBeat('今日は眠い、でも頑張る。')).toBe(false)
+    expect(isTripleBeat('朝、起きる、歩く、食べる。')).toBe(false)
+    expect(isTripleBeat('美容室の「今日はどうします？」いつも答えに困る、おまかせって言うのも怖い、結局いつも同じ。')).toBe(false)
   })
 })

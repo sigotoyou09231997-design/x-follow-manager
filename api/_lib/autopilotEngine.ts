@@ -13,7 +13,7 @@ import {
 } from '../../src/lib/xAutopilot/recentStyle.js'
 import { REFILL_MIN_LEAD_MS } from '../../src/lib/xAutopilot/approve.js'
 import { frequentWords, overusedIn, pickFreshThemes } from '../../src/lib/xAutopilot/words.js'
-import { lengthProblem, openingOf, pickVariety, repeatedEndings, repeatedOpenings } from '../../src/lib/xAutopilot/variety.js'
+import { isTripleBeat, lengthProblem, openingOf, pickVariety, repeatedEndings, repeatedOpenings } from '../../src/lib/xAutopilot/variety.js'
 import { analyzeRejected, blockedWords, describeRejectedTopics, rejectedWordLines } from '../../src/lib/xAutopilot/rejectedAnalysis.js'
 import { isLateMorningSlot } from '../../src/lib/xAutopilot/morning.js'
 import { localDate, localMonth, normalizeSettings, planSlots, settingsProblems, type Slot } from '../../src/lib/xAutopilot/slots.js'
@@ -379,6 +379,8 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
       // 最近の投稿の2本以上と、同じ書き出し（最初の3文字）なら、使えない案にする。
       const open = openingOf(text)
       if (open.length >= 3 && recentOpenings.filter((o) => o === open).length >= 2) problems.push(`書き出し「${open}」が、最近の投稿と同じ`)
+      // 「A、B、C。」の3つ並べが最近の投稿にもあれば、続けさせない（同じ骨組みで単調になるため）。
+      if (isTripleBeat(text) && recentForShape.some(isTripleBeat)) problems.push('短い言葉を3つ並べるだけの型が、最近の投稿と同じ')
       const refused = overusedIn(text, rejectedBlocked)
       if (refused.length > 0) problems.push(`本人が何度も取り消している言葉（${refused.join('・')}）を含んでいる`)
     }
@@ -603,6 +605,11 @@ export async function topUp(
         slotKey: slot.key,
         status: row.settings.requireApproval ? 'draft' : 'scheduled',
       })
+      if (outcome === 'inserted' && settings.requireApproval) {
+        // 数えてから入れるまでのあいだに、ほかの実行が同時に確認待ちを作ると、2件になる。入れた直後に、
+        // 古い順に上限まで残して、あとから作った分を取り消す（同時に動いても、どちらの実行も同じ1件を残す）。
+        await deps.store.trimDrafts(row.userId, deps.maxPendingDrafts ?? MAX_PENDING_DRAFTS)
+      }
       if (outcome === 'inserted') {
         usage.yen += PRICE.xPostUsd * USD_JPY
         usage.posts += 1

@@ -87,6 +87,8 @@ export interface AutopilotStore {
   activeSlotKeys(userId: string, sinceDate: string): Promise<string[]>
   /** いま確認待ち（draft）の自動運転の予約が何件あるか。AIの文を、確認待ちが無くなってから1件ずつ作るために数える。 */
   draftCount(userId: string): Promise<number>
+  /** 確認待ちが keep 件を超えていたら、作った順で古いものを残し、あとのものを取り消す。取り消した件数を返す。 */
+  trimDrafts(userId: string, keep: number): Promise<number>
 }
 
 interface DbRow {
@@ -336,6 +338,29 @@ export function supabaseAutopilotStore(client: SupabaseClient = getSupabaseAdmin
         return []
       }
       return (data ?? []).map((r) => r.ai_prompt.slice(AUTOPILOT_PREFIX.length))
+    },
+
+    async trimDrafts(userId, keep) {
+      const { data, error } = await client
+        .from('scheduled_posts')
+        .select('id')
+        .eq('user_id', userId)
+        .like('ai_prompt', `${AUTOPILOT_PREFIX}%`)
+        .eq('status', 'draft')
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .returns<{ id: string }[]>()
+      if (error) throw new Error(`確認待ちを読めませんでした: ${error.message}`)
+      const extra = (data ?? []).slice(keep).map((r) => r.id)
+      if (extra.length === 0) return 0
+      // 取り消しの印（rejected）は付けない。本人が要らないと判断したわけではないので、文体の学習の「出さないもの」にしない。
+      const { error: updateError } = await client
+        .from('scheduled_posts')
+        .update({ status: 'canceled', updated_at: new Date().toISOString() })
+        .in('id', extra)
+        .eq('status', 'draft')
+      if (updateError) throw new Error(`確認待ちの取り消しに失敗しました: ${updateError.message}`)
+      return extra.length
     },
 
     async draftCount(userId) {
