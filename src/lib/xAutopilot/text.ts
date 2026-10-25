@@ -72,6 +72,19 @@ const UNCERTAIN_WORDS = [
 export const uncertainIn = (text: string): string[] => UNCERTAIN_WORDS.filter((word) => text.includes(word))
 
 /**
+ * 本文の改行をなくして、1つの文章につなぐ（本人の指示「生成された文章は、勝手に改行しなくていい」）。
+ * 日本語どうしは詰め、英数字どうしがつながるときだけ空白を1つ入れる（単語がくっつかないように）。
+ */
+export const flattenLines = (text: string): string =>
+  text
+    .replace(/\s*\r?\n\s*/g, (_m, offset: number, whole: string) => {
+      const before = whole[offset - 1] ?? ''
+      const after = whole.slice(offset + _m.length)[0] ?? ''
+      return /[A-Za-z0-9]/.test(before) && /[A-Za-z0-9]/.test(after) ? ' ' : ''
+    })
+    .trim()
+
+/**
  * ゲームの用語（何のゲームか分からないと意味が通らない言葉）。本人の指示で、どのゲームか分からない文は書かせない
  * （「回復アイテム、大事にしすぎて結局ずっと使えん。」のように、読む人には何のゲームの話か分からないため）。
  * 「アイテム」だけで足りるが、見つけた言葉を理由に出すので、よく出る形も並べておく。
