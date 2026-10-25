@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { APPROVE_LEAD_MS, MIN_POST_GAP_MS, lastPostedAt, postsOnDay, soonestApprovalTime } from './approve'
+import { APPROVE_LEAD_MS, MIN_POST_GAP_MS, lastPostedAt, nextApprovalWindow, pickApprovalTime, postsOnDay, soonestApprovalTime } from './approve'
 
 const NOW = Date.parse('2026-10-15T01:00:00.000Z')
 const at = (min: number) => new Date(NOW + min * 60_000).toISOString()
@@ -121,5 +121,61 @@ describe('postsOnDay', () => {
     const list = [post('a', 'posted', -100), post('b', 'scheduled', 200), post('c', 'draft', 100), post('d', 'canceled', 100), post('e', 'scheduled', 2000)]
     expect(postsOnDay(list, NOW, cap)).toBe(2)
     expect(postsOnDay(list, NOW, cap, 'a')).toBe(1)
+  })
+})
+
+describe('午前に1回・午後に1回: 投稿可能にしたときの半日の決め方', () => {
+  // 2026-10-15 10:00 JST（= 01:00Z）。午前の途中
+  const settings = { windowStart: '08:00', windowEnd: '23:00', timeZone: 'Asia/Tokyo', postsPerDay: 3 }
+  const jst = (day: number, h: number, m = 0) => Date.UTC(2026, 9, day, h - 9, m)
+  const p = (id: string, status: string, ms: number) => ({ id, status, scheduledAt: new Date(ms).toISOString() })
+  const target = { id: 't', status: 'draft', scheduledAt: new Date(jst(20, 9)).toISOString() }
+
+  it('午前は7時〜12時。午前の途中なら、まず今日の午前の残り（いまから猶予あと〜12:00）', () => {
+    const w = nextApprovalWindow(target, [], NOW, settings)
+    expect(w?.part).toBe('morning')
+    expect(w?.dayOffset).toBe(0)
+    expect(w?.from).toBe(NOW + APPROVE_LEAD_MS)
+    expect(w?.to).toBe(jst(15, 12))
+  })
+
+  it('午前にもう1本あれば、午後へ。午後にもあれば、明日の午前へ', () => {
+    const morning = p('a', 'scheduled', jst(15, 11))
+    expect(nextApprovalWindow(target, [morning], NOW, settings)?.part).toBe('afternoon')
+    const w = nextApprovalWindow(target, [morning, p('b', 'scheduled', jst(15, 18))], NOW, settings)
+    expect(w).toMatchObject({ part: 'morning', dayOffset: 1 })
+    expect(w?.from).toBe(jst(16, 7))
+  })
+
+  it('確認待ち・取り消しは、半日を塞がない。投稿済みは塞ぐ', () => {
+    expect(nextApprovalWindow(target, [p('a', 'draft', jst(15, 11)), p('b', 'canceled', jst(15, 11))], NOW, settings)?.part).toBe('morning')
+    expect(nextApprovalWindow(target, [p('a', 'posted', jst(15, 9, 30))], NOW, settings)?.part).toBe('afternoon')
+  })
+
+  it('午前の予約が12:00ちょうど近くなら、午後の始まりは最低間隔ぶん後ろにずらす', () => {
+    const w = nextApprovalWindow(target, [p('a', 'scheduled', jst(15, 11, 50))], NOW, settings)
+    expect(w?.part).toBe('afternoon')
+    expect(w?.from).toBe(jst(15, 11, 50) + MIN_POST_GAP_MS)
+  })
+
+  it('午後の遅い時間は、窓がもう狭ければ飛ばして翌日へ', () => {
+    const late = jst(15, 22, 55)
+    const w = nextApprovalWindow(target, [], late, settings)
+    expect(w).toMatchObject({ part: 'morning', dayOffset: 1 })
+  })
+
+  it('1日の上限に達した日は飛ばす', () => {
+    const cap1 = { ...settings, postsPerDay: 1 }
+    const w = nextApprovalWindow(target, [p('a', 'scheduled', jst(15, 11))], NOW, cap1)
+    expect(w?.dayOffset).toBe(1)
+  })
+
+  it('選ぶ時刻は半日の中に収まり、乱数で決まる', () => {
+    const w = { part: 'afternoon' as const, dayOffset: 0, from: jst(15, 13), to: jst(15, 23) }
+    expect(pickApprovalTime(w, () => 0)).toBe(new Date(jst(15, 13)).toISOString())
+    const t = Date.parse(pickApprovalTime(w, () => 0.999999))
+    expect(t).toBeLessThan(w.to)
+    expect(t).toBeGreaterThan(jst(15, 22, 30))
+    expect(Date.parse(pickApprovalTime(w, () => 0.5)) % 60_000).toBe(0)
   })
 })

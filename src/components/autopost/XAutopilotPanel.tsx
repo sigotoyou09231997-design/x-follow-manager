@@ -20,8 +20,8 @@ import {
   type AutopilotState,
   type Quality,
 } from '../../lib/xAutopilot/types'
-import { planSlots, settingsProblems } from '../../lib/xAutopilot/slots'
-import { postsOnDay, REFILL_MIN_LEAD_MS, soonestApprovalTime } from '../../lib/xAutopilot/approve'
+import { settingsProblems } from '../../lib/xAutopilot/slots'
+import { nextApprovalWindow, pickApprovalTime, postsOnDay, REFILL_MIN_LEAD_MS, type ApprovalWindow } from '../../lib/xAutopilot/approve'
 import { whenParts } from '../../lib/xAutopilot/whenLabel'
 import { updateScheduledPost } from '../../lib/schedule/postsStore'
 import { Icon } from '../Icon'
@@ -269,27 +269,32 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
     }
   }
 
-  // 投稿可能にしたとき、その予約の投稿時刻を動かす先（動かさないなら undefined）。決まりは lib/xAutopilot/approve.ts。
-  // 押す前にボタンへ「押すと◯時に投稿」と出すのにも、同じ計算を使う（押してみたら思わぬ時刻だった、を作らない）。
-  function approvalMove(post: (typeof posts)[number]): string | undefined {
+  // 投稿可能にしたとき、その予約を入れる半日（午前か午後）。決まりは lib/xAutopilot/approve.ts。
+  // 本人が時刻を決めた予約（fixedTime）は動かさない。押す前にボタンへ「押すと◯日の午前に」と出すのにも同じ計算を使う。
+  function approvalWindow(post: (typeof posts)[number]): ApprovalWindow | undefined {
+    if (post.segments[0]?.fixedTime === true || !state) return undefined
     const toTimes = (p: (typeof posts)[number]) => ({ id: p.id, status: p.status, scheduledAt: p.scheduledAt, fixedTime: p.segments[0]?.fixedTime === true })
-    return soonestApprovalTime(
-      toTimes(post),
-      posts.filter((p) => isAutopilotPost(p.aiPrompt)).map(toTimes),
-      Date.now(),
-      // 次に空いている枠の時刻（設定の1日の投稿数・時間帯から決まる、これからの枠）
-      state ? planSlots(new Date(), state.settings).map((s) => Date.parse(s.at)) : [],
-      state ? { postsPerDay: state.settings.postsPerDay, timeZone: state.settings.timeZone } : undefined
-    )
+    return nextApprovalWindow(toTimes(post), posts.filter((p) => isAutopilotPost(p.aiPrompt)).map(toTimes), Date.now(), {
+      windowStart: state.settings.windowStart,
+      windowEnd: state.settings.windowEnd,
+      timeZone: state.settings.timeZone,
+      postsPerDay: state.settings.postsPerDay,
+    })
   }
 
-  // 押すと、いつ投稿されるか（ボタンの下に出す）。時刻を過ぎている予約は、1分以内に投稿される。
+  const partLabel = (w: ApprovalWindow) => {
+    const day = whenParts(new Date(w.from).toISOString(), state?.settings.timeZone ?? 'Asia/Tokyo', Date.now())?.day ?? ''
+    return `${day}の${w.part === 'morning' ? '午前' : '午後'}`
+  }
+
+  // 押すと、いつごろ投稿されるか（ボタンの下に出す）。確認待ちには時刻を出さない（押したとき午前・午後の中でランダムに決まる）。
   function approveHint(post: (typeof posts)[number]): string {
-    const planned = approvalMove(post) ?? post.scheduledAt
-    const late = !!planned && new Date(planned).getTime() <= Date.now()
-    if (late) return '押すと、1分以内に投稿されます'
-    const parts = whenParts(planned, state?.settings.timeZone ?? 'Asia/Tokyo', Date.now())
-    return parts ? `押すと、${parts.day} ${parts.time} に投稿されます` : ''
+    if (post.segments[0]?.fixedTime === true) {
+      const parts = whenParts(post.scheduledAt, state?.settings.timeZone ?? 'Asia/Tokyo', Date.now())
+      return parts ? `押すと、${parts.day} ${parts.time} に投稿されます` : ''
+    }
+    const w = approvalWindow(post)
+    return w ? `押すと、${partLabel(w)}のどこかで投稿されます` : '押すと、空いた枠に投稿されます'
   }
 
   // 「投稿可能」: 確認待ち（draft）を予約中（scheduled）にする。時刻になると投稿される（時刻を過ぎていれば、1分以内に）。
@@ -300,13 +305,14 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
     if (!post) return
     setNotice(undefined)
     try {
-      // 投稿可能にするときだけ、時刻を動かす場合がある（動かす先は、押す前にボタンに出している時刻と同じ）。
-      const moved = approved ? approvalMove(post) : undefined
+      // 投稿可能にするときだけ、時刻を決める。午前か午後の空いた半日（押す前にボタンに出している半日と同じ）の中から、ランダムに1つ。
+      const window = approved ? approvalWindow(post) : undefined
+      const moved = window ? pickApprovalTime(window) : undefined
       await updateScheduledPost(id, { status: approved ? 'scheduled' : 'draft', ...(moved ? { scheduledAt: moved } : {}) })
       const late = !!post.scheduledAt && new Date(post.scheduledAt).getTime() <= Date.now()
       const text = approved
         ? moved
-          ? `投稿可能にしました。いちばん早い投稿可能な予約なので、${whenLabel(moved, state?.settings.timeZone ?? 'Asia/Tokyo')}（5分後）に投稿されます`
+          ? `投稿可能にしました。${whenLabel(moved, state?.settings.timeZone ?? 'Asia/Tokyo')}に投稿されます`
           : late
             ? '投稿可能にしました。時刻を過ぎているので、1分以内に投稿されます'
             : '投稿可能にしました。時刻になると投稿されます'
@@ -384,11 +390,8 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
       </li>
     ) : (
       <li key={post.id}>
-        <WhenLabel iso={post.scheduledAt} timeZone={state.settings.timeZone} />
-        {/* エリアの見出しで状態は分かるので、札は「確認待ちなのに時刻を過ぎている」ときだけ出す。 */}
-        {post.status === 'draft' && post.scheduledAt && new Date(post.scheduledAt).getTime() <= Date.now() && (
-          <span className="xap__badge xap__badge--draft">確認待ち（時刻を過ぎています）</span>
-        )}
+        {/* 確認待ちの時刻は、押したときに午前・午後の中でランダムに決まるので出さない（本人が時刻を決めた予約は出す）。 */}
+        {(post.status !== 'draft' || post.segments[0]?.fixedTime === true) && <WhenLabel iso={post.scheduledAt} timeZone={state.settings.timeZone} />}
         <span className="autopost__history-text xap__upcoming-text">{post.segments[0]?.text}</span>
         <div className="xap__card-actions">
           {post.status === 'draft' ? (
