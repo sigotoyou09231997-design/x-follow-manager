@@ -28,6 +28,7 @@ import { updateScheduledPost } from '../../lib/schedule/postsStore'
 import { Icon } from '../Icon'
 import { SwitchRow } from './ChannelControls'
 import { RejectedInsights } from './RejectedInsights'
+import { StyleInsights } from './StyleInsights'
 import { UpcomingEditor } from './UpcomingEditor'
 import { UsageMeter } from './UsageMeter'
 
@@ -568,6 +569,9 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
             onSetup={() => void doSetup()}
             onRefresh={() => void doRefreshStyle()}
           />
+          {/* 以前は裏でしか見られなかった分析（文体のまとめ・最近の傾向・取り消した文の分析）も、トップに出す。 */}
+          <StyleInsights profile={state.profile} recentStyle={state.recentStyle} />
+          <RejectedInsights rejected={rejectedTexts} kept={keptTexts} />
         </div>
         <section className="surface-card switch-list" aria-label="稼働スイッチ">
           <SwitchRow
@@ -602,6 +606,7 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
         </p>
       )}
 
+      <StyleInsights profile={state.profile} recentStyle={state.recentStyle} />
       <RejectedInsights rejected={rejectedTexts} kept={keptTexts} />
 
       <StyleCard

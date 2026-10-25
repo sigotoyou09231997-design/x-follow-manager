@@ -36,6 +36,8 @@ function state(patch: Partial<AutopilotState> = {}): AutopilotState {
     xAccount: { username: 'me' },
     history: { total: 0, fetchedAt: null, newestAt: null, oldestAt: null },
     profileReady: false,
+    profile: null,
+    recentStyle: null,
     profileBuiltAt: null,
     usage: emptyUsage('2026-10'),
     lastError: null,
@@ -1018,12 +1020,34 @@ describe('XAutopilotPanel: 取り消した文の分析', () => {
     expect(within(card).getByText('取り消し3回')).toBeInTheDocument()
   })
 
-  it('トップの1画面（summary）には出さない（詳細の画面だけ）', async () => {
+  it('トップの1画面（summary）にも出す（本人の希望。以前は詳細の画面だけだった）', async () => {
     posts.list = [rejected('a', '焼き芋の匂いがした。')]
     api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
     render(<XAutopilotPanel variant="summary" />)
     await screen.findByRole('region', { name: '稼働スイッチ' })
-    expect(screen.queryByRole('region', { name: '取り消した文の分析' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: '取り消した文の分析' })).toBeInTheDocument()
+  })
+
+  it('トップに、文体のまとめの中身（要約・語尾・話題）と、最近の投稿の傾向を出す', async () => {
+    api.fetchAutopilot.mockResolvedValue({
+      state: withProfile({
+        enabled: true,
+        profile: {
+          summary: 'ゆるい独り言が多い',
+          voice: { person: '一人称は書かない', endings: ['〜やろ', '〜わ'], emoji: 'ほぼ使わない', layout: '40字前後・改行なし' },
+          themes: [{ name: '仕事', note: '会社の愚痴を軽く書く' }],
+          avoid: ['政治の話'],
+        },
+        recentStyle: '長さは平均38字。句点で終わるのは7割。',
+      }),
+    })
+    render(<XAutopilotPanel variant="summary" />)
+    const card = await screen.findByRole('region', { name: '文体のまとめ' })
+    expect(within(card).getByText('ゆるい独り言が多い')).toBeInTheDocument()
+    expect(within(card).getByText('〜やろ / 〜わ')).toBeInTheDocument()
+    expect(within(card).getByText('会社の愚痴を軽く書く')).toBeInTheDocument()
+    expect(within(card).getByText('政治の話')).toBeInTheDocument()
+    expect(within(card).getByText('長さは平均38字。句点で終わるのは7割。')).toBeInTheDocument()
   })
 })
 

@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { describeRecentStyle } from '../../src/lib/xAutopilot/recentStyle.js'
 import type { AutopilotState } from '../../src/lib/xAutopilot/types.js'
 import { requireUserId, UnauthorizedError } from './auth.js'
 import {
@@ -76,6 +77,8 @@ export function toState(row: AutopilotRow, account: { username: string } | null,
       oldestAt: dates[0] ?? null,
     },
     profileReady: !!row.profile,
+    profile: row.profile ?? null,
+    recentStyle: describeRecentStyle(row.history) ?? null,
     profileBuiltAt: row.profileBuiltAt,
     usage: usageFor(row, now),
     lastError: row.lastError,
