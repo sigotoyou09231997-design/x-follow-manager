@@ -220,18 +220,27 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
   // 取り込みで何件増えたかは、まとめ直しが終わったあとの知らせに出す。
   const doRefreshStyle = () => {
     let added: { fetched: number; added: number } | undefined
+    let newest: string | null = null
     return act(
       'refresh',
       saveThen(async () => {
         setStep('最新の投稿を取り込んでいます…')
         const read = await readAutopilotHistory()
         added = read.result as { fetched: number; added: number } | undefined
+        newest = read.state.history.newestAt
+        // 新しい投稿が無ければ、まとめ直さない（同じ材料でAIを呼んでも文体は変わらず、費用だけがかかる）。
+        if (added && added.added === 0) return read
         setStep('文体をまとめています…（30秒ほどかかります）')
         return buildAutopilotProfile()
       }),
       () =>
         setNotice({
-          text: added ? `新しく ${added.added} 件を取り込み（読み取り ${added.fetched} 件）、文体に反映しました` : '取り込んで、文体に反映しました',
+          text:
+            added && added.added === 0
+              ? `新しい投稿はありませんでした（取り込み済みの最新は ${dayLabel(newest)} の投稿）。文体はそのままです`
+              : added
+                ? `新しく ${added.added} 件を取り込み（読み取り ${added.fetched} 件）、文体に反映しました`
+                : '取り込んで、文体に反映しました',
           kind: 'ok',
         })
     )
