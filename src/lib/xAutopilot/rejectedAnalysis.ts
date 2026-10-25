@@ -58,6 +58,20 @@ export function describeRejectedWords(analysis: RejectedAnalysis): string[] {
   return analysis.words.slice(0, 14).map((w) => `${w.word}（取り消し${w.rejected}回${w.kept > 0 ? `、残した文には${w.kept}回` : ''}）`)
 }
 
+/**
+ * AI に渡す「取り消された言葉」の一覧。上位14個の説明に加えて、「使わない」と決めた言葉（blockedWords）は、
+ * 14個に入っていなくても必ず入れる。入れないと、AI は禁止の言葉を知らないまま書き、案が毎回検査で落ちて、
+ * 書き直しと毎回のやり直しでAI費用だけがかかり続ける。
+ */
+export function rejectedWordLines(analysis: RejectedAnalysis): string[] {
+  const lines = describeRejectedWords(analysis)
+  const top = new Set(analysis.words.slice(0, 14).map((w) => w.word))
+  const extra = blockedWords(analysis)
+    .filter((w) => !top.has(w))
+    .map((w) => `${w}（取り消しが多いので使用禁止）`)
+  return [...lines, ...extra]
+}
+
 export function describeRejectedTopics(analysis: RejectedAnalysis): string[] {
   return analysis.topics.map((t) => `${t.name}（取り消した${t.total}件のうち${t.count}件）`)
 }
