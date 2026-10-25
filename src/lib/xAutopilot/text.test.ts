@@ -9,6 +9,7 @@ import {
   similarity,
   SIMILARITY_LIMIT,
   uncertainIn,
+  vagueGameIn,
 } from './text'
 import type { HistoryPost } from './types'
 
@@ -178,5 +179,17 @@ describe('お手本は「いまの書き方」の範囲から選ぶ', () => {
     const allBroken = history.slice(0, 5).map((p) => ({ ...p, at: '不明' }))
     expect(recentWindow(allBroken, 1)).toEqual(allBroken)
     expect(recentWindow([], 12)).toEqual([])
+  })
+})
+
+describe('どのゲームか分からないゲームの話', () => {
+  it('ゲームの用語があって、題名（「」『』）が無ければ、その用語を返す', () => {
+    expect(vagueGameIn('回復アイテム、大事にしすぎて結局ずっと使えん。')).toEqual(expect.arrayContaining(['回復アイテム', 'アイテム']))
+    expect(vagueGameIn('ガチャ爆死した')).toContain('ガチャ')
+  })
+
+  it('題名を書いてあれば、止めない。ゲームの用語が無ければ、止めない', () => {
+    expect(vagueGameIn('「パズドラ」の周回、毎日やってる。')).toEqual([])
+    expect(vagueGameIn('今日はお昼にラーメンを食べた。')).toEqual([])
   })
 })

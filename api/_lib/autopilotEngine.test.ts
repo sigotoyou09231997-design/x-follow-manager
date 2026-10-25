@@ -583,6 +583,14 @@ describe('試し書き', () => {
     expect(store.rows.get(OWNER)!.usage.yen).toBeCloseTo(6, 5)
   })
 
+  it('どのゲームか分からないゲームの話は、使えない案として理由つきで返す', async () => {
+    const store = ready()
+    const { deps, writePost } = makeDeps(store)
+    writePost.mockResolvedValue('回復アイテム、大事にしすぎて結局ずっと使えん。')
+    const r = await previewPost(deps, OWNER)
+    expect(r.problems.join('、')).toContain('どのゲームか分からないゲームの話')
+  })
+
   it('検査に落ちた案も、理由つきで返す（見て判断してもらう）', async () => {
     const store = ready()
     const { deps, writePost } = makeDeps(store)
