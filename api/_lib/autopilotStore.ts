@@ -85,6 +85,8 @@ export interface AutopilotStore {
    * 重複と分かって費用だけがかかる、ということが起きないように。
    */
   activeSlotKeys(userId: string, sinceDate: string): Promise<string[]>
+  /** いま確認待ち（draft）の自動運転の予約が何件あるか。AIの文を、確認待ちが無くなってから1件ずつ作るために数える。 */
+  draftCount(userId: string): Promise<number>
 }
 
 interface DbRow {
@@ -334,6 +336,18 @@ export function supabaseAutopilotStore(client: SupabaseClient = getSupabaseAdmin
         return []
       }
       return (data ?? []).map((r) => r.ai_prompt.slice(AUTOPILOT_PREFIX.length))
+    },
+
+    async draftCount(userId) {
+      const { count, error } = await client
+        .from('scheduled_posts')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .like('ai_prompt', `${AUTOPILOT_PREFIX}%`)
+        .eq('status', 'draft')
+      // 数えられないときは「何件かある」として作らない（読めないまま作ると、費用だけが積み上がる）
+      if (error) throw new Error(`確認待ちの件数を読めませんでした: ${error.message}`)
+      return count ?? 0
     },
   }
 }

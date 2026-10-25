@@ -704,7 +704,9 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
 
         {!blocked && (
           <p className="xap__muted">
-            1日{form.postsPerDay}回 × {form.horizonDays}日先まで ＝ 予約は最大{form.postsPerDay * form.horizonDays}本が並びます
+            {form.requireApproval
+              ? '確認待ちは1件ずつ作ります（投稿可能にする・取り消すと、次の1件を作ります）'
+              : `1日${form.postsPerDay}回 × ${form.horizonDays}日先まで ＝ 予約は最大${form.postsPerDay * form.horizonDays}本が並びます`}
           </p>
         )}
         <p className="xap__estimate">

@@ -73,6 +73,8 @@ export interface EngineDeps {
    * 省略すると、いつでも呼んでよい（画面からの操作）。
    */
   canStartAi?: () => boolean
+  /** 確認待ちにしておく文の数の上限。省略すると MAX_PENDING_DRAFTS（1件ずつ）。 */
+  maxPendingDrafts?: number
 }
 
 /** 文体をまとめるのに最低限いる投稿数。これより少ないと、特徴ではなく偶然を拾ってしまう。 */
@@ -84,6 +86,9 @@ const SAMPLES_PER_POST = 12
 /** 内容の重なりを調べる、直近の自動運転の投稿数と、ご本人の実際の投稿数。 */
 /** 確認してから投稿する設定で、確認待ちを作り置く日数の下限。 */
 export const APPROVAL_HORIZON_DAYS = 4
+
+/** 確認してから投稿する設定で、同時に確認待ちにしておく文の数。AIの文は1件ずつ作る（本人の指示。費用も抑えられる）。 */
+export const MAX_PENDING_DRAFTS = 1
 const RECENT_AUTOPILOT = 15
 /** 使いすぎの言葉を数えるために読む、自動運転の最近の本数。プロンプトに載せるのは RECENT_AUTOPILOT 件だけ。 */
 const RECENT_AUTOPILOT_FOR_WORDS = 60
@@ -432,6 +437,13 @@ export async function topUp(
 
   const now = deps.now()
   const { settings } = row
+  // 確認してから投稿する設定では、確認待ちが残っているあいだは新しく作らない（投稿可能にする・取り消すと、次の1件を作る）。
+  // 先に何日ぶんも作り置くと、読まれないまま取り消される文にAI費用がかかるため。
+  if (settings.requireApproval) {
+    const room = (deps.maxPendingDrafts ?? MAX_PENDING_DRAFTS) - (await deps.store.draftCount(row.userId))
+    if (room <= 0) return result
+    options = { ...options, maxGenerations: Math.min(options.maxGenerations, room) }
+  }
   const sinceDate = localDate(now.getTime() - 86_400_000, settings.timeZone)
   // 本人が「取り消す」で外した枠は、記録に残っていても「空いた枠」として、あらためて別の文で作り直す。
   // 以前は「取り消した枠は作り直さない」だったが、今日・明日の枠を取り消すと、その日の投稿が無くなり、

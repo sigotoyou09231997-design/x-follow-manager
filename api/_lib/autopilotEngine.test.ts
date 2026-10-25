@@ -642,10 +642,32 @@ describe('ON / OFF / 設定', () => {
 
     it('オンのあいだ、並べる投稿は確認待ち（draft）。時刻が来ても投稿されない状態で入る', async () => {
       const store = ready({ settings: withApproval })
-      const { deps } = makeDeps(store)
+      const { deps } = makeDeps(store, { maxPendingDrafts: 99 })
       const r = await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
       expect(r.created).toBe(2)
       expect(store.posts.map((p) => p.status)).toEqual(['draft', 'draft'])
+    })
+
+    it('確認待ちは1件ずつ作る。確認待ちが残っているあいだは、新しく作らない', async () => {
+      const store = ready({ settings: withApproval })
+      const { deps } = makeDeps(store)
+      const first = await topUp(deps, await store.get(OWNER), { maxGenerations: 5 })
+      expect(first.created).toBe(1)
+      expect(store.posts.map((p) => p.status)).toEqual(['draft'])
+      // 確認待ちが残っているので、AIを呼ばない（費用がかからない）
+      const again = await topUp(deps, await store.get(OWNER), { maxGenerations: 5 })
+      expect(again).toEqual({ created: 0, generated: 0 })
+      expect(store.posts).toHaveLength(1)
+    })
+
+    it('確認待ちが無くなる（投稿可能にした・取り消した）と、次の1件を作る', async () => {
+      const store = ready({ settings: withApproval })
+      const { deps } = makeDeps(store)
+      await topUp(deps, await store.get(OWNER), { maxGenerations: 5 })
+      store.posts[0].status = 'scheduled' // 投稿可能にした
+      const next = await topUp(deps, await store.get(OWNER), { maxGenerations: 5 })
+      expect(next.created).toBe(1)
+      expect(store.posts.map((p) => p.status)).toEqual(['scheduled', 'draft'])
     })
 
     it('オフなら、これまでどおり確認なしの予約中（scheduled）で入る', async () => {
@@ -671,7 +693,7 @@ describe('ON / OFF / 設定', () => {
     it('取り消した枠のうち、近い枠（2時間以内）は空けたまま、遠い枠は作り直す', async () => {
       const store = ready({ settings: { ...withApproval, postsPerDay: 2, horizonDays: 2 } })
       // 日本時間 14:00（今日の残りの枠が、2時間以内に入る時刻）
-      const { deps } = makeDeps(store, { now: () => new Date('2026-10-10T05:00:00.000Z') })
+      const { deps } = makeDeps(store, { now: () => new Date('2026-10-10T05:00:00.000Z'), maxPendingDrafts: 99 })
       await topUp(deps, await store.get(OWNER), { maxGenerations: 40 })
       const lead = (p: { at: string }) => Date.parse(p.at) - deps.now().getTime()
       const near = store.posts.filter((p) => lead(p) < 2 * 3600_000)
@@ -698,7 +720,7 @@ describe('ON / OFF / 設定', () => {
 
     it('もう朝（6時以降）なら、今日の午前中の枠は作らない。午後と明日以降の枠は作る', async () => {
       const store = ready({ settings: { ...withApproval, postsPerDay: 3, horizonDays: 2 } })
-      const { deps } = makeDeps(store, { now: () => new Date('2026-10-10T00:00:00.000Z') }) // 日本時間 9:00
+      const { deps } = makeDeps(store, { now: () => new Date('2026-10-10T00:00:00.000Z'), maxPendingDrafts: 99 }) // 日本時間 9:00
       await topUp(deps, await store.get(OWNER), { maxGenerations: 10 })
 
       const parts = (iso: string) =>
@@ -734,7 +756,7 @@ describe('ON / OFF / 設定', () => {
 
     it('止めると、確認待ちの予約も取り消す', async () => {
       const store = ready({ settings: withApproval })
-      const { deps } = makeDeps(store)
+      const { deps } = makeDeps(store, { maxPendingDrafts: 99 })
       await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
       const r = await disable(deps, OWNER)
       expect(r.canceled).toBe(2)
@@ -743,7 +765,7 @@ describe('ON / OFF / 設定', () => {
 
     it('オフに切り替えたら、確認待ちだった予約はすべて投稿可能（scheduled）になる。オンに戻しても、すでに投稿可能のものは動かさない', async () => {
       const store = ready({ settings: withApproval })
-      const { deps } = makeDeps(store)
+      const { deps } = makeDeps(store, { maxPendingDrafts: 99 })
       await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
 
       await saveSettings(deps, OWNER, { requireApproval: false })
@@ -755,7 +777,7 @@ describe('ON / OFF / 設定', () => {
 
     it('ほかの設定を保存しただけでは、確認待ちは動かない', async () => {
       const store = ready({ settings: withApproval })
-      const { deps } = makeDeps(store)
+      const { deps } = makeDeps(store, { maxPendingDrafts: 99 })
       await topUp(deps, await store.get(OWNER), { maxGenerations: 2 })
       await saveSettings(deps, OWNER, { quality: 'saver' })
       expect(store.posts.map((p) => p.status)).toEqual(['draft', 'draft'])
@@ -1178,6 +1200,7 @@ describe('最新の履歴を毎回取り入れる・自動運転の投稿は学�
       const drinks = ['ハイボールが好きすぎて困る', 'ジンソーダの新作を試した', '晩酌の時間が一日の楽しみ', 'ウイスキーの香りが落ち着く']
       let n = 0
       const { deps } = makeDeps(store, {
+        maxPendingDrafts: 99,
         writePost: (async (input: Input & { length?: { min: number }; onUsage?: (u: { inputTokens: number; outputTokens: number }) => void }) => {
           seen.push(input)
           input.onUsage?.({ inputTokens: 10, outputTokens: 10 })
@@ -1211,7 +1234,7 @@ describe('最新の履歴を毎回取り入れる・自動運転の投稿は学�
 describe('確認してから投稿する設定では、確認待ちを多め（最低4日先まで）に作り置く', () => {
   it('設定が「1日先まで」でも、4日ぶんの枠を作る。確認なしの設定は、設定どおり', async () => {
     const approval = ready({ settings: { ...DEFAULT_SETTINGS, requireApproval: true, postsPerDay: 2, horizonDays: 1 } })
-    const a = makeDeps(approval)
+    const a = makeDeps(approval, { maxPendingDrafts: 99 })
     await topUp(a.deps, await approval.get(OWNER), { maxGenerations: 40 })
     const days = new Set(approval.posts.map((p) => p.slotKey.slice(0, 10)))
     expect(days.size).toBeGreaterThanOrEqual(4)
