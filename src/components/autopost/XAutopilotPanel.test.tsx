@@ -726,6 +726,9 @@ describe('XAutopilotPanel: 前の投稿を X から消す（スイッチ）', ()
 
 describe('XAutopilotPanel: 投稿可能（確認してから投稿する）', () => {
   const future = (hours: number) => new Date(Date.now() + hours * 3600_000).toISOString()
+  // 時刻は午前（7〜12時）か午後（12〜23時）の日本時間。いつ走らせても同じに確かめられるよう、時間帯だけ見る。
+  const jstHour = (iso: string) => Number(new Date(iso).toLocaleString('en-GB', { timeZone: 'Asia/Tokyo', hour: '2-digit', hour12: false }))
+
 
   it('投稿可能の枠と確認待ちの枠に分かれる。確認待ちには「投稿可能にする」、投稿可能には「確認待ちに戻す」が出る', async () => {
     posts.list = [post('a', { status: 'draft', scheduledAt: future(3), segments: [{ text: '確認待ちの文', media: [] }] }), post('b', { scheduledAt: future(6), segments: [{ text: '投稿可能の文', media: [] }] })]
@@ -755,7 +758,7 @@ describe('XAutopilotPanel: 投稿可能（確認してから投稿する）', ()
     expect(screen.queryByRole('group', { name: /確認待ち/ })).not.toBeInTheDocument()
   })
 
-  it('「投稿可能にする」で scheduled にし、投稿可能な予約の中でいちばん早ければ、5分後に前倒しする。前の時刻の空き枠も作り直してもらう', async () => {
+  it('「投稿可能にする」で scheduled にし、午前（7〜12時）か午後（12〜23時）のどこかの時刻に決める。前の時刻の空き枠も作り直してもらう', async () => {
     posts.list = [post('a', { status: 'draft', scheduledAt: future(3) })]
     render(<XAutopilotPanel />)
     fireEvent.click(await screen.findByRole('button', { name: 'この予約を投稿可能にする' }))
@@ -764,30 +767,31 @@ describe('XAutopilotPanel: 投稿可能（確認してから投稿する）', ()
     const [id, patch] = posts.update.mock.calls[0]
     expect(id).toBe('a')
     expect(patch.status).toBe('scheduled')
-    const lead = new Date(patch.scheduledAt).getTime() - Date.now()
-    expect(lead).toBeGreaterThan(4 * 60_000)
-    expect(lead).toBeLessThanOrEqual(5 * 60_000)
-    expect(await screen.findByText(/いちばん早い投稿可能な予約なので、.*（5分後）に投稿されます/)).toBeInTheDocument()
+    expect(new Date(patch.scheduledAt).getTime()).toBeGreaterThan(Date.now())
+    const h = jstHour(patch.scheduledAt)
+    expect(h >= 7 && h < 23).toBe(true)
     await waitFor(() => expect(api.refillAutopilot).toHaveBeenCalledTimes(1))
   })
 
-  it('これより前に投稿可能な予約があるときは、その列のすぐ後ろ（30分以上あけた次の枠）へ詰める。元の時刻より早く、前の予約より後', async () => {
-    const early = future(2)
-    const original = future(30)
-    posts.list = [post('early', { scheduledAt: early }), post('a', { status: 'draft', scheduledAt: original })]
+  it('すでに投稿可能な予約があれば、同じ半日には入れない（午前と午後で1本ずつ）', async () => {
+    const taken = future(1)
+    posts.list = [post('early', { scheduledAt: taken }), post('a', { status: 'draft', scheduledAt: future(30) })]
     render(<XAutopilotPanel />)
     fireEvent.click(await screen.findByRole('button', { name: 'この予約を投稿可能にする' }))
 
     await waitFor(() => expect(posts.update).toHaveBeenCalledTimes(1))
-    const [id, patch] = posts.update.mock.calls[0]
-    expect(id).toBe('a')
-    expect(patch.status).toBe('scheduled')
+    const patch = posts.update.mock.calls[0][1]
     const moved = new Date(patch.scheduledAt).getTime()
-    expect(moved).toBeGreaterThanOrEqual(new Date(early).getTime() + 30 * 60_000)
-    expect(moved).toBeLessThan(new Date(original).getTime())
+    expect(moved).toBeGreaterThanOrEqual(new Date(taken).getTime() + 30 * 60_000)
+    const sameHalf = (iso: string) => {
+      const h = jstHour(iso)
+      const day = new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' })
+      return `${day}${h < 12 ? 'am' : 'pm'}`
+    }
+    expect(sameHalf(patch.scheduledAt)).not.toBe(sameHalf(taken))
   })
 
-  it('前にあるのが確認待ちだけなら、前倒しする（確認待ちは順番を塞がない）', async () => {
+  it('前にあるのが確認待ちだけなら、確認待ちは順番を塞がない（時刻が決まる）', async () => {
     posts.list = [
       post('early', { status: 'draft', scheduledAt: future(2) }),
       post('a', { status: 'draft', scheduledAt: future(30) }),
@@ -800,12 +804,14 @@ describe('XAutopilotPanel: 投稿可能（確認してから投稿する）', ()
     expect(posts.update.mock.calls[0][1].scheduledAt).toBeDefined()
   })
 
-  it('時刻を過ぎた確認待ちは、その旨を出し、投稿可能にすると1分以内に投稿されると伝える', async () => {
+  it('確認待ちには時刻を出さない。時刻を過ぎていても札は出さず、投稿可能にすると新しい時刻が決まる', async () => {
     posts.list = [post('a', { status: 'draft' })] // 既定の時刻は過去
     render(<XAutopilotPanel />)
-    expect(await screen.findByText('確認待ち（時刻を過ぎています）')).toBeInTheDocument()
+    await screen.findByRole('button', { name: 'この予約を投稿可能にする' })
+    expect(screen.queryByText('確認待ち（時刻を過ぎています）')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'この予約を投稿可能にする' }))
-    expect(await screen.findByText(/時刻を過ぎているので、1分以内に投稿されます/)).toBeInTheDocument()
+    await waitFor(() => expect(posts.update).toHaveBeenCalledTimes(1))
+    expect(new Date(posts.update.mock.calls[0][1].scheduledAt).getTime()).toBeGreaterThan(Date.now())
   })
 
   it('「確認待ちに戻す」で draft に戻す。このときは作り直しを頼まない', async () => {
@@ -939,21 +945,15 @@ describe('XAutopilotPanel: 取り消した文の分析', () => {
   })
 })
 
-describe('XAutopilotPanel: 「投稿可能にする」を押す前に、投稿される時刻を見せる', () => {
+describe('XAutopilotPanel: 「投稿可能にする」を押す前に、投稿される半日（午前・午後）を見せる', () => {
   const future = (hours: number) => new Date(Date.now() + hours * 3600_000).toISOString()
 
-  it('ボタンの中に「押すと、◯時に投稿されます」と出る（いちばん早い投稿可能な予約になるなら、5分後の時刻）', async () => {
+  it('ボタンの中に「押すと、◯日の午前（午後）のどこかで投稿されます」と出る。確認待ちのカードに時刻は出ない', async () => {
     posts.list = [post('a', { status: 'draft', scheduledAt: future(30) })]
     render(<XAutopilotPanel />)
     const button = await screen.findByRole('button', { name: 'この予約を投稿可能にする' })
-    expect(within(button).getByText(/^押すと、(今日|明日) \d{2}:\d{2} に投稿されます$/)).toBeInTheDocument()
-  })
-
-  it('時刻を過ぎている予約は「1分以内に投稿されます」と出る', async () => {
-    posts.list = [post('a', { status: 'draft' })] // 既定の時刻は過去
-    render(<XAutopilotPanel />)
-    const button = await screen.findByRole('button', { name: 'この予約を投稿可能にする' })
-    expect(within(button).getByText('押すと、1分以内に投稿されます')).toBeInTheDocument()
+    expect(within(button).getByText(/^押すと、.+の(午前|午後)のどこかで投稿されます$/)).toBeInTheDocument()
+    expect(screen.queryByText(/あと\d+時間/)).not.toBeInTheDocument()
   })
 
   it('自分で決めた時刻の予約は、その時刻が出る（動かさない）', async () => {

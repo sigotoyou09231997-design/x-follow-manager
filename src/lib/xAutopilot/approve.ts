@@ -7,7 +7,7 @@
 //   ・投稿可能な予約の中でいちばん早ければ、いますぐ側へ前倒しする。前に投稿可能な予約があれば、
 //     その列のすぐ後ろ（次に空いている枠）へ詰める。
 
-import { toZonedParts } from '../schedule/repeat.js'
+import { toZonedParts, zonedTimeToUtc } from '../schedule/repeat.js'
 
 /** 1日の投稿数の上限（設定の「1日の投稿数」）と、日の数え方（設定の地域）。 */
 export interface DailyCap {
@@ -116,4 +116,91 @@ export function soonestApprovalTime(
   const floor = Math.max(Math.max(...earlier) + MIN_POST_GAP_MS, now + APPROVE_LEAD_MS)
   const next = slotTimes.filter((t) => t >= floor && hasRoom(t)).sort((a, b) => a - b)[0]
   return next !== undefined && next < current ? new Date(next).toISOString() : undefined
+}
+
+// ── 「午前に1回・午後に1回」の決め方 ──────────────────────────────────────────
+// 本人は確認待ちの時刻を見ない。「投稿可能にする」を押したとき、午前か午後の、まだ空いている
+// いちばん近い半日の中から、ランダムな時刻を1つ決める（毎日同じ時刻に出て不自然にならないため）。
+// 午前 = 7:00〜12:00（本人の指定。設定の時間帯の始まりには従わない）、午後 = 12:00〜設定の時間帯の終わり（いつでもよい）。
+// 1つの半日には1本まで。
+// 動かすのは押した1回だけ、という決まり（上）はそのまま。ここも押した予約の時刻しか決めない。
+
+export type DayPart = 'morning' | 'afternoon'
+
+export interface ApprovalWindow {
+  part: DayPart
+  /** 今日から数えた日数（0=今日）。 */
+  dayOffset: number
+  /** 投稿してよい範囲（ms）。前後の予約との最低間隔・いまからの猶予を引いたあと。 */
+  from: number
+  to: number
+}
+
+export interface WindowSettings {
+  windowStart: string
+  windowEnd: string
+  timeZone: string
+  postsPerDay: number
+}
+
+const NOON_MIN = 12 * 60
+/** 午前の始まり（7時）。 */
+const MORNING_START_MIN = 7 * 60
+const hmToMin = (hm: string): number => {
+  const [h, m] = hm.split(':')
+  return (Number(h) || 0) * 60 + (Number(m) || 0)
+}
+
+/** 窓の幅の下限。これより狭い（もうすぐ終わる）半日は、ランダムにする意味が無いので飛ばす。 */
+const MIN_WINDOW_MS = 10 * 60_000
+
+/** 見つけるのを諦めるまでの日数。 */
+const SEARCH_DAYS = 14
+
+/**
+ * 押した予約を入れる、いちばん近い空いた半日。見つからなければ undefined。
+ * `autopilot` は同じ人の自動運転の予約すべて（投稿済みも含む）。押した予約自身は数えない。
+ * 予約が入っている半日・1日の上限に達した日・間隔が足りない半日は飛ばす。
+ */
+export function nextApprovalWindow(post: PostTime, autopilot: PostTime[], now: number, settings: WindowSettings): ApprovalWindow | undefined {
+  const { timeZone } = settings
+  const times = autopilot
+    .filter((o) => o.id !== post.id && (o.status === 'posted' || o.status === 'publishing' || o.status === 'scheduled'))
+    .map((o) => at(o.scheduledAt))
+    .filter((t): t is number => t !== undefined)
+  const earliest = earliestAllowed(now, lastPostedAt(autopilot.filter((o) => o.id !== post.id)), APPROVE_LEAD_MS)
+  const cap: DailyCap = { postsPerDay: settings.postsPerDay, timeZone }
+  const today = toZonedParts(now, timeZone)
+  const endMin = hmToMin(settings.windowEnd)
+  const parts: Array<{ part: DayPart; from: number; to: number }> = [
+    { part: 'morning', from: MORNING_START_MIN, to: NOON_MIN },
+    { part: 'afternoon', from: NOON_MIN, to: endMin },
+  ]
+
+  for (let dayOffset = 0; dayOffset < SEARCH_DAYS; dayOffset++) {
+    const d = new Date(Date.UTC(today.year, today.month - 1, today.day + dayOffset))
+    const toMs = (min: number) => zonedTimeToUtc(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), Math.floor(min / 60), min % 60, timeZone)
+    for (const { part, from, to } of parts) {
+      if (to - from <= 0) continue
+      const start = toMs(from)
+      const end = toMs(to)
+      if (times.some((t) => t >= start && t < end)) continue // この半日には、もう1本ある
+      if (postsOnDay(autopilot, start, cap, post.id) >= cap.postsPerDay) continue
+      const before = times.filter((t) => t < start)
+      const after = times.filter((t) => t >= end)
+      const lo = Math.max(start, earliest, before.length > 0 ? Math.max(...before) + MIN_POST_GAP_MS : start)
+      const hi = Math.min(end, after.length > 0 ? Math.min(...after) - MIN_POST_GAP_MS : end)
+      if (hi - lo >= MIN_WINDOW_MS) return { part, dayOffset, from: lo, to: hi }
+    }
+  }
+  return undefined
+}
+
+/** 半日の中から、ランダムな時刻（分単位）を1つ選ぶ。rng は 0以上1未満の乱数（テストでは固定する）。 */
+export function pickApprovalTime(window: ApprovalWindow, rng: () => number = Math.random): string {
+  const span = window.to - window.from
+  const ms = window.from + Math.floor(rng() * span)
+  const minute = 60_000
+  const rounded = Math.min(Math.max(Math.ceil(ms / minute) * minute, window.from), window.to - 1)
+  return new Date(rounded).toISOString()
 }
