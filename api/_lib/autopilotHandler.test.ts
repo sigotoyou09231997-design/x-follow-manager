@@ -76,7 +76,7 @@ describe('ログインと形式', () => {
 })
 
 describe('状態', () => {
-  it('GET で、設定・履歴の件数と日付・文体のまとめの有無・今月の使用額を返す（履歴の本文も、まとめの中身も返さない）', async () => {
+  it('GET で、設定・履歴の件数と日付・文体のまとめの有無・今月の使用額を返す（履歴の本文は返さない。まとめの中身と最近の傾向は返す）', async () => {
     const { handler } = setup(ready())
     const r = await call(handler, { method: 'GET', ...AS_OWNER })
     expect(r.status).toBe(200)
@@ -89,9 +89,9 @@ describe('状態', () => {
     expect(state.xAccount).toEqual({ username: 'me' })
     expect(state.usage.yen).toBe(0)
     expect(JSON.stringify(state)).not.toContain('過去の投稿その') // 履歴の本文は送らない
-    // 文体のまとめの中身（要約・語尾・話題）は、本人の希望で返事に載せない。見られるのは Supabase の x_autopilot.profile だけ。
-    expect(state.profile).toBeUndefined()
-    expect(JSON.stringify(state)).not.toContain('ゆるい独り言が多い')
+    // 文体のまとめの中身（要約・語尾・話題）と最近の傾向は、本人の希望（2026-10-25）で、画面に出すために返す。
+    expect(state.profile.summary).toBe('ゆるい独り言が多い')
+    expect(state.recentStyle).toEqual(expect.any(String))
   })
 
   it('文体のまとめが無ければ profileReady は false', async () => {
@@ -131,7 +131,7 @@ describe('操作', () => {
     const r = await call(setup(store).handler, { ...AS_OWNER, body: { action: 'buildProfile' } })
     expect(r.status).toBe(200)
     expect(r.body.state.profileReady).toBe(true)
-    expect(JSON.stringify(r.body)).not.toContain('ゆるい独り言が多い') // 中身は返さない（保存だけする）
+    expect(r.body.state.profile.summary).toBe('ゆるい独り言が多い') // 画面に出すので、中身も返す
     expect(store.rows.get(OWNER)?.profile?.summary).toBe('ゆるい独り言が多い')
   })
 

@@ -123,10 +123,16 @@ export interface AutopilotState {
   xAccount: { username: string } | null
   history: { total: number; fetchedAt: string | null; newestAt: string | null; oldestAt: string | null }
   /**
-   * 文体のまとめがあるか。**中身は画面にも返事にも出さない**（本人の希望。見たいときは Supabase の
-   * x_autopilot.profile を直接見る）。画面は「まとめ済みか」だけを知れば足りる。
+   * 文体のまとめがあるか。
+   * 以前は中身（要約・語尾・話題）を画面にも返事にも出さなかった（本人の希望。見たいときは Supabase の
+   * x_autopilot.profile を直接見る）が、2026-10-25に本人が「裏で見えていた分析・傾向をトップにも出してほしい」と
+   * 変えたので、profile と recentStyle も返す。
    */
   profileReady: boolean
+  /** 文体のまとめの中身。まとめが無ければ null。 */
+  profile: StyleProfile | null
+  /** 直近の投稿の書き方の傾向（長さ・句点・絵文字などの割合）。少なすぎれば null。 */
+  recentStyle: string | null
   profileBuiltAt: string | null
   /** 今月ぶん（月が変わっていれば 0 からの値）。 */
   usage: AutopilotUsage

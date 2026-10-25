@@ -1603,4 +1603,61 @@
   .xap--summary section[aria-label='あなたの文体'] {
     order: 4;
   }
+
+  .xap--summary section[aria-label='文体のまとめ'] {
+    order: 5;
+  }
+
+  .xap--summary section[aria-label='取り消した文の分析'] {
+    order: 6;
+  }
+}
+
+/* 文体のまとめと傾向（トップ・詳細） */
+.style-insights__list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 14px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.style-insights__list dt {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.style-insights__list dd {
+  margin: 0;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+
+.style-insights__themes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.style-insights__themes li {
+  display: flex;
+  flex-direction: column;
+}
+
+.style-insights__themes span {
+  color: var(--text-muted);
+}
+
+.style-insights__recent {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-line;
+  color: var(--text-h);
 }
