@@ -535,6 +535,12 @@ export async function topUp(
     }
 
     try {
+      // AIが書いているあいだに、ほかの実行（毎分の補充・画面からの作り直し）が先に確認待ちを作っていることがある。
+      // 上で数えたのは書く前なので、入れる直前にもう一度数える（数えないと、確認待ちが2件になる）。
+      // 先に作られていたら、いま書いた文は捨てる（費用は戻らないが、確認待ちを増やさない）。
+      if (settings.requireApproval && (await deps.store.draftCount(row.userId)) >= (deps.maxPendingDrafts ?? MAX_PENDING_DRAFTS)) {
+        break
+      }
       const outcome = await deps.store.insertPost({
         userId: row.userId,
         at: slot.at,
