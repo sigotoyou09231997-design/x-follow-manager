@@ -583,6 +583,14 @@ describe('試し書き', () => {
     expect(store.rows.get(OWNER)!.usage.yen).toBeCloseTo(6, 5)
   })
 
+  it('AIが改行を入れても、取り除いて1つの文章にする', async () => {
+    const store = ready()
+    const { deps, writePost } = makeDeps(store)
+    writePost.mockResolvedValue('AIで開発すると、\n楽しいけど\n課金が怖い。と思うことが最近よくある、ただそれだけの話')
+    const r = await previewPost(deps, OWNER)
+    expect(r.text).toBe('AIで開発すると、楽しいけど課金が怖い。と思うことが最近よくある、ただそれだけの話')
+  })
+
   it('どのゲームか分からないゲームの話は、使えない案として理由つきで返す', async () => {
     const store = ready()
     const { deps, writePost } = makeDeps(store)

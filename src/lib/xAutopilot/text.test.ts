@@ -9,6 +9,7 @@ import {
   similarity,
   SIMILARITY_LIMIT,
   uncertainIn,
+  flattenLines,
   vagueGameIn,
 } from './text'
 import type { HistoryPost } from './types'
@@ -191,5 +192,21 @@ describe('どのゲームか分からないゲームの話', () => {
   it('題名を書いてあれば、止めない。ゲームの用語が無ければ、止めない', () => {
     expect(vagueGameIn('「パズドラ」の周回、毎日やってる。')).toEqual([])
     expect(vagueGameIn('今日はお昼にラーメンを食べた。')).toEqual([])
+  })
+})
+
+describe('改行をなくして1つの文章にする', () => {
+  it('日本語どうしは詰める。前後の空白・連続した改行も取る', () => {
+    expect(flattenLines('AIで開発すると、\n楽しいけど\n課金が怖い。')).toBe('AIで開発すると、楽しいけど課金が怖い。')
+    expect(flattenLines('  朝だ。 \r\n\n 眠い。 ')).toBe('朝だ。眠い。')
+  })
+
+  it('英数字どうしがつながるときだけ、空白を1つ入れる', () => {
+    expect(flattenLines('ChatGPT\nCursor')).toBe('ChatGPT Cursor')
+    expect(flattenLines('Claudeで\n開発')).toBe('Claudeで開発')
+  })
+
+  it('改行が無ければ、そのまま', () => {
+    expect(flattenLines('今日はお昼にラーメンを食べた。')).toBe('今日はお昼にラーメンを食べた。')
   })
 })

@@ -24,6 +24,7 @@ import {
   mentionsMinor,
   pickSamples,
   SIMILARITY_LIMIT,
+  flattenLines,
   uncertainIn,
   vagueGameIn,
 } from '../../src/lib/xAutopilot/text.js'
@@ -338,7 +339,7 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
   for (let attempt = 0; attempt <= MAX_REWRITES; attempt++) {
     // 書き直しは、時間に余裕があるときだけ。無ければ、いまある案と理由をそのまま返す。
     if (attempt > 0 && deps.canStartAi && !deps.canStartAi()) break
-    const text = await deps.writePost({
+    const rawText = await deps.writePost({
       apiKey,
       quality: row.settings.quality,
       profile: ctx.profile,
@@ -366,6 +367,8 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
         usage.generations += 1
       },
     })
+    // AIが入れた改行は取り除く（本人の指示。ひとつながりの文章にする）
+    const text = rawText ? flattenLines(rawText) : rawText
     const problems = text ? checkPost(text, against) : ['本文が空']
     // 使いすぎの言葉が入っていたら、使えない案として、理由を伝えて書き直させる。
     if (text) {
@@ -412,7 +415,7 @@ export async function revisePost(
   if (overBudget(usage, row.settings, onePostYen(row.settings.quality))) throw new EngineError(budgetMessage(row.settings))
 
   const history = await humanHistory(deps, row)
-  const revised = await deps.revisePost({
+  const revisedRaw = await deps.revisePost({
     apiKey,
     quality: row.settings.quality,
     profile: row.profile,
@@ -426,6 +429,7 @@ export async function revisePost(
     },
   })
   await deps.store.save(userId, { usage })
+  const revised = revisedRaw ? flattenLines(revisedRaw) : undefined
   // 似すぎの検査は、元の文と似ているのが当たり前なので、ここでは使わない（長さ・URL・天気・未成年だけ見る）。
   const problems = revised ? checkPost(revised, []) : ['AIが直した案を作れませんでした']
   return { text: revised, problems, usage }
