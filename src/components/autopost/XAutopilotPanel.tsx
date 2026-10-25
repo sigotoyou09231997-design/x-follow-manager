@@ -450,10 +450,14 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
   const approvedPosts = upcoming.filter((p) => p.status === 'scheduled')
   const waitingPosts = upcoming.filter((p) => p.status === 'draft')
 
+  // 確認してから投稿する設定で自動運転が動いているあいだは、確認待ちの枠を、0件でも出しておく。
+  // 取り消す・投稿可能にすると確認待ちが0件になり、枠ごと消えて2列が1列に切り替わっていた。枠を残して「自動生成中」と出し、
+  // できたらその枠に入るようにする（PCでも2列のまま）。
+  const showWaitingZone = state.settings.requireApproval && state.enabled
   const upcomingSection = (
     <section aria-label="これから投稿される予定">
       <h2 className="autopost__sub">{variant === 'summary' ? 'Xの、これから投稿される予定' : 'これから投稿される予定'}</h2>
-      {upcoming.length === 0 ? (
+      {upcoming.length === 0 && !showWaitingZone ? (
         <p className="autopost__empty">まだありません。自動運転を始めると、ここに並びます。</p>
       ) : (
         <div className="xap__zones">
@@ -470,14 +474,22 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
             )}
           </div>
 
-          {waitingPosts.length > 0 && (
+          {(waitingPosts.length > 0 || showWaitingZone) && (
             <div className="xap__zone xap__zone--draft" role="group" aria-labelledby="xap-zone-draft">
               <header className="xap__zone-head">
                 <h3 id="xap-zone-draft" className="xap__zone-title">確認待ち</h3>
-                <span className="xap__zone-count">{waitingPosts.length}件</span>
+                {waitingPosts.length > 0 && <span className="xap__zone-count">{waitingPosts.length}件</span>}
                 <p className="xap__zone-note">「投稿可能にする」を押すまで、投稿されません</p>
               </header>
-              <ul className="autopost__history xap__upcoming">{waitingPosts.map(renderPost)}</ul>
+              {waitingPosts.length > 0 ? (
+                <ul className="autopost__history xap__upcoming">{waitingPosts.map(renderPost)}</ul>
+              ) : state.lastError && refilling === 0 ? (
+                <p className="xap__zone-empty">いまは作れていません。しばらくすると、自動でもう一度作ります。</p>
+              ) : (
+                <p className="xap__zone-empty xap__zone-generating" role="status">
+                  自動生成中です…（数十秒かかります）。できると、ここに出ます。
+                </p>
+              )}
             </div>
           )}
         </div>
