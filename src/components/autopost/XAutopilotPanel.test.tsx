@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
   startAutopilot: vi.fn(),
   stopAutopilot: vi.fn(),
   refillAutopilot: vi.fn(),
+  reviseAutopilotPost: vi.fn(),
 }))
 vi.mock('../../lib/xAutopilot/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/xAutopilot/api')>()),
@@ -638,6 +639,31 @@ describe('XAutopilotPanel: 並んだ予約の本文と時刻を直す', () => {
     render(<XAutopilotPanel />)
     fireEvent.click(await screen.findByRole('button', { name: 'この予約の本文と時刻を直す' }))
   }
+
+  it('「AIで整える」で、直した案が本文の欄に入る（保存するまで予約は変わらない）。戻すこともできる', async () => {
+    api.reviseAutopilotPost.mockResolvedValue({ state: withProfile(), revised: { text: '明日、健康診断。', problems: [] } })
+    await open()
+    fireEvent.change(screen.getByLabelText('AIへの指示'), { target: { value: 'もっと短く' } })
+    fireEvent.click(button('AIで整える'))
+    await waitFor(() => expect((screen.getByLabelText('本文を直す') as HTMLTextAreaElement).value).toBe('明日、健康診断。'))
+    expect(api.reviseAutopilotPost).toHaveBeenCalledWith('自動運転の本文 a', 'もっと短く')
+    expect(screen.getByText(/保存するまで、予約には反映されません/)).toBeInTheDocument()
+    expect(posts.update).not.toHaveBeenCalled()
+    fireEvent.click(button('AIの案をやめて戻す'))
+    expect((screen.getByLabelText('本文を直す') as HTMLTextAreaElement).value).toBe('自動運転の本文 a')
+  })
+
+  it('AIの案が検査に落ちたときは、理由を出す。AIが作れなかったときは、本文を変えない', async () => {
+    api.reviseAutopilotPost.mockResolvedValueOnce({ state: withProfile(), revised: { text: 'https://x.example 見てね', problems: ['URLを含んでいる'] } })
+    await open()
+    fireEvent.click(button('AIで整える'))
+    expect(await screen.findByText(/このままでは使えない点があります（URLを含んでいる）/)).toBeInTheDocument()
+    fireEvent.click(button('AIの案をやめて戻す'))
+    api.reviseAutopilotPost.mockResolvedValueOnce({ state: withProfile(), revised: { text: null, problems: ['AIが直した案を作れませんでした'] } })
+    fireEvent.click(button('AIで整える'))
+    expect(await screen.findByText('AIが直した案を作れませんでした')).toBeInTheDocument()
+    expect((screen.getByLabelText('本文を直す') as HTMLTextAreaElement).value).toBe('自動運転の本文 a')
+  })
 
   it('「編集」で、本文と投稿日時の欄が開く。いまの内容が入っている', async () => {
     await open()

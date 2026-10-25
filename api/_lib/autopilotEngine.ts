@@ -35,7 +35,7 @@ import {
 } from '../../src/lib/xAutopilot/types.js'
 import { isOverLimit } from '../../src/lib/schedule/textLength.js'
 import type { AutopilotRow, AutopilotStore } from './autopilotStore.js'
-import type { writeAutopilotPost, writeProfile } from './autopilotWriter.js'
+import type { reviseAutopilotPost, writeAutopilotPost, writeProfile } from './autopilotWriter.js'
 import type { OwnPost } from './xClient.js'
 
 // X の自動運転の本体。保存先・X・AI は deps として受け取るので、本物につながずに動きを確かめられる。
@@ -66,6 +66,8 @@ export interface EngineDeps {
   ) => Promise<OwnPost[]>
   writeProfile: typeof writeProfile
   writePost: typeof writeAutopilotPost
+  /** 書いてある1本を、本人の文体に整える（AI）。 */
+  revisePost: typeof reviseAutopilotPost
   /** AIを1回呼ぶときの時間の上限（ミリ秒）。 */
   aiTimeoutMs?: number
   /**
@@ -378,6 +380,51 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
     feedback = problems.join('、')
   }
   return last
+}
+
+/** 整えてもらう文章・指示の長さの上限（AIへの入力が大きくなりすぎないように）。 */
+const REVISE_MAX_TEXT = 600
+const REVISE_MAX_INSTRUCTION = 200
+
+/**
+ * 予約してある1本を、AIが読んで本人の文体に整える。保存はしない（直した案を返すだけ。保存するかは本人が決める）。
+ * 検査（長さ・URL・天気・未成年）に落ちた案も、理由つきで返す（見て判断してもらう）。
+ */
+export async function revisePost(
+  deps: EngineDeps,
+  userId: string,
+  input: { text: string; instruction?: string }
+): Promise<Generated & { usage: AutopilotUsage }> {
+  const text = input.text.trim()
+  if (!text) throw new EngineError('直したい文章が空です')
+  if (text.length > REVISE_MAX_TEXT) throw new EngineError('文章が長すぎます')
+  const instruction = (input.instruction ?? '').trim().slice(0, REVISE_MAX_INSTRUCTION)
+  const row = await deps.store.get(userId)
+  if (!row.profile) throw new EngineError('先に、過去の投稿から文体をまとめてください')
+  const apiKey = deps.apiKey()
+  if (!apiKey) throw new EngineError('ANTHROPIC_API_KEY が設定されていません', 500)
+  const now = deps.now()
+  const usage = usageFor(row, now)
+  if (overBudget(usage, row.settings, onePostYen(row.settings.quality))) throw new EngineError(budgetMessage(row.settings))
+
+  const history = await humanHistory(deps, row)
+  const revised = await deps.revisePost({
+    apiKey,
+    quality: row.settings.quality,
+    profile: row.profile,
+    samples: pickSamples(history, 8, now.getTime() >>> 10),
+    text,
+    instruction: instruction || undefined,
+    timeoutMs: deps.aiTimeoutMs,
+    onUsage: (u) => {
+      usage.yen += aiCostYen(row.settings.quality, u.inputTokens, u.outputTokens)
+      usage.generations += 1
+    },
+  })
+  await deps.store.save(userId, { usage })
+  // 似すぎの検査は、元の文と似ているのが当たり前なので、ここでは使わない（長さ・URL・天気・未成年だけ見る）。
+  const problems = revised ? checkPost(revised, []) : ['AIが直した案を作れませんでした']
+  return { text: revised, problems, usage }
 }
 
 /** 保存せずに、いまの設定で1本書いてみる。検査に落ちた場合も、最後の案と理由を返す（見て判断してもらう）。 */

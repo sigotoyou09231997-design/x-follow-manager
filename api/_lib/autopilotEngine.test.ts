@@ -10,6 +10,7 @@ import {
   enable,
   EngineError,
   previewPost,
+  revisePost,
   readHistory,
   refill,
   saveSettings,
@@ -538,6 +539,34 @@ describe('毎分の補充（topUpAll）', () => {
       throw new Error('読み込み失敗')
     }
     await expect(topUpAll(deps, { maxGenerations: 2, retryEveryMinutes: 5 })).rejects.toThrow()
+  })
+})
+
+describe('予約の文章をAIで整える', () => {
+  it('文体のまとめが無ければ断る・空の文章は断る。あれば整えた案を返し、費用を足す（予約は触らない）', async () => {
+    await expect(revisePost(makeDeps(memoryStore()).deps, OWNER, { text: '明日健康診断あるんだけ' })).rejects.toThrow('文体をまとめて')
+
+    const store = ready()
+    const { deps, revisePost: ai } = makeDeps(store)
+    await expect(revisePost(deps, OWNER, { text: '  ' })).rejects.toThrow('空')
+    const r = await revisePost(deps, OWNER, { text: '明日健康診断あるんだけ', instruction: '  もっと短く ' })
+    expect(r.text).toBe('明日健康診断あるんだけ（整えた）')
+    expect(r.problems).toEqual([])
+    // 指示は前後の空白を除いて渡す
+    expect(ai.mock.calls[0][0]).toMatchObject({ text: '明日健康診断あるんだけ', instruction: 'もっと短く' })
+    expect(store.posts).toHaveLength(0)
+    expect(store.rows.get(OWNER)!.usage.yen).toBeGreaterThan(0)
+  })
+
+  it('検査に落ちる案（URL・天気）も、理由つきで返す。AIが作れなかったときも理由を返す', async () => {
+    const store = ready()
+    const { deps, revisePost: ai } = makeDeps(store)
+    ai.mockResolvedValueOnce('https://example.com を見てね' as never)
+    expect((await revisePost(deps, OWNER, { text: '元の文' })).problems).toContain('URLを含んでいる')
+    ai.mockResolvedValueOnce(undefined as never)
+    const none = await revisePost(deps, OWNER, { text: '元の文' })
+    expect(none.text).toBeUndefined()
+    expect(none.problems).toEqual(['AIが直した案を作れませんでした'])
   })
 })
 
