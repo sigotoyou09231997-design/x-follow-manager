@@ -114,14 +114,27 @@ describe('XAutopilotPanel: 文体', () => {
     expect(button(/過去の投稿を読んで/)).toBeDisabled()
   })
 
-  it('文体があれば、新しい投稿だけの取り込みと、まとめ直し（費用つき）を出す', async () => {
+  it('文体があれば、「最新の投稿を取り込んで、文体に反映する」の1つのボタン（費用つき）で、取り込みからまとめ直しまで続けて行う', async () => {
     api.fetchAutopilot.mockResolvedValue({ state: withProfile() })
     api.readAutopilotHistory.mockResolvedValue({ state: withProfile(), result: { fetched: 7, added: 5, total: 125 } })
+    api.buildAutopilotProfile.mockResolvedValue({ state: withProfile() })
     render(<XAutopilotPanel />)
-    fireEvent.click(await screen.findByRole('button', { name: /新しい投稿だけ取り込む/ }))
-    expect(await screen.findByText('新しく 5 件を取り込みました（読み取り 7 件）')).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: /最新の投稿を取り込んで、文体に反映する（約\d+円）/ }))
+    expect(await screen.findByText('新しく 5 件を取り込み（読み取り 7 件）、文体に反映しました')).toBeInTheDocument()
     expect(api.readAutopilotHistory).toHaveBeenCalledWith()
-    expect(button(/文体をまとめ直す（約\d+円）/)).toBeEnabled()
+    expect(api.buildAutopilotProfile).toHaveBeenCalledTimes(1)
+    // 取り込みとまとめ直しを別々に押すボタンは無い
+    expect(screen.queryByRole('button', { name: /新しい投稿だけ取り込む/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^文体をまとめ直す/ })).not.toBeInTheDocument()
+  })
+
+  it('取り込みに失敗したら、まとめ直しは行わない（理由を出す）', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile() })
+    api.readAutopilotHistory.mockRejectedValue(new XAutopilotError('続けて読み込めません。1分ほど待ってからもう一度お試しください', 429))
+    render(<XAutopilotPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: /最新の投稿を取り込んで/ }))
+    expect(await screen.findByText(/続けて読み込めません/)).toBeInTheDocument()
+    expect(api.buildAutopilotProfile).not.toHaveBeenCalled()
   })
 
   it('失敗の理由は、そのまま画面に出す（クレジット不足など）', async () => {
@@ -357,7 +370,7 @@ describe('XAutopilotPanel: 自動運転の開始・停止', () => {
     fireEvent.click(await screen.findByRole('button', { name: /試し書き/ }))
     expect(await screen.findByRole('button', { name: '書いています…' })).toBeDisabled()
     expect(button('自動運転を始める')).toBeDisabled()
-    expect(button(/新しい投稿だけ取り込む/)).toBeDisabled()
+    expect(button(/最新の投稿を取り込んで/)).toBeDisabled()
     finish({ state: withProfile(), preview: { text: '本文', problems: [] } })
     expect(await screen.findByText('本文')).toBeInTheDocument()
   })
@@ -503,18 +516,20 @@ describe('XAutopilotPanel: トップの1画面用（summary）', () => {
 
     // 文体の取り込みは、トップからも押せる（詳細画面と同じ操作）
     expect(screen.getByText('あなたの文体')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /新しい投稿だけ取り込む/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /最新の投稿を取り込んで、文体に反映する/ })).toBeEnabled()
     expect(screen.queryByText('試しに1本書いてみる')).not.toBeInTheDocument()
     expect(screen.queryByText('1日の投稿数')).not.toBeInTheDocument()
   })
 
-  it('トップの「新しい投稿だけ取り込む」を押すと、Xの最近の投稿を取り込む', async () => {
+  it('トップの「最新の投稿を取り込んで、文体に反映する」を押すと、取り込んでまとめ直す', async () => {
     api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
     api.readAutopilotHistory.mockResolvedValue({ state: withProfile({ enabled: true }), result: { fetched: 4, added: 3, total: 120 } })
+    api.buildAutopilotProfile.mockResolvedValue({ state: withProfile({ enabled: true }) })
     render(<XAutopilotPanel variant="summary" />)
-    fireEvent.click(await screen.findByRole('button', { name: /新しい投稿だけ取り込む/ }))
-    expect(await screen.findByText('新しく 3 件を取り込みました（読み取り 4 件）')).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: /最新の投稿を取り込んで、文体に反映する/ }))
+    expect(await screen.findByText('新しく 3 件を取り込み（読み取り 4 件）、文体に反映しました')).toBeInTheDocument()
     expect(api.readAutopilotHistory).toHaveBeenCalledWith()
+    expect(api.buildAutopilotProfile).toHaveBeenCalledTimes(1)
   })
 
   it('ここからも取り消せて、取り消すと別の文を作り直してもらう（確認なしの設定のとき）', async () => {
