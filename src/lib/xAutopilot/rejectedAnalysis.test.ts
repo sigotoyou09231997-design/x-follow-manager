@@ -43,7 +43,7 @@ describe('取り消した文の分析', () => {
   it('使用禁止の言葉は、AIに渡す一覧の上位14個に入っていなくても、必ず渡す（知らずに書いて検査で落ち続けるのを防ぐ）', () => {
     // 取り消し5回の言葉が14個あり、その後ろに、取り消し3回で使用禁止になる言葉がある
     const words = [...Array.from({ length: 14 }, (_, i) => ({ word: `言葉${i}`, rejected: 5, kept: 0 })), { word: '片方', rejected: 3, kept: 0 }]
-    const b = { total: 73, words, topics: [] }
+    const b = { total: 73, words, topics: [], shapes: [] }
     expect(blockedWords(b)).toContain('片方')
     expect(describeRejectedWords(b).join('\n')).not.toContain('片方') // 上位14個には入らない
     expect(rejectedWordLines(b).join('\n')).toContain('片方（取り消しが多いので使用禁止）')
@@ -55,6 +55,6 @@ describe('取り消した文の分析', () => {
   })
 
   it('取り消しが無ければ、空', () => {
-    expect(analyzeRejected([], kept)).toEqual({ total: 0, words: [], topics: [] })
+    expect(analyzeRejected([], kept)).toEqual({ total: 0, words: [], topics: [], shapes: [] })
   })
 })

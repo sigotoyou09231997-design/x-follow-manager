@@ -116,6 +116,7 @@ export function buildPostSystemPrompt(): string {
   括りは大きく見る（ハイボールもジンソーダも晩酌も、同じ「お酒」。その括りが挙がっていれば、別のお酒の話も不可）
 - 【今回の書き方】があれば、型と長さに必ず従う。最近の投稿と同じ骨組み（「◯◯、△△。□□。」のように、場所や物の話→不満→オチ、の繰り返し）で書かない
 - 【本人がよく取り消す言葉・話題】にあるものは、取り消される文の特徴なので、使わない・選ばない。
+- 【本人がよく取り消す文の形】にある形（型・書き出し・締めなど）は、言葉が違っても同じ骨組みなので、避けて別の形で書く。
 - 今までに書いたことがない題材を選ぶ。【まだ書いたことがない題材の候補】があれば、その中から1つ選び、
   【使いすぎの言葉】にある言葉は、使わない・言い換えない。題材は新しくても、語尾・口調・文の長さ・改行・絵文字・
   「w」や「草」の使い方は、【この人らしさ】と【お手本】から取り入れて、本人の言い回しで書く
@@ -173,6 +174,8 @@ export interface PostPromptInput {
   rejectedWords?: string[]
   /** よく取り消される話題の括り。今回は選ばない。無ければ省略。describeRejectedTopics。 */
   rejectedTopics?: string[]
+  /** よく取り消される文の「形」（長さ・型・書き出し・締めなど、1行ずつ）。今回はこの形を避ける。無ければ省略。describeRejectedShapes。 */
+  rejectedShapes?: string[]
   /** 最近の投稿で何度も出ている言葉（「焼き芋」「ハイボール」など）。今回は使わない。無ければ省略。frequentWords。 */
   overused?: string[]
   /** まだ書いたことがない題材の候補。今回はここから選ぶと、新しい内容になる。無ければ省略。pickFreshThemes。 */
@@ -272,6 +275,12 @@ export function buildPostUserMessage(input: PostPromptInput): string {
     const lines = [...rejectedWords.map((t) => `言葉: ${t}`), ...rejectedTopics.map((t) => `話題: ${t}`)]
     sections.push(
       `【本人がよく取り消す言葉・話題】（これまでに取り消された自動運転の文を分析したもの。この言葉・話題は、今回は使わない・選ばない。言い換えや、同じ括りの別の話も不可）\n${lines.map((t) => `- ${t}`).join('\n')}`
+    )
+  }
+  const rejectedShapes = (input.rejectedShapes ?? []).map((t) => t.trim()).filter(Boolean)
+  if (rejectedShapes.length) {
+    sections.push(
+      `【本人がよく取り消す文の形】（取り消した文を、言葉でなく形・型で数えたもの。取り消しが多く、残った文には少ない形。今回は、この形になる書き方を避け、別の形で書く。長さや読点の数は目安なので、型・書き出し・締めを優先して避ける）\n${rejectedShapes.map((t) => `- ${t}`).join('\n')}`
     )
   }
   const overused = (input.overused ?? []).map((t) => t.trim()).filter(Boolean)

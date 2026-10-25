@@ -1,4 +1,5 @@
 import { crowdedTopics, type TopicCount } from './recentStyle.js'
+import { analyzeShapes, type ShapeStat } from './rejectedShape.js'
 import { wordsOf } from './words.js'
 
 // 本人が「取り消す」で外した自動運転の文を集めて、どういう言葉・話題が取り消されやすいかを数える（AIは呼ばない）。
@@ -20,6 +21,8 @@ export interface RejectedAnalysis {
   words: RejectedWord[]
   /** よく取り消される話題の括り。 */
   topics: TopicCount[]
+  /** よく取り消される文の形（長さ・型・書き出し・締めなど）。取り消した文に多く、残した文に少ないもの。 */
+  shapes: ShapeStat[]
 }
 
 /** 取り消した文のうち、この本数以上に出ている言葉だけを数える（1度きりの偶然は数えない）。 */
@@ -43,7 +46,7 @@ export function analyzeRejected(rejected: string[], kept: string[], limit = 20):
     .slice(0, limit)
 
   const topics = rejected.length === 0 ? [] : crowdedTopics(rejected, { minCount: 3, minShare: 0.15 })
-  return { total: rejected.length, words, topics }
+  return { total: rejected.length, words, topics, shapes: analyzeShapes(rejected, kept) }
 }
 
 /** 「使わない」と決める言葉（取り消された回数が多く、残った文にはほとんど出ない）。 */

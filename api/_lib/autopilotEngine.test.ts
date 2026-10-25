@@ -600,6 +600,25 @@ describe('試し書き', () => {
     expect(r.problems.join('、')).toContain('3つ並べるだけの型')
   })
 
+  it('取り消した文に多い形（言葉は違っても同じ型）の案は、使えない案にし、AIにも形を伝える', async () => {
+    const store = ready()
+    // 本人が取り消した「A、B、C。」の3つ並べが4本。残してある文は、別の形
+    for (const [i, t] of ['ネギ買う、半分余る、結局冷凍する。', '傘買う、失くす、また買う。', '朝起きる、二度寝する、遅刻する。', '米炊く、余らす、冷凍する。'].entries()) {
+      await store.insertPost({ userId: OWNER, at: `2026-10-0${i + 1}T03:00:00Z`, text: t, slotKey: `2026-10-0${i + 1}#0`, status: 'draft' })
+      store.posts[store.posts.length - 1].status = 'canceled'
+      store.posts[store.posts.length - 1].rejected = true
+    }
+    for (const [i, t] of ['今日はお昼にラーメンを食べて、少し眠くなった。', '最近、電車の中でぼんやりしていることが増えた気がする。', '日曜の夜って、一週間でいちばん短く感じる。', 'コンビニの新作スイーツを見ると、つい手に取ってしまう。'].entries()) {
+      await store.insertPost({ userId: OWNER, at: `2026-10-1${i}T03:00:00Z`, text: t, slotKey: `2026-10-1${i}#0`, status: 'scheduled' })
+    }
+    const { deps, writePost } = makeDeps(store)
+    writePost.mockResolvedValue('歯磨く、忘れる、また磨く。')
+    const r = await previewPost(deps, OWNER)
+    expect(r.problems.join('、')).toContain('取り消している形')
+    // AIには、形の一覧が渡されている
+    expect(writePost.mock.calls[0][0]).toMatchObject({ rejectedShapes: expect.arrayContaining([expect.stringContaining('短い言葉を読点で3つ並べて終わる')]) })
+  })
+
   it('どのゲームか分からないゲームの話は、使えない案として理由つきで返す', async () => {
     const store = ready()
     const { deps, writePost } = makeDeps(store)
