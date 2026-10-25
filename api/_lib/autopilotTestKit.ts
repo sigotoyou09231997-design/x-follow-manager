@@ -97,6 +97,9 @@ export function memoryStore(initial?: Partial<AutopilotRow>) {
         .filter((p) => p.userId === userId && p.status !== 'canceled' && p.slotKey.slice(0, 10) >= sinceDate)
         .map((p) => p.slotKey)
     },
+    async draftCount(userId) {
+      return posts.filter((p) => p.userId === userId && p.status === 'draft').length
+    },
     async cancelUpcoming(userId) {
       let n = 0
       for (const p of posts) {

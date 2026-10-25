@@ -295,6 +295,9 @@ describe('XAutopilotPanel: 設定が確実に使われる', () => {
     render(<XAutopilotPanel />)
     expect(await screen.findByText(/時刻は日本時間です/)).toBeInTheDocument()
     expect(screen.getByText(/日ごとに少しずらして決まります/)).toBeInTheDocument()
+    // 確認してから投稿する設定（既定）では、確認待ちは1件ずつ作るので、並ぶ本数は出さない。確認をオフにすると本数が出る
+    expect(screen.getByText(/確認待ちは1件ずつ作ります/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('checkbox', { name: /投稿する前に、自分で確認して/ }))
     expect(screen.getByText(/1日3回 × 2日先まで ＝ 予約は最大6本が並びます/)).toBeInTheDocument()
     expect(screen.queryByText(/午前（始め〜12:00）に1回/)).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('1日の投稿数'), { target: { value: '2' } })
