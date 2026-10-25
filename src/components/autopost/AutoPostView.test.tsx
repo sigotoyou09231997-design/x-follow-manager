@@ -551,7 +551,8 @@ describe('AutoPostView', () => {
       act(() => {
         vi.advanceTimersByTime(4100)
       })
-      expect(container.querySelector('.autopost__box--saved')).toBeNull()
+      // 負荷が高いと、再描画が advance の直後に間に合わず落ちることがあったので、外れるのを待つ
+      await waitFor(() => expect(container.querySelector('.autopost__box--saved')).toBeNull())
     } finally {
       vi.useRealTimers()
     }
