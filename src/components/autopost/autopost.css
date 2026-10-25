@@ -692,13 +692,13 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
   color: var(--text-muted);
 }
 
 .switch-row__text strong {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--text-h);
 }
@@ -776,7 +776,7 @@
 
 /* 文の部分は、行の名前の頭にそろえる（札の幅＋間隔＋左の余白）。 */
 .channel-block__text {
-  padding: 0 16px 14px 56px;
+  padding: 4px 16px 18px 56px;
 }
 
 .channel-block__text .channel-row {
@@ -802,22 +802,24 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 
 .channel-row__item {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  /* 色を付けたとき文字が縁に付かないよう余白を取り、外側を負の余白で戻す（見た目の位置は変わらない） */
-  margin: 0 -8px;
-  padding: 6px 8px;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 14px 12px;
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  background: var(--surface, #fff);
 }
 
 .channel-row__no {
-  font-size: 13px;
-  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-h);
 }
 
 /* 「n つ目」「時間帯」の札を左に、「編集」を右に。 */
@@ -873,8 +875,8 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
   overflow: hidden;
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: 16px;
+  line-height: 1.65;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: var(--text-h);

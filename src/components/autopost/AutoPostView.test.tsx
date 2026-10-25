@@ -548,8 +548,8 @@ describe('AutoPostView', () => {
       fireEvent.click(screen.getByRole('button', { name: '保存する' }))
       await waitFor(() => expect(container.querySelector('.autopost__box--saved')).not.toBeNull())
       expect(container.querySelector('.autopost__saved')).toHaveTextContent('保存しました')
-      act(() => {
-        vi.advanceTimersByTime(4100)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4100)
       })
       // 負荷が高いと、再描画が advance の直後に間に合わず落ちることがあったので、外れるのを待つ
       await waitFor(() => expect(container.querySelector('.autopost__box--saved')).toBeNull())
