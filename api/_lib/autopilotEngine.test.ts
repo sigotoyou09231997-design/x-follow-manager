@@ -660,6 +660,25 @@ describe('ON / OFF / 設定', () => {
       expect(store.posts).toHaveLength(1)
     })
 
+    it('AIが書いているあいだに、ほかの実行が先に確認待ちを作っていたら、いま書いた文は入れない（2件にならない）', async () => {
+      const store = ready({ settings: withApproval })
+      let inserted = false
+      const { deps } = makeDeps(store, {
+        writePost: (async (input: { onUsage?: (u: { inputTokens: number; outputTokens: number }) => void }) => {
+          input.onUsage?.({ inputTokens: 10, outputTokens: 10 })
+          // 書いている最中に、別の実行が確認待ちを1件作った
+          if (!inserted) {
+            inserted = true
+            await store.insertPost({ userId: OWNER, at: '2026-10-20T03:00:00Z', text: '先に作られた文', slotKey: '2026-10-20#0', status: 'draft' })
+          }
+          return '温かいコーヒーを淹れる時間が一日で一番好きで、毎朝それだけで少し元気になる'
+        }) as never,
+      })
+      const r = await topUp(deps, await store.get(OWNER), { maxGenerations: 5 })
+      expect(r.created).toBe(0)
+      expect(store.posts.filter((p) => p.status === 'draft')).toHaveLength(1)
+    })
+
     it('確認待ちが無くなる（投稿可能にした・取り消した）と、次の1件を作る', async () => {
       const store = ready({ settings: withApproval })
       const { deps } = makeDeps(store)
