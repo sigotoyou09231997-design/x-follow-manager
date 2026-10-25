@@ -543,6 +543,23 @@ describe('XAutopilotPanel: トップの1画面用（summary）', () => {
     expect(api.buildAutopilotProfile).toHaveBeenCalledTimes(1)
   })
 
+  it('確認待ちが0件になっても、確認待ちの枠は残し、「自動生成中」と出す（2列が1列に変わらない）。できたらその枠に入る', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    posts.list = [post('ok', { scheduledAt: new Date(Date.now() + 3 * 3600_000).toISOString() })] // 投稿可能が1件だけ
+    render(<XAutopilotPanel variant="summary" />)
+    const zone = await screen.findByRole('group', { name: '確認待ち' })
+    expect(within(zone).getByText(/自動生成中です/)).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '投稿可能' })).toBeInTheDocument()
+  })
+
+  it('確認なしの設定では、確認待ちの枠は出さない', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true, settings: { ...DEFAULT_SETTINGS, requireApproval: false } }) })
+    posts.list = [post('ok', { scheduledAt: new Date(Date.now() + 3 * 3600_000).toISOString() })]
+    render(<XAutopilotPanel variant="summary" />)
+    await screen.findByRole('group', { name: '投稿可能' })
+    expect(screen.queryByRole('group', { name: '確認待ち' })).not.toBeInTheDocument()
+  })
+
   it('ここからも取り消せて、取り消すと別の文を作り直してもらう（確認なしの設定のとき）', async () => {
     api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true, settings: { ...DEFAULT_SETTINGS, requireApproval: false } }) })
     posts.list = [post('a')]
