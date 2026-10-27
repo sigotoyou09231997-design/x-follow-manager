@@ -410,3 +410,138 @@
     animation: none;
   }
 }
+
+/* ============================================================================
+   仕上げ（2026-10-28）— 洗練・上品に
+   本人の依頼「全体のデザインをもっとあげて」→「洗練・上品に」を選択。
+   色・構成は変えず、文字の組み・影・線・角の丸み・押したときの動きだけを整える。
+   外すときはこの節だけ消せばよい（上の青緑の上塗りには影響しない）。
+   ========================================================================= */
+
+:root {
+  /* 影は低く広く、にじませる。重ねた面の境目は影より細い線で出す。 */
+  --shadow-rest: 0 0 0 1px rgba(16, 32, 34, 0.035), 0 1px 2px rgba(16, 32, 34, 0.03), 0 10px 28px -6px rgba(16, 32, 34, 0.06);
+  --shadow-float: 0 0 0 1px rgba(16, 32, 34, 0.04), 0 4px 10px rgba(16, 32, 34, 0.05), 0 24px 48px -12px rgba(16, 32, 34, 0.16);
+  --border: #e8eded;
+  --radius: 20px;
+}
+
+/* 見出し・ボタンの文字は、日本語の字間を詰めて（プロポーショナル）、少し引き締める。本文は触らない。 */
+:is(h1, h2, h3, .xap__title, .autopost__sub, .page-hero__title, .btn, .filter-tab) {
+  font-feature-settings: 'palt' 1;
+}
+
+.page-hero__title {
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.22;
+}
+
+.xap__title,
+.home-section__title {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* 節の見出しは、本文より一段しずかに（主役はカードの中身）。 */
+.autopost__sub {
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
+/* 補足の文は行間をゆったり。読み疲れを減らす。 */
+.xap__muted,
+.autopost__info {
+  line-height: 1.75;
+  letter-spacing: 0.01em;
+}
+
+/* カード: 角を少し大きく、内側の余白を広めに。 */
+.surface-card.xap__card,
+.surface-card.switch-list {
+  border-radius: var(--radius);
+}
+
+.surface-card.xap__card {
+  padding-block: 22px;
+}
+
+/* 区切り線は細く、薄く。 */
+.channel-row__item,
+.link-row + .link-row {
+  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+/* ボタンは丸く、字は少し太く・字間を少し開ける。押したときは沈む。 */
+.btn {
+  border-radius: var(--radius-pill);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn--primary:hover:not(:disabled) {
+  box-shadow: var(--shadow-float);
+}
+
+/* 入力欄: ふだんは静かに、フォーカスで青緑の細い輪を出す。 */
+:is(input, textarea, select):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-bg), 0 0 0 1px var(--accent);
+  border-color: var(--accent);
+}
+
+/* キーボード操作の枠も、同じ青緑の細い輪にそろえる。 */
+:is(a, button, summary, [role='button']):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* 折りたたみの▶を消して、細い矢印にする。 */
+.xap__more > summary {
+  list-style: none;
+  justify-content: space-between;
+}
+
+.xap__more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.xap__more > summary::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid var(--text-muted);
+  border-bottom: 1.5px solid var(--text-muted);
+  transform: rotate(45deg);
+  transition: transform 260ms var(--ease-out-expo);
+}
+
+.xap__more[open] > summary::after {
+  transform: rotate(-135deg);
+}
+
+/* 文字を選んだときの色・スクロールバーを静かに。 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --shadow-rest: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 10px 28px -6px rgba(0, 0, 0, 0.45);
+    --shadow-float: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 24px 48px -12px rgba(0, 0, 0, 0.6);
+    --border: #262e30;
+  }
+}
+
+:root[data-theme='dark'] {
+  --shadow-rest: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 10px 28px -6px rgba(0, 0, 0, 0.45);
+  --shadow-float: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 24px 48px -12px rgba(0, 0, 0, 0.6);
+  --border: #262e30;
+}
