@@ -35,9 +35,10 @@ export interface LengthTarget {
 }
 
 export const LENGTHS: LengthTarget[] = [
-  { label: '短め', hint: '15〜30字ほどの短い一文', min: 10, max: 38 },
-  { label: 'ふつう', hint: '30〜60字ほど', min: 24, max: 76 },
-  { label: '長め', hint: '60〜110字ほど（改行はしない）', min: 50, max: 125 },
+  // 2026-10-27 に全体を短くした（本人「Xの文章作成で文章が長くなってる」）。長めでも70字ほどまで。
+  { label: '短め', hint: '10〜25字ほどの短い一文', min: 8, max: 32 },
+  { label: 'ふつう', hint: '25〜45字ほど（1〜2文）', min: 20, max: 55 },
+  { label: '長め', hint: '45〜70字ほど（改行はしない。長くても2文まで）', min: 38, max: 85 },
 ]
 
 /**
@@ -62,9 +63,9 @@ function hash01(text: string): number {
 /** 枠（seed）ごとに、型と長さを決める。 */
 export function pickVariety(seed: string): { form: WritingForm; length: LengthTarget } {
   const form = FORMS[Math.floor(hash01(`${seed}:form`) * FORMS.length)]
-  // 長さは、短め・ふつうを多めに（本人の投稿は短いものが多い）。
+  // 長さは、短め・ふつうを多めに、長めはまれに（本人の投稿は短いものが多い）。
   const r = hash01(`${seed}:length`)
-  const length = r < 0.4 ? LENGTHS[0] : r < 0.85 ? LENGTHS[1] : LENGTHS[2]
+  const length = r < 0.5 ? LENGTHS[0] : r < 0.92 ? LENGTHS[1] : LENGTHS[2]
   return { form, length }
 }
 

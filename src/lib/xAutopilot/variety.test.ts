@@ -60,3 +60,20 @@ describe('短い言葉を3つ並べるだけの型', () => {
     expect(isTripleBeat('美容室の「今日はどうします？」いつも答えに困る、おまかせって言うのも怖い、結局いつも同じ。')).toBe(false)
   })
 })
+
+describe('文の長さの目安（2026-10-27 に短くした）', () => {
+  it('長めでも85字までで、長めは枠のうち1割ほどだけ', () => {
+    expect(Math.max(...LENGTHS.map((l) => l.max))).toBeLessThanOrEqual(85)
+    const seeds = Array.from({ length: 400 }, (_, i) => `2026-10-${i}#0`)
+    const longShare = seeds.filter((s) => pickVariety(s).length.label === '長め').length / seeds.length
+    expect(longShare).toBeLessThan(0.15)
+    const shortShare = seeds.filter((s) => pickVariety(s).length.label === '短め').length / seeds.length
+    expect(shortShare).toBeGreaterThan(0.4)
+  })
+
+  it('70字の文は、長めの範囲には入るが、ふつうの範囲（55字まで）は超える', () => {
+    const text = 'あ'.repeat(70)
+    expect(lengthProblem(text, LENGTHS[2])).toBeUndefined()
+    expect(lengthProblem(text, LENGTHS[1])).toContain('長すぎる')
+  })
+})
