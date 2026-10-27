@@ -376,3 +376,52 @@ export async function reviseAutopilotPost(input: ReviseAutopilotPostInput): Prom
   })
   return posts[0]?.segments[0]?.trim() || undefined
 }
+
+// ------------------------------------------------------------------ 4. 入れた言葉・文章から書く
+
+export const COMPOSE_SYSTEM_PROMPT = `あなたはX(旧Twitter)の投稿を、ご本人の代わりに書く書き手です。ご本人が渡した【材料】（単語・メモ・書きかけの文）を使って、
+【この人らしさ】と【お手本】に沿った1本の投稿にします。書いた文は、そのまま本人の名前で投稿されます。
+
+守ること:
+- 【材料】にある言葉・内容を中心にする。材料に無い事実・数字・固有名詞・体験・予定を足さない
+- 材料が単語だけのときも、体験や出来事を作り話で足さない。その言葉に対する気持ち・ひとことの感想にとどめる
+- 語調・一人称・語尾・文の長さ・絵文字の使い方は、【この人らしさ】と【お手本】から読み取って合わせる
+- 長くしない。1〜2文で、全体で70字以内を目安にする（材料が長文でも、言いたいことを絞る）
+- 天気・気温の話、URL、未成年を連想させる表現は入れない
+- 改行は入れない。1つの文章でつなぐ
+- 説明や前置きは書かない。投稿の本文だけを返す
+
+${WRITING_RULES}`
+
+export interface ComposeAutopilotPostInput {
+  apiKey: string
+  quality: Quality
+  profile: StyleProfile
+  samples: HistoryPost[]
+  /** ご本人が入れた単語・文章。 */
+  material: string
+  /** 同じ材料で続けて書くとき、前に出した案（同じ文にならないようにする）。 */
+  previous?: string
+  timeoutMs?: number
+  onUsage?: (usage: Usage) => void
+}
+
+/** 入れた言葉・文章から、本人の文体で1本書く。書けなかったときは undefined。 */
+export async function composeAutopilotPost(input: ComposeAutopilotPostInput): Promise<string | undefined> {
+  const sections = [`【この人らしさ】\n${describeProfile(input.profile)}`]
+  if (input.samples.length) {
+    sections.push(`【お手本】（この人の実際の投稿。書き方の参考。内容は流用しない）\n${input.samples.map((p, i) => `【例${i + 1}】\n${p.text}`).join('\n\n')}`)
+  }
+  sections.push(`【材料】\n${input.material}`)
+  if (input.previous?.trim()) sections.push(`【前に出した案】（これとは違う書き方にする）\n${input.previous.trim()}`)
+  const posts = await writePosts({
+    apiKey: input.apiKey,
+    system: COMPOSE_SYSTEM_PROMPT,
+    user: sections.join('\n\n'),
+    model: QUALITY_MODELS[input.quality].id,
+    effort: 'low',
+    timeoutMs: input.timeoutMs,
+    onUsage: input.onUsage,
+  })
+  return posts[0]?.segments[0]?.trim() || undefined
+}

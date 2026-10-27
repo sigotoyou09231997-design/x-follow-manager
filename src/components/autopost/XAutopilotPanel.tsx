@@ -7,6 +7,7 @@ import {
   readAutopilotHistory,
   refillAutopilot,
   reviseAutopilotPost,
+  composeAutopilotPost,
   saveAutopilotSettings,
   startAutopilot,
   stopAutopilot,
@@ -29,6 +30,7 @@ import { Icon } from '../Icon'
 import { SwitchRow } from './ChannelControls'
 import { RejectedInsights } from './RejectedInsights'
 import { StyleInsights } from './StyleInsights'
+import { ComposeCard } from './ComposeCard'
 import { UpcomingEditor } from './UpcomingEditor'
 import { UsageMeter } from './UsageMeter'
 
@@ -557,21 +559,30 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
         <div className="xap__main">
           <UsageMeter usage={state.usage} budgetYen={state.settings.monthlyBudgetYen} />
           {upcomingSection}
-          {/* いまのXの投稿から、文章の傾向・書き方を取り込む（トップからも押せる。詳細画面と同じ操作）。 */}
-          <StyleCard
-            state={state}
-            quality={form.quality}
-            busy={busy}
-            step={step}
-            working={working}
-            connected={connected}
-            blocked={blocked}
-            onSetup={() => void doSetup()}
-            onRefresh={() => void doRefreshStyle()}
+          <ComposeCard
+            disabled={!hasProfile || blocked}
+            onCompose={async (material, previous) => {
+              const reply = await run('compose', () => composeAutopilotPost(material, previous))
+              return reply.composed ?? { text: null, problems: ['AIが案を返しませんでした'] }
+            }}
           />
-          {/* 以前は裏でしか見られなかった分析（文体のまとめ・最近の傾向・取り消した文の分析）も、トップに出す。 */}
-          <StyleInsights profile={state.profile} recentStyle={state.recentStyle} />
-          <RejectedInsights rejected={rejectedTexts} kept={keptTexts} />
+          {/* 文体の取り込みと分析は、普段は閉じておく（トップをすっきりさせるため）。 */}
+          <details className="surface-card xap__more">
+            <summary>文体と分析</summary>
+            <StyleCard
+              state={state}
+              quality={form.quality}
+              busy={busy}
+              step={step}
+              working={working}
+              connected={connected}
+              blocked={blocked}
+              onSetup={() => void doSetup()}
+              onRefresh={() => void doRefreshStyle()}
+            />
+            <StyleInsights profile={state.profile} recentStyle={state.recentStyle} />
+            <RejectedInsights rejected={rejectedTexts} kept={keptTexts} />
+          </details>
         </div>
         <section className="surface-card switch-list" aria-label="稼働スイッチ">
           <SwitchRow

@@ -24,6 +24,8 @@ export interface ActionReply {
   preview?: { text: string | null; problems: string[] }
   /** 予約の文章をAIに整えてもらったとき。text が null のときは、AIが作れなかった。 */
   revised?: { text: string | null; problems: string[] }
+  /** 入れた言葉・文章から書いてもらったとき。text が null のときは、AIが作れなかった。 */
+  composed?: { text: string | null; problems: string[] }
 }
 
 async function call(body?: Record<string, unknown>): Promise<ActionReply> {
@@ -63,6 +65,7 @@ export const readAutopilotHistory = (options: { full?: boolean } = {}) => call({
 export const buildAutopilotProfile = () => call({ action: 'buildProfile' })
 export const previewAutopilotPost = () => call({ action: 'preview' })
 /** 予約してある1本の文章を、AIが本人の文体に整える（保存はしない。直した案が返る）。 */
+export const composeAutopilotPost = (material: string, previous?: string) => call({ action: 'compose', material, previous })
 export const reviseAutopilotPost = (text: string, instruction?: string) => call({ action: 'revise', text, instruction })
 export const startAutopilot = () => call({ action: 'enable' })
 export const stopAutopilot = () => call({ action: 'disable' })

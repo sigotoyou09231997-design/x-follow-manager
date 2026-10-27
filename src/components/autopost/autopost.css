@@ -1600,17 +1600,32 @@
     order: 3;
   }
 
-  .xap--summary section[aria-label='あなたの文体'] {
+  .xap--summary .xap__compose {
     order: 4;
   }
 
-  .xap--summary section[aria-label='文体のまとめ'] {
+  .xap--summary .xap__more {
     order: 5;
   }
+}
 
-  .xap--summary section[aria-label='取り消した文の分析'] {
-    order: 6;
-  }
+/* トップの「文体と分析」の折りたたみ。中のカードは枠を重ねない。 */
+.xap__more > summary {
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.xap__more[open] > summary {
+  margin-bottom: 12px;
+}
+
+.xap__more > section.surface-card {
+  box-shadow: none;
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
 }
 
 /* 文体のまとめと傾向（トップ・詳細） */

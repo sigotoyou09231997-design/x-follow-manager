@@ -155,6 +155,15 @@ describe('操作', () => {
     expect(bad.status).toBe(400)
   })
 
+  it('言葉から書く: 案を返し、予約は作らない・材料が無ければ断る', async () => {
+    const { handler, store } = setup(ready())
+    const r = await call(handler, { ...AS_OWNER, body: { action: 'compose', material: 'コーヒー' } })
+    expect(r.status).toBe(200)
+    expect(r.body.composed.text).toBe('コーヒーって、いいよね')
+    expect(store.posts).toHaveLength(0)
+    expect((await call(handler, { ...AS_OWNER, body: { action: 'compose' } })).status).toBe(400)
+  })
+
   it('ON にすると最初の1本ができ、OFF にすると取り消される', async () => {
     const { handler, store } = setup(ready({ enabled: false }))
     const on = await call(handler, { ...AS_OWNER, body: { action: 'enable' } })

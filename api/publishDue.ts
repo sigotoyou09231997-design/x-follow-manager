@@ -10,7 +10,7 @@ import { topUpAll } from './_lib/autopilotEngine.js'
 import { deletePreviousAutopilotPosts, type CleanupDeps } from './_lib/autopilotCleanup.js'
 import { morningWindow } from '../src/lib/xAutopilot/morning.js'
 import { supabaseAutopilotStore } from './_lib/autopilotStore.js'
-import { reviseAutopilotPost, writeAutopilotPost, writeProfile } from './_lib/autopilotWriter.js'
+import { composeAutopilotPost, reviseAutopilotPost, writeAutopilotPost, writeProfile } from './_lib/autopilotWriter.js'
 import { supabasePosterWatchDeps, watchPosters } from './_lib/posterWatch.js'
 import { isOverLimit } from '../src/lib/schedule/textLength.js'
 import type { PostSegment, RepeatRule } from '../src/lib/schedule/types.js'
@@ -171,6 +171,7 @@ async function topUpAutopilots(startedAt: Date, allowance: number): Promise<numb
         writeProfile,
         writePost: writeAutopilotPost,
         revisePost: reviseAutopilotPost,
+        composePost: composeAutopilotPost,
         aiTimeoutMs: AI_TIMEOUT_MS,
         canStartAi: () => Date.now() - startedAt.getTime() < AI_BUDGET_MS,
       },
