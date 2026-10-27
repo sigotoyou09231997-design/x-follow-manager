@@ -11,6 +11,7 @@ import {
   EngineError,
   previewPost,
   revisePost,
+  composePost,
   readHistory,
   refill,
   saveSettings,
@@ -539,6 +540,30 @@ describe('毎分の補充（topUpAll）', () => {
       throw new Error('読み込み失敗')
     }
     await expect(topUpAll(deps, { maxGenerations: 2, retryEveryMinutes: 5 })).rejects.toThrow()
+  })
+})
+
+describe('入れた言葉から書く', () => {
+  it('材料が空・長すぎ・文体のまとめが無ければ断る。あれば案を返し費用を足す（予約は触らない）', async () => {
+    await expect(composePost(makeDeps(memoryStore()).deps, OWNER, { material: 'コーヒー' })).rejects.toThrow('文体をまとめて')
+    const store = ready()
+    const { deps, composePost: ai } = makeDeps(store)
+    await expect(composePost(deps, OWNER, { material: '  ' })).rejects.toThrow('材料')
+    await expect(composePost(deps, OWNER, { material: 'あ'.repeat(401) })).rejects.toThrow('400字')
+    const r = await composePost(deps, OWNER, { material: ' コーヒー ', previous: ' 前の案 ' })
+    expect(r.text).toBe('コーヒーって、いいよね')
+    expect(r.problems).toEqual([])
+    expect(ai.mock.calls[0][0]).toMatchObject({ material: 'コーヒー', previous: '前の案' })
+    expect(store.posts).toHaveLength(0)
+    expect(store.rows.get(OWNER)!.usage.yen).toBeGreaterThan(0)
+  })
+
+  it('検査に落ちる案は理由つきで返し、AIが作れなかったときも理由を返す', async () => {
+    const { deps, composePost: ai } = makeDeps(ready())
+    ai.mockResolvedValueOnce('https://example.com' as never)
+    expect((await composePost(deps, OWNER, { material: 'x' })).problems).toContain('URLを含んでいる')
+    ai.mockResolvedValueOnce(undefined as never)
+    expect((await composePost(deps, OWNER, { material: 'x' })).problems).toEqual(['AIが案を作れませんでした'])
   })
 })
 

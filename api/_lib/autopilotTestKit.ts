@@ -167,6 +167,10 @@ export function makeDeps(store: ReturnType<typeof memoryStore>, over: Partial<En
     input.onUsage?.({ inputTokens: 3000, outputTokens: 300 })
     return `${input.text}（整えた）`
   })
+  const composePost = vi.fn(async (input: { material: string; onUsage?: (u: { inputTokens: number; outputTokens: number }) => void }) => {
+    input.onUsage?.({ inputTokens: 3000, outputTokens: 300 })
+    return `${input.material}って、いいよね`
+  })
   const fetchOwnPosts = vi.fn(async (): Promise<OwnPost[]> => [])
   const deps: EngineDeps = {
     store,
@@ -177,9 +181,10 @@ export function makeDeps(store: ReturnType<typeof memoryStore>, over: Partial<En
     writeProfile: writeProfile as unknown as EngineDeps['writeProfile'],
     writePost: writePost as unknown as EngineDeps['writePost'],
     revisePost: revisePost as unknown as EngineDeps['revisePost'],
+    composePost: composePost as unknown as EngineDeps['composePost'],
     ...over,
   }
-  return { deps, writePost, writeProfile, revisePost, fetchOwnPosts }
+  return { deps, writePost, writeProfile, revisePost, composePost, fetchOwnPosts }
 }
 
 

@@ -12,12 +12,13 @@ import {
   readHistory,
   refill,
   revisePost,
+  composePost,
   saveSettings,
   usageFor,
   type EngineDeps,
 } from './autopilotEngine.js'
 import { AutopilotNotReadyError, supabaseAutopilotStore, type AutopilotRow } from './autopilotStore.js'
-import { reviseAutopilotPost, writeAutopilotPost, writeProfile } from './autopilotWriter.js'
+import { composeAutopilotPost, reviseAutopilotPost, writeAutopilotPost, writeProfile } from './autopilotWriter.js'
 import { anthropicApiKey, apiKeyShape, RefusedError } from './postWriter.js'
 import { getAccessToken } from './xToken.js'
 import { fetchOwnPosts, XApiError } from './xClient.js'
@@ -29,6 +30,7 @@ import { fetchOwnPosts, XApiError } from './xClient.js'
 //   { action: 'buildProfile' }                    … 履歴から文体をまとめる（AI）
 //   { action: 'preview' }                         … 保存せずに1本書いてみる（AI）
 //   { action: 'revise', text, instruction? }      … 予約してある1本を、AIが本人の文体に整える（保存はしない。直した案を返す）
+//   { action: 'compose', material, previous? }   … 入れた単語・文章から、本人の文体で1本書く（保存はしない。案を返す）
 //   { action: 'enable' } / { action: 'disable' }  … 自動運転の ON / OFF
 //   { action: 'refill' }                          … 空いた枠（「取り消す」で外した枠）を、いちばん近い時刻から1つ、別の文で作り直す（AI）
 // 中身は autopilotEngine.ts。ここは「誰が・何を頼んだか」の確認と、失敗の日本語化だけを持つ。
@@ -54,6 +56,7 @@ function defaultDeps(startedAt = Date.now()): HandlerDeps {
       writeProfile,
       writePost: writeAutopilotPost,
       revisePost: reviseAutopilotPost,
+      composePost: composeAutopilotPost,
       aiTimeoutMs: AI_TIMEOUT_MS,
       canStartAi: () => Date.now() - startedAt < AI_START_BUDGET_MS,
     },
@@ -185,6 +188,18 @@ export function createAutopilotHandler(deps?: HandlerDeps) {
           return res.status(200).json({
             state: await stateNow(),
             revised: { text: result.text ?? null, problems: result.problems },
+          })
+        }
+
+        case 'compose': {
+          if (typeof body.material !== 'string') return res.status(400).json({ error: '材料になる言葉や文章がありません' })
+          const result = await composePost(engine, userId, {
+            material: body.material,
+            previous: typeof body.previous === 'string' ? body.previous : undefined,
+          })
+          return res.status(200).json({
+            state: await stateNow(),
+            composed: { text: result.text ?? null, problems: result.problems },
           })
         }
 

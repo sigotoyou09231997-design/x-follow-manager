@@ -38,7 +38,7 @@ import {
 } from '../../src/lib/xAutopilot/types.js'
 import { isOverLimit } from '../../src/lib/schedule/textLength.js'
 import type { AutopilotRow, AutopilotStore } from './autopilotStore.js'
-import type { reviseAutopilotPost, writeAutopilotPost, writeProfile } from './autopilotWriter.js'
+import type { composeAutopilotPost, reviseAutopilotPost, writeAutopilotPost, writeProfile } from './autopilotWriter.js'
 import type { OwnPost } from './xClient.js'
 
 // X の自動運転の本体。保存先・X・AI は deps として受け取るので、本物につながずに動きを確かめられる。
@@ -71,6 +71,7 @@ export interface EngineDeps {
   writePost: typeof writeAutopilotPost
   /** 書いてある1本を、本人の文体に整える（AI）。 */
   revisePost: typeof reviseAutopilotPost
+  composePost: typeof composeAutopilotPost
   /** AIを1回呼ぶときの時間の上限（ミリ秒）。 */
   aiTimeoutMs?: number
   /**
@@ -441,6 +442,47 @@ export async function revisePost(
   // 似すぎの検査は、元の文と似ているのが当たり前なので、ここでは使わない（長さ・URL・天気・未成年だけ見る）。
   const problems = revised ? checkPost(revised, []) : ['AIが直した案を作れませんでした']
   return { text: revised, problems, usage }
+}
+
+/** 入れてもらう材料・前の案の長さの上限（AIへの入力が大きくなりすぎないように）。 */
+const COMPOSE_MAX_MATERIAL = 400
+
+/** 本人が入れた単語・文章から、本人の文体で1本書く（保存はしない。案を返す）。 */
+export async function composePost(
+  deps: EngineDeps,
+  userId: string,
+  input: { material: string; previous?: string }
+): Promise<Generated & { usage: AutopilotUsage }> {
+  const material = input.material.trim()
+  if (!material) throw new EngineError('材料になる言葉や文章を入れてください')
+  if (material.length > COMPOSE_MAX_MATERIAL) throw new EngineError(`材料は${COMPOSE_MAX_MATERIAL}字までにしてください`)
+  const row = await deps.store.get(userId)
+  if (!row.profile) throw new EngineError('先に、過去の投稿から文体をまとめてください')
+  const apiKey = deps.apiKey()
+  if (!apiKey) throw new EngineError('ANTHROPIC_API_KEY が設定されていません', 500)
+  const now = deps.now()
+  const usage = usageFor(row, now)
+  if (overBudget(usage, row.settings, onePostYen(row.settings.quality))) throw new EngineError(budgetMessage(row.settings))
+
+  const history = await humanHistory(deps, row)
+  const rawText = await deps.composePost({
+    apiKey,
+    quality: row.settings.quality,
+    profile: row.profile,
+    samples: pickSamples(history, 8, now.getTime() >>> 10),
+    material,
+    previous: input.previous?.trim().slice(0, REVISE_MAX_TEXT) || undefined,
+    timeoutMs: deps.aiTimeoutMs,
+    onUsage: (u) => {
+      usage.yen += aiCostYen(row.settings.quality, u.inputTokens, u.outputTokens)
+      usage.generations += 1
+    },
+  })
+  await deps.store.save(userId, { usage })
+  const text = rawText ? flattenLines(rawText) : undefined
+  // 似すぎの検査は、本人が材料を入れているので使わない（長さ・URL・天気・未成年だけ見る）。
+  const problems = text ? checkPost(text, []) : ['AIが案を作れませんでした']
+  return { text, problems, usage }
 }
 
 /** 保存せずに、いまの設定で1本書いてみる。検査に落ちた場合も、最後の案と理由を返す（見て判断してもらう）。 */
