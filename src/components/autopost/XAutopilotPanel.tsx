@@ -15,6 +15,7 @@ import {
 } from '../../lib/xAutopilot/api'
 import { aiCostYen, formatYen, monthlyYen, QUALITY_MODELS, setupYen, TYPICAL_TOKENS } from '../../lib/xAutopilot/cost'
 import {
+  AUTOPILOT_PREFIX,
   isAutopilotPost,
   LIMITS,
   REJECTED_MARK,
@@ -25,7 +26,7 @@ import {
 import { settingsProblems } from '../../lib/xAutopilot/slots'
 import { nextApprovalWindow, pickApprovalTime, postsOnDay, REFILL_MIN_LEAD_MS, type ApprovalWindow } from '../../lib/xAutopilot/approve'
 import { whenParts } from '../../lib/xAutopilot/whenLabel'
-import { updateScheduledPost } from '../../lib/schedule/postsStore'
+import { createScheduledPost, updateScheduledPost } from '../../lib/schedule/postsStore'
 import { Icon } from '../Icon'
 import { SwitchRow } from './ChannelControls'
 import { RejectedInsights } from './RejectedInsights'
@@ -322,6 +323,38 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
     return w ? `押すと、${partLabel(w)}のどこかで投稿されます` : '押すと、空いた枠に投稿されます'
   }
 
+  /**
+   * 「言葉から書く」で出た文を、自動投稿の予約に加える。日付・時刻は押した時点で自動で決める
+   * （午前・午後の空いた半日のランダムな時刻。ほかの自動運転の予約との間隔・1日の上限は、投稿可能にするときと同じ決まり）。
+   * 確認してから投稿する設定なら確認待ち、そうでなければ投稿可能（時刻になれば投稿）で入る。
+   */
+  async function addComposed(text: string): Promise<string> {
+    if (!state) throw new Error('状態を読み込み中です')
+    const autopilot = posts.filter((p) => isAutopilotPost(p.aiPrompt))
+    const toTimes = (p: (typeof posts)[number]) => ({ id: p.id, status: p.status, scheduledAt: p.scheduledAt, fixedTime: p.segments[0]?.fixedTime === true })
+    const now = Date.now()
+    const window = nextApprovalWindow({ id: 'new', status: 'draft' }, autopilot.map(toTimes), now, {
+      windowStart: state.settings.windowStart,
+      windowEnd: state.settings.windowEnd,
+      timeZone: state.settings.timeZone,
+      postsPerDay: state.settings.postsPerDay,
+    })
+    if (!window) throw new Error('空いている枠が見つかりません（2週間先まで埋まっています）')
+    const at = pickApprovalTime(window)
+    const draft = state.settings.requireApproval
+    await createScheduledPost({
+      segments: [{ text, media: [] }],
+      scheduledAt: at,
+      status: draft ? 'draft' : 'scheduled',
+      // 枠の印は「日付#…」の形にする（日付で枠を数える処理に合わせる）。manual は自動の枠と重ならない名前
+      aiPrompt: `${AUTOPILOT_PREFIX}${at.slice(0, 10)}#manual-${crypto.randomUUID().slice(0, 8)}`,
+    })
+    await reloadPosts()
+    return draft
+      ? '確認待ちに追加しました。「投稿可能にする」を押すと、午前か午後のどこかで投稿されます'
+      : `追加しました。${whenLabel(at, state.settings.timeZone)}に投稿されます`
+  }
+
   // 「投稿可能」: 確認待ち（draft）を予約中（scheduled）にする。時刻になると投稿される（時刻を過ぎていれば、1分以内に）。
   // 「確認待ちに戻す」はその逆。投稿可能にしたあとは、その予約より前の時刻に、まだ作っていない枠が残っていないかを
   // 調べて、あればいちばん近い枠から別の文を作る（取り消したあとの作り直しと同じ仕組み。空きが無ければ何も作らない）。
@@ -565,6 +598,7 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
               const reply = await run('compose', () => composeAutopilotPost(material, previous))
               return reply.composed ?? { text: null, problems: ['AIが案を返しませんでした'] }
             }}
+            onAdd={addComposed}
           />
           {/* 文体の取り込みと分析は、普段は閉じておく（トップをすっきりさせるため）。 */}
           <details className="surface-card xap__more">

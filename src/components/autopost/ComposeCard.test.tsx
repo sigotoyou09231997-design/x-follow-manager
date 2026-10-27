@@ -28,4 +28,15 @@ describe('言葉から書く', () => {
     fireEvent.click(screen.getByRole('button', { name: '文章にする' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('文体をまとめて')
   })
+
+  it('「自動投稿に追加」で文を渡し、案内を出す。追加後は押せない', async () => {
+    const onAdd = vi.fn(async () => '確認待ちに追加しました')
+    render(<ComposeCard disabled={false} onCompose={async () => ({ text: 'カレー、辛すぎた', problems: [] })} onAdd={onAdd} />)
+    fireEvent.change(screen.getByLabelText('材料になる単語や文章'), { target: { value: 'カレー' } })
+    fireEvent.click(screen.getByRole('button', { name: '文章にする' }))
+    fireEvent.click(await screen.findByRole('button', { name: '自動投稿に追加' }))
+    expect(await screen.findByText('確認待ちに追加しました')).toBeInTheDocument()
+    expect(onAdd).toHaveBeenCalledWith('カレー、辛すぎた')
+    expect(screen.getByRole('button', { name: '追加しました' })).toBeDisabled()
+  })
 })
