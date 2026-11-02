@@ -15,8 +15,20 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 which="${1:-}"
 case "$which" in yay | discord | all) ;; *) echo "使い方: bash switch-account.sh yay|discord|all"; exit 1 ;; esac
 
-bash "$HERE/stop-all.sh" >/dev/null
-echo "投稿を止めました（STOP を置きました）"
+# 入れ替える側だけを止める（Yay だけ替えるときに、掲示板の投稿まで止めない）
+stop_site() { # yay | discord
+  local d="$1" pidfile="$HERE/$1/logs/run.pid" script="poster/yay/run.mjs"
+  if [ "$d" = discord ]; then pidfile="$HERE/discord/logs/post.pid"; script="poster/discord/post.mjs"; fi
+  touch "$HERE/$d/STOP"
+  if [ -f "$pidfile" ]; then kill -TERM "$(cat "$pidfile")" 2>/dev/null || true; fi
+  pkill -TERM -f "$script" 2>/dev/null || true
+  pkill -TERM -f "user-data-dir=.*/poster/$d/chrome-profile" 2>/dev/null || true
+  sleep 2
+  pkill -KILL -f "user-data-dir=.*/poster/$d/chrome-profile" 2>/dev/null || true
+  echo "$d の投稿を止めました（STOP を置きました）"
+}
+if [ "$which" = yay ] || [ "$which" = all ]; then stop_site yay; fi
+if [ "$which" = discord ] || [ "$which" = all ]; then stop_site discord; fi
 
 open_chrome() { # ポート プロファイル URL...
   local port="$1" profile="$2"; shift 2

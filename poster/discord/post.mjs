@@ -22,6 +22,8 @@ import { loadCloud, pullState, pushStatus } from "./cloud-client.mjs";
 import { createPauseTracker } from "../pause-state.mjs";
 import { createEroypePoster } from "./eroype.mjs";
 import { createDissokuPoster } from "./dissoku.mjs";
+import { checkBoard } from "../board-visibility.mjs";
+import { createVisibilityWatch } from "../yay/visibility.mjs";
 import { acquireLock, keepAwake } from "./single-instance.mjs";
 import { holdAfterReboot } from "../boot-guard.mjs";
 
@@ -119,6 +121,45 @@ try {
   });
 } catch (e) {
   log(`[dissoku] 設定を読めないので使いません: ${e.message}`);
+}
+
+// 投稿が「外から」（別のまっさらなブラウザで）掲示板の一覧に載って見えているかを、投稿のたびに確かめる。
+//   自分のブラウザには本人のセッションがあるので、制限されて他の人に見えなくなっても気づけない（Yay で起きた）。
+//   見えない投稿が出はじめたら通知し、3回続けて載っていなければ、出し続けても誰にも届かないので STOP を置いて止める。
+//   確かめられない（読み込めない等）ときは数えない。config.json の "externalCheck": false で切れる。
+const externalWatch = createVisibilityWatch({ limit: 3, blindLimit: 10 });
+async function checkExternally(text) {
+  if (CONFIG.externalCheck === false || DRY) return;
+  const seen = await checkBoard({ chromium, url: CONFIG.url.replace(/\/create.*$/, "/"), text });
+  const w = externalWatch.record(seen);
+  if (seen !== "unknown") log(`外から見えるか: ${seen === "visible" ? "見えます" : "見えません"}${w.streak > 0 ? `（見えない${w.streak}回続き）` : ""}`);
+  else if (w.blind) notify("外から見えるかを確かめられません（掲示板の一覧を読めない）。投稿は続けています");
+  if (w.warn && !w.stop) notify("外から見えない投稿が出ました。続くと止めます");
+  if (w.stop) {
+    writeFileSync(STOP, "");
+    log(`外から見えない投稿が${w.streak}回続いたので、STOP を置いて止めます（制限されている可能性があります）`);
+    notify(`外から見えない投稿が${w.streak}回続いたので止めました`);
+  }
+}
+
+// eroype も同じく、投稿のたびに、別のまっさらなブラウザでトップの新着一覧に載っているかを確かめる（一覧は新着12件ほど）。
+//   見えない投稿が出はじめたら通知し、3回続けて載っていなければ、このプロセスでは eroype だけ出すのをやめる（ディスコードは続ける）。
+const eroypeWatch = createVisibilityWatch({ limit: 3, blindLimit: 10 });
+let eroypeHidden = false; // 外から見えない状態が続いたので、eroype への投稿をやめている
+async function checkEroypeExternally(text) {
+  if (CONFIG.externalCheck === false || DRY) return;
+  const origin = new URL(CONFIG.eroype?.url ?? "https://eroype.net/create").origin;
+  // 一覧の1件は、角丸のカード状のリンク（a）。形が変わって読めなければ、unknown になる（見えないとは数えない）
+  const seen = await checkBoard({ chromium, url: `${origin}/`, text, selector: "a[class*='rounded-xl'][class*='bg-card']" });
+  const w = eroypeWatch.record(seen);
+  if (seen !== "unknown") log(`[eroype] 外から見えるか: ${seen === "visible" ? "見えます" : "見えません"}${w.streak > 0 ? `（見えない${w.streak}回続き）` : ""}`);
+  else if (w.blind) notify("eroype: 外から見えるかを確かめられません（一覧を読めない）。投稿は続けています");
+  if (w.warn && !w.stop) notify("eroype: 外から見えない投稿が出ました。続くと止めます");
+  if (w.stop) {
+    eroypeHidden = true;
+    log(`[eroype] 外から見えない投稿が${w.streak}回続いたので、eroype への投稿をやめます（ディスコードは続けます）`);
+    notify(`eroype: 外から見えない投稿が${w.streak}回続いたので止めました`);
+  }
 }
 
 async function currentMessages() {
@@ -415,8 +456,14 @@ async function run(browser) {
     log(`投稿しました (HTTP ${status}, 今日${todayCount()}件目): ${text.replace(/\n/g, " / ")} → ${page.url()}`);
     reportStatus(true);
 
+    // 外から見えているかを、掲示板の流れが速いうち（直後）に確かめる
+    await checkExternally(text);
+
     // 同じ文を eroype.net にも。うまくいかなくても、ここでは何も起きない（ディスコードの周回はそのまま続く）
-    await eroype.postTogether(page, text);
+    if (!eroypeHidden) {
+      const posted = await eroype.postTogether(page, text);
+      if (posted?.status === "posted") await checkEroypeExternally(text);
+    }
     // ディス速にも（同じ文を入れ替えて、アップ）
     await dissoku.postTogether(page, text);
   }

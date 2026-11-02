@@ -14,10 +14,12 @@ import { execFile } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { connect, createPost, deletePost, listJoinedGroups, openTarget, parkPage, postState, selfId, waitForCard } from "./yay.mjs";
+import { connect, createPost, deletePost, listJoinedGroups, openTarget, parkPage, postState, selfId, usedSelfFallback, waitForCard } from "./yay.mjs";
 import { backoffMs, isTransient, nextStep, shouldGiveUp } from "./failure.mjs";
 import { append, pending, stats } from "./ledger.mjs";
-import { guardAccount } from "../account-guard.mjs";
+import { guardAccount, readId } from "../account-guard.mjs";
+import { checkVisible, createVisibilityWatch } from "./visibility.mjs";
+import { pickCycleTargets } from "./rotation.mjs";
 import { pickTargets } from "./targets.mjs";
 import { loadCloud, pullState, pushStatus } from "./cloud.mjs";
 import { createPauseTracker } from "../pause-state.mjs";
@@ -235,6 +237,9 @@ const skipUntil = new Map();
 const SKIP_AFTER = 3;
 const SKIP_CYCLES = 12;
 
+// 外から見えない投稿が続いたら止める（3回続き。見えた回があれば数え直す）
+const visibilityWatch = createVisibilityWatch({ limit: 3 });
+
 async function cycleTarget(page, target) {
   await removePrevious(page, target);
   await openTarget(page, target);
@@ -242,9 +247,20 @@ async function cycleTarget(page, target) {
   const made = await createPost(page, text, { target });
   append(LEDGER, { target, id: made.id, text }); // 投稿した直後に、消すための記録を残す
   log(`投稿しました (${target}) ${made.id}`);
+  // 外（ログインしていない人）から、サークルの一覧に載って見えているかを確かめる。自分の画面では必ず見えるので、
+  // 制限されて誰にも見えなくなっても気づけない（2026-11-03 に前のアカウントで起きた）。確かめられない（unknown）ときは数えない
+  const seen = await checkVisible({ target, postId: made.id });
+  const watch = visibilityWatch.record(seen);
+  if (seen !== "unknown") log(`外から見えるか (${target}): ${seen === "visible" ? "見えます" : "見えません"}${watch.streak > 0 ? `（見えない${watch.streak}回続き）` : ""}`);
+  // Mac の通知で知らせる。見えない投稿が出はじめた最初の1回と、確かめられない状態が続いたとき（止まるときは、止まった通知が別に出る）
+  if (watch.warn && !watch.stop) notify(`外から見えない投稿が出ました（${target}）。続くと止めます`);
+  if (watch.blind) notify("外から見えるかを確かめられません（Yayの一覧を読めない）。投稿は続けています");
+  if (watch.stop) {
+    throw new Error(`外から見えません（${watch.streak}回続けて、サークルの一覧に載っていません）。制限されている可能性があります`);
+  }
 }
 
-const fatalPattern = /ログインが切れ|HTTP (403|429)|自分の投稿ではない/;
+const fatalPattern = /ログインが切れ|HTTP (403|429)|自分の投稿ではない|外から見えません/;
 // 専用 Chrome のウインドウ／タブを閉じられた・Chrome を終了された、というときのエラー
 const closedPattern = /has been closed|Target closed|Target page|Browser has been closed|Connection closed|disconnected|Session closed|ECONNREFUSED|Browser context management|Chrome に接続できません/i;
 let failures = 0;
@@ -253,6 +269,7 @@ let failures = 0;
 let transientStreak = 0;
 let transientSince = null;
 let cycles = 0;
+let rotationOffset = 0; // サークルを順番に回すときの、次の始まり位置
 let { browser, page } = await connect();
 page.on("dialog", (d) => d.accept());
 
@@ -269,7 +286,10 @@ async function reattach(reason) {
 for (let attempt = 1; ; attempt++) {
   try {
     await openTarget(page, TARGETS[0]);
-    const me = await selfId(page); // 自分のユーザー番号を、作りの揃った一覧の画面で先に読んで覚えておく
+    // 自分のユーザー番号を、作りの揃った一覧の画面で先に読んで覚えておく。回数制限で読めないときは、前回覚えた番号を使う
+    const knownId = readId(join(LOGS, "account.json"));
+    const me = await selfId(page, { fallback: knownId });
+    if (usedSelfFallback()) log("自分の番号を画面から読めなかったので、前回覚えた番号を使います（Yay の回数制限の可能性）");
     // アカウントを入れ替えていたら、前のアカウントの「消すための控え」は取り分ける（別のアカウントの投稿を消しに行って止まらないように）
     const swapped = guardAccount({ idFile: join(LOGS, "account.json"), ledgerFile: LEDGER, id: me });
     if (swapped.switched) log(`アカウントが替わっています（${swapped.from} → ${me}）。前の控えは ${swapped.archived} に取り分けました`);
@@ -312,7 +332,11 @@ try {
     }
     await refreshTargets();
     reportStatus();
-    for (const target of TARGETS) {
+    // 1周に出すサークルの数（config.json の perCycle）。決めてあれば、サークルを順番に回して通信を減らす
+    const turn = pickCycleTargets(TARGETS, config().perCycle, rotationOffset);
+    rotationOffset = turn.nextOffset;
+    if (turn.picked.length < TARGETS.length) log(`この周回: ${groupsOf(turn.picked).length}サークル（全${groupsOf(TARGETS).length}）+ タイムライン`);
+    for (const target of turn.picked) {
       if (existsSync(STOP)) break;
       // 周回の途中で止められたら、そこで打ち切る。いま出ている投稿は消さず、そのまま残す
       if (pause.paused) {
@@ -362,6 +386,11 @@ try {
           log(`(${target}) は${SKIP_AFTER}周続けて失敗したので、約${Math.round((SKIP_CYCLES * INTERVAL) / 60)}分お休みします`);
         }
       }
+      // 宛先ごとに間をあける（config.json の targetGapSeconds）。全サークルを続けざまに出すと、短い間に通信が集中して
+      // Yay の回数制限（429）がかかり、同じ Wi-Fi のスマホの Yay が「サーバーが不安定です」になる（2026-11-03）。
+      // 1周のうちに、通信を薄く均す。最後の宛先のあとは待たない（次の周回までの待ちに任せる）
+      const gapMs = Number(config().targetGapSeconds) * 1000;
+      if (gapMs > 0 && target !== turn.picked[turn.picked.length - 1]) await patientSleep(gapMs);
     }
     cycles++;
     reportStatus();

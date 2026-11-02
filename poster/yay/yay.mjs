@@ -85,7 +85,13 @@ export async function openTarget(page, target) {
 // 自分のユーザー番号（ヘッダーの「プロフィールを見る」のリンクから）。途中で変わらないので、一度読んだら覚える
 // （投稿そのもののページなど、作りの違うページではこのリンクが出ないため）
 let cachedSelf = null;
-export async function selfId(page) {
+let selfFromFallback = false;
+/** 直近の selfId が、画面から読めず、覚えた番号で代用したものか（ログ用） */
+export const usedSelfFallback = () => selfFromFallback;
+//   fallback: 画面から読めないときに使う、前回までに覚えた番号。Yay の回数制限（429）で自分のユーザー情報が読み込めないと、
+//   プロフィールのリンクが仮の表示（/user/:userId）のままになり、番号が読めない（2026-11-03、起動時に止まった）。
+//   覚えた番号が古くても（アカウントを替えた直後など）、削除の前に「この投稿は自分のものか」を画面で確かめるので、他人の投稿は消さない。
+export async function selfId(page, { fallback } = {}) {
   if (cachedSelf) return cachedSelf;
   for (let i = 0; i < 20; i++) {
     const href = await page.evaluate(() => {
@@ -95,6 +101,10 @@ export async function selfId(page) {
     const m = /\/user\/(\d+)/.exec(href);
     if (m) return (cachedSelf = m[1]);
     await sleep(500);
+  }
+  if (fallback) {
+    selfFromFallback = true;
+    return (cachedSelf = String(fallback));
   }
   throw new Error("自分のユーザー番号を読み取れません（ログイン状態を確認してください）");
 }

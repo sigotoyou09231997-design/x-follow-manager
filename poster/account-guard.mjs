@@ -8,7 +8,7 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-const readId = (file) => {
+export const readId = (file) => {
   try {
     return JSON.parse(readFileSync(file, "utf8")).id ?? null;
   } catch {

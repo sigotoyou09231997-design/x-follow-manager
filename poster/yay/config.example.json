@@ -5,6 +5,8 @@
   "excludeNameWords": [],
   "maxGroups": 20,
   "intervalSeconds": 300,
+  "perCycle": null,
+  "targetGapSeconds": 0,
   "cloud": {
     "url": "https://x-follow-manager-wine.vercel.app",
     "tokenFile": ".hub-token"
