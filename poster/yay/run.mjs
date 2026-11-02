@@ -17,6 +17,7 @@ import { dirname, join } from "node:path";
 import { connect, createPost, deletePost, listJoinedGroups, openTarget, parkPage, postState, selfId, waitForCard } from "./yay.mjs";
 import { backoffMs, isTransient, nextStep, shouldGiveUp } from "./failure.mjs";
 import { append, pending, stats } from "./ledger.mjs";
+import { guardAccount } from "../account-guard.mjs";
 import { pickTargets } from "./targets.mjs";
 import { loadCloud, pullState, pushStatus } from "./cloud.mjs";
 import { createPauseTracker } from "../pause-state.mjs";
@@ -268,7 +269,10 @@ async function reattach(reason) {
 for (let attempt = 1; ; attempt++) {
   try {
     await openTarget(page, TARGETS[0]);
-    await selfId(page); // 自分のユーザー番号を、作りの揃った一覧の画面で先に読んで覚えておく
+    const me = await selfId(page); // 自分のユーザー番号を、作りの揃った一覧の画面で先に読んで覚えておく
+    // アカウントを入れ替えていたら、前のアカウントの「消すための控え」は取り分ける（別のアカウントの投稿を消しに行って止まらないように）
+    const swapped = guardAccount({ idFile: join(LOGS, "account.json"), ledgerFile: LEDGER, id: me });
+    if (swapped.switched) log(`アカウントが替わっています（${swapped.from} → ${me}）。前の控えは ${swapped.archived} に取り分けました`);
     break;
   } catch (e) {
     const msg = e.message.split("\n")[0];
