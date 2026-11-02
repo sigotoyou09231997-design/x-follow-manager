@@ -17,10 +17,13 @@
 //   ・投稿ボタンが押せる状態になったときだけ送る。押せなければ今回は見送る
 //   ・メッセージ欄の上限（最大300字）を超える文は、切らずに見送る
 //   ・Cloudflare の認証は Chrome が通した値を待つだけで、細工しない。通らなければ今回は見送る
+//   ・投稿できたら、前に自分（この投稿役）が投稿した分を消す（本人の希望: 毎回消して、いちばん新しい1件だけを残す）。
+//     投稿してから消すので、投稿できなかった回に何も無い状態にはならない。消すのは、この投稿役が投稿して控えた投稿のIDだけ
+//     （本人が手で投稿したものは触らない）。消せなかったものは控えに残し、次の回にまた消す
 //   ・ここでの失敗は、ディスコードの投稿に影響させない（例外は呼び出し元へ出さない）
 //   ・HTTP 403/429 か、3回続けての失敗で、このプロセスが動いているあいだは eroype への投稿をやめる
 //   ・ログインが切れたら通知して見送る（ログインし直せば、次の回から再開する）
-import { appendFileSync, existsSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 
 export const EROYPE_DEFAULTS = {
   enabled: false,
@@ -37,6 +40,8 @@ export const EROYPE_DEFAULTS = {
   tags: [],
   // 文を打つ速さ（1文字ごとの待ち、ミリ秒）
   typeDelayMs: 15,
+  // 投稿できたら、前にこの投稿役が投稿した分を消す
+  deletePrevious: true,
   // 冷却の残りがこの秒数以内なら、待ってもう一度送る。長ければ見送って、次のディスコードの投稿のあとにまた試す
   maxWaitSeconds: 150,
   // 文を入れたあと、投稿ボタンが押せるようになるまで待つ上限（秒）。押せなければ今回は見送り、次のディスコードの投稿のあとにまた試す
@@ -74,6 +79,7 @@ const firstLine = (e) => String(e?.message ?? e).split("\n")[0];
 export function createEroypePoster({
   config,
   logFile,
+  idsFile,
   log,
   notify,
   isHeld,
@@ -87,6 +93,50 @@ export function createEroypePoster({
   let loginNoticeSent = false;
   let turnstileNoticeSent = false;
   let cooldownUntil = 0; // 投稿が冷却中（HTTP 429）と返された。この時刻まで送らない
+
+  // この投稿役が投稿して、まだ消していない投稿のID。次の回に消す
+  const readIds = () => {
+    try {
+      const ids = JSON.parse(readFileSync(idsFile, "utf8"));
+      return Array.isArray(ids) ? ids.filter((x) => typeof x === "string") : [];
+    } catch {
+      return [];
+    }
+  };
+  const writeIds = (ids) => {
+    const tmp = `${idsFile}.tmp`;
+    writeFileSync(tmp, JSON.stringify(ids) + "\n");
+    renameSync(tmp, idsFile); // 一時ファイルに書いてから置き換える（書きかけを読まない）
+  };
+
+  // 前の投稿を消す。消せたもの・もう無いもの（404）は控えから外す。消せなかったものは次の回に回す。例外は出さない
+  async function deleteOld(page, keepId) {
+    const old = readIds().filter((id) => id !== keepId);
+    let deleted = 0;
+    let failures = 0;
+    for (const id of old) {
+      let status = 0;
+      try {
+        status = await page.evaluate(
+          async ({ path, id }) => (await fetch(`${path}/${id}`, { method: "DELETE" })).status,
+          { path: cfg.postPath, id },
+        );
+      } catch (e) {
+        log(`前の投稿を消せませんでした: ${firstLine(e)}`);
+      }
+      if ((status >= 200 && status < 300) || status === 404) {
+        writeIds(readIds().filter((x) => x !== id));
+        deleted++;
+      } else {
+        failures++;
+        log(`前の投稿を消せませんでした (HTTP ${status})。次の回にまた消します`);
+        if (failures >= 3) break;
+      }
+      await page.waitForTimeout(250);
+    }
+    if (deleted > 0) log(`前の投稿を ${deleted} 件消しました`);
+    return deleted;
+  }
 
   const postedLines = () => {
     if (!existsSync(logFile)) return [];
@@ -196,9 +246,11 @@ export function createEroypePoster({
     }
 
     const status = resp.status();
+    // 投稿のあと画面は移るので、中身は先に読む（投稿のID。冷却中なら残り時間）
+    const body = await resp.json().catch(() => null);
+    const postId = typeof body?.id === "string" ? body.id : null;
     if (status === 429) {
       // 冷却中。失敗ではない（あと何分かを覚えて、その間は開きもしない）
-      const body = await resp.json().catch(() => null);
       const remainMs = Number(body?.remainMs) > 0 ? Number(body.remainMs) : 10 * 60 * 1000;
       // 残りが短ければ、待ってもう一度だけ送る（1回目の画面は、投稿に失敗して認証の値などが使い済みなので、読み込み直す）
       if (mayWait && remainMs <= cfg.maxWaitSeconds * 1000) {
@@ -231,10 +283,18 @@ export function createEroypePoster({
     failures = 0;
     appendFileSync(
       logFile,
-      JSON.stringify({ t: new Date().toISOString(), text: text.replace(/\n/g, " / "), status, url: page.url() }) + "\n",
+      JSON.stringify({ t: new Date().toISOString(), text: text.replace(/\n/g, " / "), status, id: postId, url: page.url() }) + "\n",
     );
     log(`投稿しました (HTTP ${status}, 今日${todayCount()}件目): ${text.replace(/\n/g, " / ")}`);
-    return { status: "posted" };
+    if (!cfg.deletePrevious) return { status: "posted", id: postId };
+    if (!postId) {
+      log("投稿のIDが取れなかったので、前の投稿は消しません（次の回に消します）");
+      return { status: "posted" };
+    }
+    // いま投稿した分を控えに足してから、それ以前の分を消す（途中で止まっても、控えが残る）
+    writeIds([...new Set([...readIds(), postId])]);
+    const deleted = await deleteOld(page, postId);
+    return { status: "posted", id: postId, deleted };
   }
 
   return {

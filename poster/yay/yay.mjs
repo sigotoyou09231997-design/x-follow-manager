@@ -50,8 +50,24 @@ export async function connect() {
     if (!browser) throw new Error("Chrome に接続できません");
   }
   const ctx = browser.contexts()[0];
-  const page = ctx.pages().find((p) => !p.isClosed() && p.url().includes("yay.space")) ?? (await ctx.newPage());
+  // 待ち時間は空のページに戻している（parkPage）ので、それも使い回す。使い回さないと、つなぎ直すたびにタブが1枚ずつ増える
+  const page =
+    ctx.pages().find((p) => !p.isClosed() && p.url().includes("yay.space")) ??
+    ctx.pages().find((p) => !p.isClosed() && p.url() === "about:blank") ??
+    (await ctx.newPage());
   return { browser, page };
+}
+
+// 次の周回までの待ち時間は、空のページにしておく。yay.space を開いたままだと、タイムラインの描画が
+// CPU を常に30〜70%使い、メモリも数百MB〜数GBまでふくらんで、Mac 全体が重くなる（2026-10-12 に実測: 634MB・CPU約50%）。
+// どの操作も page.goto から始まる（前の画面の状態には頼っていない）ので、空にしても次の投稿には響かない。
+// 失敗しても投稿には関係しないので投げない（ここで止まって投稿が止まるほうが困る）
+export async function parkPage(page) {
+  try {
+    if (!page.isClosed() && page.url() !== "about:blank") await page.goto("about:blank");
+  } catch {
+    // 画面が閉じられていた等。次の周回の closedPattern で、つなぎ直しが拾う
+  }
 }
 
 // 投稿欄のある画面を開く。ログインが切れていたら投げる

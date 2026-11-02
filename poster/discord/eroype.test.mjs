@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterFailure, createEroypePoster, eroypeConfig } from "./eroype.mjs";
@@ -8,7 +8,7 @@ import { afterFailure, createEroypePoster, eroypeConfig } from "./eroype.mjs";
 // 画面の部品は偽物（Playwright の page のうち、eroype.mjs が使う部分だけ）。
 // 確かめるのは「いつ送り、いつ見送り、いつやめるか」。実際の画面の部品が合っているかは、本物のページで見る。
 function fakePage(over = {}) {
-  const calls = { goto: [], typed: [], tags: [], clicked: 0 };
+  const calls = { goto: [], typed: [], tags: [], clicked: 0, deleted: [] };
   const state = {
     landed: "https://eroype.net/create",
     maxLength: 300,
@@ -16,7 +16,8 @@ function fakePage(over = {}) {
     token: true,
     enabled: true, // 文を入れたあと、投稿ボタンが押せるか
     status: 201,
-    body: null, // 投稿の通信の中身（冷却中は { remainMs }）
+    body: { id: "new-id" }, // 投稿の通信の中身（成功なら投稿のID、冷却中は { remainMs }）
+    deleteStatus: () => 200, // 前の投稿を消す通信の結果（IDごとに変えられる）
     posted: true, // 投稿のあと、文が欄から消える（成功）か
     noPost: false, // 投稿の通信が出ない
     typedValue: null, // 欄に入った値（null なら打った文のまま）
@@ -58,6 +59,11 @@ function fakePage(over = {}) {
       return ok ? true : never();
     },
     waitForTimeout: async () => {},
+    // 前の投稿を消す（画面の中から DELETE を呼ぶ）
+    evaluate: async (_fn, arg) => {
+      calls.deleted.push(arg.id);
+      return state.deleteStatus(arg.id);
+    },
     waitForResponse: async (predicate) => {
       calls.responsePredicate = predicate;
       return state.noPost ? never() : { status: () => state.status, json: async () => state.body };
@@ -74,9 +80,11 @@ function setup(over = {}, config = { eroype: { enabled: true } }) {
   const notes = [];
   const held = { value: false };
   const logFile = join(dir, "eroype-posted.log");
+  const idsFile = join(dir, "eroype-posts.json");
   const poster = createEroypePoster({
     config,
     logFile,
+    idsFile,
     log: (m) => logs.push(m),
     notify: (m) => notes.push(m),
     isHeld: () => held.value,
@@ -86,7 +94,8 @@ function setup(over = {}, config = { eroype: { enabled: true } }) {
       clock.now += ms;
     },
   });
-  return { poster, logs, notes, held, logFile, clock, slept, page: fakePage(over) };
+  const ids = () => (existsSync(idsFile) ? JSON.parse(readFileSync(idsFile, "utf8")) : []);
+  return { poster, logs, notes, held, logFile, idsFile, ids, clock, slept, page: fakePage(over) };
 }
 
 test("設定: 書かなければ使わない。書けば初期値で補う。eroype.net 以外の宛先は受け付けない", () => {
@@ -321,4 +330,92 @@ test("1日の上限に達したら、ページも開かない", async () => {
   const opened = t.page.calls.goto.length;
   assert.equal((await t.poster.postTogether(t.page, "文")).status, "cap");
   assert.equal(t.page.calls.goto.length, opened);
+});
+
+test("投稿できたら、前に投稿した分を消して、いま投稿した1件だけを控えに残す", async () => {
+  const t = setup();
+  writeFileSync(t.idsFile, JSON.stringify(["old-1", "old-2"]));
+  const r = await t.poster.postTogether(t.page, "文");
+  assert.equal(r.status, "posted");
+  assert.equal(r.id, "new-id");
+  assert.equal(r.deleted, 2);
+  assert.deepEqual(t.page.calls.deleted, ["old-1", "old-2"]);
+  assert.deepEqual(t.ids(), ["new-id"]);
+  assert.equal(JSON.parse(readFileSync(t.logFile, "utf8").trim()).id, "new-id");
+});
+
+test("投稿した分は、消す前に控えへ入れる（消している途中で止まっても、IDが残る）", async () => {
+  const t = setup();
+  t.page.state.deleteStatus = () => 500;
+  writeFileSync(t.idsFile, JSON.stringify(["old-1"]));
+  await t.poster.postTogether(t.page, "文");
+  assert.deepEqual(t.ids().sort(), ["new-id", "old-1"]);
+});
+
+test("消せなかった分は控えに残して次の回にまた消す。もう無い（404）分は控えから外す", async () => {
+  const t = setup();
+  t.page.state.deleteStatus = (id) => (id === "gone" ? 404 : id === "stuck" ? 500 : 200);
+  writeFileSync(t.idsFile, JSON.stringify(["gone", "stuck", "ok"]));
+  const r = await t.poster.postTogether(t.page, "文");
+  assert.equal(r.status, "posted"); // 消せなくても、投稿は成功のまま
+  assert.deepEqual(t.ids().sort(), ["new-id", "stuck"]);
+  assert.match(t.logs.join("\n"), /前の投稿を消せませんでした \(HTTP 500\)/);
+
+  // 次の回: 消せるようになっていれば消える
+  t.page.state.deleteStatus = () => 200;
+  t.clock.now += 11 * 60 * 1000;
+  t.page.state.body = { id: "newer-id" };
+  await t.poster.postTogether(t.page, "文");
+  assert.deepEqual(t.ids(), ["newer-id"]);
+});
+
+test("消せない状態が3回続いたら、その回は消すのをやめる（失敗には数えず、やめもしない）", async () => {
+  const t = setup();
+  t.page.state.deleteStatus = () => 500;
+  writeFileSync(t.idsFile, JSON.stringify(["a", "b", "c", "d", "e"]));
+  const r = await t.poster.postTogether(t.page, "文");
+  assert.equal(r.status, "posted");
+  assert.deepEqual(t.page.calls.deleted, ["a", "b", "c"]);
+  assert.equal((await t.poster.postTogether(t.page, "文")).status !== "stopped", true);
+});
+
+test("投稿のIDが取れなかった回は、何も消さない（控えにも入れない）", async () => {
+  const t = setup({ body: null });
+  writeFileSync(t.idsFile, JSON.stringify(["old-1"]));
+  const r = await t.poster.postTogether(t.page, "文");
+  assert.equal(r.status, "posted");
+  assert.deepEqual(t.page.calls.deleted, []);
+  assert.deepEqual(t.ids(), ["old-1"]);
+  assert.match(t.logs.at(-1), /IDが取れなかった/);
+});
+
+test("投稿できなかった回（冷却・失敗）は、前の投稿を消さない（何も無い状態にしない）", async () => {
+  const cooldown = setup({ status: 429, body: { remainMs: 5 * 60 * 1000 } });
+  writeFileSync(cooldown.idsFile, JSON.stringify(["old-1"]));
+  await cooldown.poster.postTogether(cooldown.page, "文");
+  assert.deepEqual(cooldown.page.calls.deleted, []);
+  assert.deepEqual(cooldown.ids(), ["old-1"]);
+
+  const failed = setup({ posted: false });
+  writeFileSync(failed.idsFile, JSON.stringify(["old-1"]));
+  await failed.poster.postTogether(failed.page, "文");
+  assert.deepEqual(failed.page.calls.deleted, []);
+  assert.deepEqual(failed.ids(), ["old-1"]);
+});
+
+test("deletePrevious を false にすれば、消さない", async () => {
+  const t = setup({}, { eroype: { enabled: true, deletePrevious: false } });
+  writeFileSync(t.idsFile, JSON.stringify(["old-1"]));
+  const r = await t.poster.postTogether(t.page, "文");
+  assert.equal(r.status, "posted");
+  assert.deepEqual(t.page.calls.deleted, []);
+  assert.deepEqual(t.ids(), ["old-1"]);
+});
+
+test("控えのファイルが壊れていても、投稿は止まらない（空として扱う）", async () => {
+  const t = setup();
+  writeFileSync(t.idsFile, "{壊れた");
+  const r = await t.poster.postTogether(t.page, "文");
+  assert.equal(r.status, "posted");
+  assert.deepEqual(t.ids(), ["new-id"]);
 });

@@ -13,6 +13,10 @@
     "enabled": false,
     "url": "https://eroype.net/create"
   },
+  "dissoku": {
+    "enabled": false,
+    "url": "https://dissoku.net/ja/mypage/profile"
+  },
   "cloud": {
     "url": "https://x-follow-manager-wine.vercel.app",
     "tokenFile": ".hub-token"

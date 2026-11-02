@@ -14,13 +14,14 @@ import { execFile } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { connect, createPost, deletePost, listJoinedGroups, openTarget, postState, selfId, waitForCard } from "./yay.mjs";
+import { connect, createPost, deletePost, listJoinedGroups, openTarget, parkPage, postState, selfId, waitForCard } from "./yay.mjs";
 import { backoffMs, isTransient, nextStep, shouldGiveUp } from "./failure.mjs";
 import { append, pending, stats } from "./ledger.mjs";
 import { pickTargets } from "./targets.mjs";
 import { loadCloud, pullState, pushStatus } from "./cloud.mjs";
 import { createPauseTracker } from "../pause-state.mjs";
 import { acquireLock, keepAwake } from "./single-instance.mjs";
+import { holdAfterReboot } from "../boot-guard.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LOGS = join(HERE, "logs");
@@ -48,6 +49,12 @@ const log = (m) => {
   appendFileSync(join(LOGS, "run.log"), line + "\n");
 };
 const notify = (msg) => execFile("osascript", ["-e", `display notification "${msg}" with title "yay自動投稿"`], () => {});
+
+// Mac を再起動した直後は、勝手に再開せず止めたままにする（再開は bash launchd.sh restart）
+if (holdAfterReboot({ seenFile: join(LOGS, "boot-seen.txt"), stopFile: STOP })) {
+  log("Mac が再起動されたので、STOP を置いて止めたままにします（再開: bash launchd.sh restart）");
+  process.exit(0);
+}
 
 // 二重起動の防止と、スリープ防止
 acquireLock(LOCK, "run.mjs");
@@ -295,6 +302,7 @@ try {
         break;
       }
       reportStatus();
+      await parkPage(page); // 止めている間も画面を開きっぱなしにしない（CPU とメモリが居座る）
       for (let i = 0; i < PAUSE_POLL_MS / 1000 && !existsSync(STOP); i++) await sleep(1000);
       continue;
     }
@@ -353,6 +361,7 @@ try {
     }
     cycles++;
     reportStatus();
+    await parkPage(page); // 次の周回までの数分は、yay.space を開いたままにしない（CPU とメモリが居座る）
     if (existsSync(STOP)) {
       log("STOP ファイルがあるので止めます");
       break;

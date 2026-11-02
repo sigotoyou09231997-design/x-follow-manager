@@ -21,7 +21,9 @@ import { readConfig, readMessages, saveMessages } from "./config.mjs";
 import { loadCloud, pullState, pushStatus } from "./cloud-client.mjs";
 import { createPauseTracker } from "../pause-state.mjs";
 import { createEroypePoster } from "./eroype.mjs";
+import { createDissokuPoster } from "./dissoku.mjs";
 import { acquireLock, keepAwake } from "./single-instance.mjs";
+import { holdAfterReboot } from "../boot-guard.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(join(HERE, "../../node_modules/"));
@@ -44,6 +46,12 @@ const MAX = args.includes("--max") ? Number(args[args.indexOf("--max") + 1]) : I
 
 mkdirSync(LOGS, { recursive: true });
 if (!DRY) {
+  // Mac を再起動した直後は、勝手に再開せず止めたままにする（再開は bash launchd.sh restart）
+  if (holdAfterReboot({ seenFile: join(LOGS, "boot-seen.txt"), stopFile: STOP })) {
+    console.log("Mac が再起動されたので、STOP を置いて止めたままにします（再開: bash launchd.sh restart）");
+    appendFileSync(join(LOGS, "run.log"), `[${new Date().toLocaleString("ja-JP", { hour12: false })}] Mac が再起動されたので、STOP を置いて止めました\n`);
+    process.exit(0);
+  }
   acquireLock(join(LOGS, "post.pid"), "post.mjs"); // 二重起動しない（自動起動と手動が重なっても1つだけ）
   keepAwake();
 }
@@ -89,12 +97,28 @@ try {
   eroype = createEroypePoster({
     config: CONFIG,
     logFile: join(LOGS, "eroype-posted.log"),
+    idsFile: join(LOGS, "eroype-posts.json"), // 投稿して、まだ消していない投稿のID（次の回に消す）
     log: (msg) => log(`[eroype] ${msg}`),
     notify: (msg) => notify(`eroype: ${msg}`),
     isHeld: () => (pause.paused && !DRY) || existsSync(STOP),
   });
 } catch (e) {
   log(`[eroype] 設定を読めないので使いません: ${e.message}`);
+}
+
+// ディス速（dissoku.net）にも、同じ文を出して「アップ」する（config.json に "dissoku": { "enabled": true } があるときだけ）。
+//   eroype と同じく、ディスコードの投稿に付いて動く。止められているあいだは出さない。設定が読めなくてもディスコードは動かす。
+let dissoku = { postTogether: async () => ({ status: "off" }) };
+try {
+  dissoku = createDissokuPoster({
+    config: CONFIG,
+    logFile: join(LOGS, "dissoku-posted.log"),
+    log: (msg) => log(`[dissoku] ${msg}`),
+    notify: (msg) => notify(`ディス速: ${msg}`),
+    isHeld: () => (pause.paused && !DRY) || existsSync(STOP),
+  });
+} catch (e) {
+  log(`[dissoku] 設定を読めないので使いません: ${e.message}`);
 }
 
 async function currentMessages() {
@@ -205,7 +229,7 @@ async function run(browser) {
   const ctx = browser.contexts()[0];
   // eroype への投稿のあとは、同じタブが eroype.net に居る。つなぎ直したとき、そのタブも見つけて使い回す（タブが増えない）
   const page =
-    ctx.pages().find((p) => !p.isClosed() && (p.url().includes("discord-ch.site") || p.url().includes("eroype.net"))) ??
+    ctx.pages().find((p) => !p.isClosed() && (p.url().includes("discord-ch.site") || p.url().includes("eroype.net") || p.url().includes("dissoku.net"))) ??
     (await ctx.newPage());
   page.on("dialog", (d) => {
     log(`ダイアログ: ${d.message()} → OK`);
@@ -393,6 +417,8 @@ async function run(browser) {
 
     // 同じ文を eroype.net にも。うまくいかなくても、ここでは何も起きない（ディスコードの周回はそのまま続く）
     await eroype.postTogether(page, text);
+    // ディス速にも（同じ文を入れ替えて、アップ）
+    await dissoku.postTogether(page, text);
   }
 
   log("終了");
