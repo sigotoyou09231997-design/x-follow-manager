@@ -870,7 +870,8 @@ describe('XAutopilotPanel: 投稿可能（確認してから投稿する）', ()
     const sameHalf = (iso: string) => {
       const h = jstHour(iso)
       const day = new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' })
-      return `${day}${h < 12 ? 'am' : 'pm'}`
+      // 午前の枠は7時から（それより前は、どちらの半日にも入らない）。深夜にテストを走らせても、同じ半日と数えない
+      return `${day}${h < 7 ? 'night' : h < 12 ? 'am' : 'pm'}`
     }
     expect(sameHalf(patch.scheduledAt)).not.toBe(sameHalf(taken))
   })
