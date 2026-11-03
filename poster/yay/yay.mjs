@@ -248,10 +248,39 @@ export async function deletePost(page, id) {
   const card = page.locator(".PostList__item", { has: page.locator(`a[href*="/post/${id}/"]`) }).first();
   if (!(await card.count())) throw new Error(`投稿 ${id} が画面に見つかりません`);
   if (!(await card.locator(`a[href="/user/${me}"]`).count())) throw new Error(`投稿 ${id} は自分の投稿ではないので消しません`);
-  await card.locator(".Menu__handle").first().click({ timeout: 10000 });
-  await card.locator(".Menu__panel__ul__a", { hasText: /^削除$/ }).first().click({ timeout: 10000 });
-  await confirmDelete(page);
-  await card.waitFor({ state: "detached", timeout: 15000 });
+  // 他の人の投稿に付いた動画カードは読み込みのあとで高さが変わり、押す瞬間に自分の投稿がずれる。
+  // ずれた先に動画カードがあると「削除」のつもりのクリックがそれに当たり、YouTube が開いて確認画面が出ない
+  // （2026-11-03 に何度も起きた）。位置が落ち着くのを待ってから押し、それでも別のタブが開いたら閉じる
+  const ctx = page.context();
+  const closeStray = (p) => {
+    if (p !== page && !/^https:\/\/yay\.space\//.test(p.url())) setTimeout(() => p.close().catch(() => {}), 300);
+  };
+  ctx.on("page", closeStray);
+  try {
+    await card.scrollIntoViewIfNeeded({ timeout: 10000 }).catch(() => {});
+    await waitSettled(card);
+    await card.locator(".Menu__handle").first().click({ timeout: 10000 });
+    await card.locator(".Menu__panel__ul__a", { hasText: /^削除$/ }).first().click({ timeout: 10000 });
+    await confirmDelete(page);
+    await card.waitFor({ state: "detached", timeout: 15000 });
+  } finally {
+    ctx.off("page", closeStray);
+    await sleep(500);
+    for (const p of ctx.pages()) if (!p.isClosed() && p !== page && /youtube\.com/.test(p.url())) await p.close().catch(() => {});
+  }
+}
+
+// 要素の位置が2回続けて同じになるまで待つ（最長4秒）。落ち着かなくても投げない（その先の操作が判断する）
+export async function waitSettled(locator, { tries = 8, gapMs = 500 } = {}) {
+  let last = "";
+  for (let i = 0; i < tries; i++) {
+    const box = await locator.boundingBox().catch(() => null);
+    const now = box ? `${Math.round(box.x)},${Math.round(box.y)},${Math.round(box.height)}` : "";
+    if (now && now === last) return true;
+    last = now;
+    await sleep(gapMs);
+  }
+  return false;
 }
 
 export const postUrl = (target, id) =>
