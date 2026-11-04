@@ -76,7 +76,7 @@ export function normalizeSettings(input: Partial<AutopilotSettings> | null | und
       LIMITS.monthlyBudgetYen.min,
       LIMITS.monthlyBudgetYen.max
     ),
-    quality: raw.quality === 'saver' ? 'saver' : 'standard',
+    quality: raw.quality === 'saver' || raw.quality === 'cheapest' ? raw.quality : 'standard',
     // 明示的に false のときだけオフ。未設定（これまでの保存）は、確認してから投稿する側に倒す。
     requireApproval: raw.requireApproval !== false,
     deletePrevious,

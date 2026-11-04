@@ -38,7 +38,7 @@ import { UsageMeter } from './UsageMeter'
 // 「自動投稿」タブの X。過去の投稿を読んで文体をまとめ、AIが新しい投稿を前もって予約に並べる。
 // 費用が出る操作（読み込み・まとめ・試し書き）は、押す前にボタンの横へ金額の目安を出す。
 
-const QUALITY_ORDER: Quality[] = ['standard', 'saver']
+const QUALITY_ORDER: Quality[] = ['standard', 'saver', 'cheapest']
 
 const dayLabel = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric' }) : '')
 

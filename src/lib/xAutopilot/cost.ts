@@ -14,6 +14,7 @@ export const QUALITY_MODELS: Record<
   { id: string; label: string; inputPerMillionUsd: number; outputPerMillionUsd: number }
 > = {
   standard: { id: 'claude-opus-5-5', label: '標準（Opus 5.5）', inputPerMillionUsd: 4, outputPerMillionUsd: 20 },
+  cheapest: { id: 'claude-haiku-5-5', label: '最安（Haiku 5.5）', inputPerMillionUsd: 0.1, outputPerMillionUsd: 0.5 },
   saver: { id: 'claude-sonnet-5-5', label: '節約（Sonnet 5.5）', inputPerMillionUsd: 2, outputPerMillionUsd: 10 },
 }
 

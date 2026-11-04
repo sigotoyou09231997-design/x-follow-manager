@@ -21,12 +21,19 @@ describe('費用の見積もり', () => {
       standard: { 1: 370, 3: 910, 5: 1460 },
       saver: { 1: 220, 3: 560, 5: 900 },
     } as const
-    for (const quality of ['standard', 'saver'] as const) {
+    for (const quality of ["standard", "saver"] as const) {
       for (const n of [1, 3, 5] as const) {
         // 丸めの差（±30円）は許す。大きくずれたら、伝えた金額が古くなっている
         expect(Math.abs(monthlyYen(quality, n) - rows[quality][n])).toBeLessThanOrEqual(30)
       }
     }
+  })
+
+  it('最安（Haiku 5.5）は節約よりずっと安く、残りはほぼXの投稿料金', () => {
+    expect(aiCostYen('cheapest', 1_000_000, 0)).toBeCloseTo(15, 0)
+    expect(aiCostYen('cheapest', 0, 1_000_000)).toBeCloseTo(75, 0)
+    expect(monthlyYen('cheapest', 5)).toBeLessThan(monthlyYen('saver', 5) / 2)
+    expect(onePostYen('cheapest')).toBeCloseTo(2.25, 0) // AI 0.15 + X 2.25
   })
 
   it('投稿が多いほど高く、8本でも固定費を除けば本数に比例する', () => {

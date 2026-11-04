@@ -22,7 +22,7 @@ export const REJECTED_MARK = '本人が取り消した'
 export const DELETED_MARK = 'Xから削除済み'
 
 /** 文章の質。標準＝高い精度、節約＝費用を抑える（短い投稿なら差は小さい）。使うAIと料金は cost.ts。 */
-export type Quality = 'standard' | 'saver'
+export type Quality = 'standard' | 'saver' | 'cheapest'
 
 export interface AutopilotSettings {
   /** 1日の投稿数。1〜8（多すぎる連投は、費用だけでなく X 側のスパム判定にも近づく）。 */
