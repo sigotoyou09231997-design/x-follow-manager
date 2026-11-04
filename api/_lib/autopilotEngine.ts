@@ -1,6 +1,7 @@
 import {
   aiCostYen,
   onePostYen,
+  QUALITY_MODELS,
   PRICE,
   USD_JPY,
 } from '../../src/lib/xAutopilot/cost.js'
@@ -37,7 +38,8 @@ import {
   type StyleProfile,
 } from '../../src/lib/xAutopilot/types.js'
 import { isOverLimit } from '../../src/lib/schedule/textLength.js'
-import type { AutopilotRow, AutopilotStore } from './autopilotStore.js'
+import type { AutopilotRow, AutopilotStore, GenerationLog } from './autopilotStore.js'
+import type { Quality } from '../../src/lib/xAutopilot/types.js'
 import type { composeAutopilotPost, reviseAutopilotPost, writeAutopilotPost, writeProfile } from './autopilotWriter.js'
 import type { OwnPost } from './xClient.js'
 
@@ -267,7 +269,26 @@ export function checkPost(text: string, others: string[]): string[] {
   return problems
 }
 
+/** 書いた1案を記録する（分析用）。記録の失敗は生成や投稿に響かせない。 */
+async function logGeneration(
+  deps: EngineDeps,
+  userId: string,
+  entry: Omit<GenerationLog, 'model' | 'yen'> & { quality: Quality }
+): Promise<void> {
+  try {
+    await deps.store.logGeneration(userId, {
+      ...entry,
+      model: QUALITY_MODELS[entry.quality].id,
+      yen: aiCostYen(entry.quality, entry.inputTokens, entry.outputTokens),
+    })
+  } catch (error) {
+    console.error('autopilot logGeneration failed:', error)
+  }
+}
+
 interface GenerateContext {
+  /** 記録の種類。補充（auto）か、試し書き（preview）か。 */
+  kind: 'auto' | 'preview'
   deps: EngineDeps
   row: AutopilotRow
   profile: StyleProfile
@@ -343,6 +364,8 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
   for (let attempt = 0; attempt <= MAX_REWRITES; attempt++) {
     // 書き直しは、時間に余裕があるときだけ。無ければ、いまある案と理由をそのまま返す。
     if (attempt > 0 && deps.canStartAi && !deps.canStartAi()) break
+    let tokensIn = 0
+    let tokensOut = 0
     const rawText = await deps.writePost({
       apiKey,
       quality: row.settings.quality,
@@ -368,6 +391,8 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
       feedback,
       timeoutMs: deps.aiTimeoutMs,
       onUsage: (u) => {
+        tokensIn += u.inputTokens
+        tokensOut += u.outputTokens
         usage.yen += aiCostYen(row.settings.quality, u.inputTokens, u.outputTokens)
         usage.generations += 1
       },
@@ -392,6 +417,16 @@ async function generateOne(ctx: GenerateContext): Promise<Generated> {
       if (refused.length > 0) problems.push(`本人が何度も取り消している言葉（${refused.join('・')}）を含んでいる`)
     }
     last = { text, problems }
+    await logGeneration(deps, row.userId, {
+      kind: ctx.kind,
+      quality: row.settings.quality,
+      text: text ?? '',
+      problems,
+      attempt,
+      inputTokens: tokensIn,
+      outputTokens: tokensOut,
+      context: { slotAt: ctx.slotAt, form: variety.form, length: variety.length },
+    })
     if (problems.length === 0) return last
     feedback = problems.join('、')
   }
@@ -424,6 +459,8 @@ export async function revisePost(
   if (overBudget(usage, row.settings, onePostYen(row.settings.quality))) throw new EngineError(budgetMessage(row.settings))
 
   const history = await humanHistory(deps, row)
+  let reviseIn = 0
+  let reviseOut = 0
   const revisedRaw = await deps.revisePost({
     apiKey,
     quality: row.settings.quality,
@@ -433,6 +470,8 @@ export async function revisePost(
     instruction: instruction || undefined,
     timeoutMs: deps.aiTimeoutMs,
     onUsage: (u) => {
+      reviseIn += u.inputTokens
+      reviseOut += u.outputTokens
       usage.yen += aiCostYen(row.settings.quality, u.inputTokens, u.outputTokens)
       usage.generations += 1
     },
@@ -441,6 +480,16 @@ export async function revisePost(
   const revised = revisedRaw ? flattenLines(revisedRaw) : undefined
   // 似すぎの検査は、元の文と似ているのが当たり前なので、ここでは使わない（長さ・URL・天気・未成年だけ見る）。
   const problems = revised ? checkPost(revised, []) : ['AIが直した案を作れませんでした']
+  await logGeneration(deps, userId, {
+    kind: 'revise',
+    quality: row.settings.quality,
+    text: revised ?? '',
+    problems,
+    attempt: 0,
+    inputTokens: reviseIn,
+    outputTokens: reviseOut,
+    context: { original: text, instruction: instruction || null },
+  })
   return { text: revised, problems, usage }
 }
 
@@ -465,6 +514,8 @@ export async function composePost(
   if (overBudget(usage, row.settings, onePostYen(row.settings.quality))) throw new EngineError(budgetMessage(row.settings))
 
   const history = await humanHistory(deps, row)
+  let composeIn = 0
+  let composeOut = 0
   const rawText = await deps.composePost({
     apiKey,
     quality: row.settings.quality,
@@ -474,6 +525,8 @@ export async function composePost(
     previous: input.previous?.trim().slice(0, REVISE_MAX_TEXT) || undefined,
     timeoutMs: deps.aiTimeoutMs,
     onUsage: (u) => {
+      composeIn += u.inputTokens
+      composeOut += u.outputTokens
       usage.yen += aiCostYen(row.settings.quality, u.inputTokens, u.outputTokens)
       usage.generations += 1
     },
@@ -482,6 +535,16 @@ export async function composePost(
   const text = rawText ? flattenLines(rawText) : undefined
   // 似すぎの検査は、本人が材料を入れているので使わない（長さ・URL・天気・未成年だけ見る）。
   const problems = text ? checkPost(text, []) : ['AIが案を作れませんでした']
+  await logGeneration(deps, userId, {
+    kind: 'compose',
+    quality: row.settings.quality,
+    text: text ?? '',
+    problems,
+    attempt: 0,
+    inputTokens: composeIn,
+    outputTokens: composeOut,
+    context: { material, previous: input.previous?.trim().slice(0, REVISE_MAX_TEXT) || null },
+  })
   return { text, problems, usage }
 }
 
@@ -501,6 +564,7 @@ export async function previewPost(deps: EngineDeps, userId: string): Promise<Gen
   const rejected = await deps.store.rejectedTexts(userId, REJECTED_FOR_ANALYSIS)
   const slotAt = new Date(now.getTime() + 3600_000).toISOString()
   const result = await generateOne({
+    kind: 'preview',
     deps,
     row,
     profile,
@@ -615,6 +679,7 @@ export async function topUp(
     let generated: Generated
     try {
       generated = await generateOne({
+        kind: 'auto',
         deps,
         row,
         profile,

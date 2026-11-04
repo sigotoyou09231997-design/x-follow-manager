@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { vi } from 'vitest'
 import type { HistoryPost } from '../../src/lib/xAutopilot/types.js'
-import { emptyRow, type AutopilotPatch, type AutopilotRow, type AutopilotStore } from './autopilotStore.js'
+import { emptyRow, type AutopilotPatch, type AutopilotRow, type AutopilotStore, type GenerationLog } from './autopilotStore.js'
 import type { EngineDeps } from './autopilotEngine.js'
 import type { OwnPost } from './xClient.js'
 
@@ -44,9 +44,11 @@ export function memoryStore(initial?: Partial<AutopilotRow>) {
     postedTweetIds?: string[]
   }[] = []
   const account = { xUserId: '555', username: 'me' }
-  const store: AutopilotStore & { rows: typeof rows; posts: typeof posts; hasAccount: boolean } = {
+  const generationLogs: (GenerationLog & { userId: string })[] = []
+  const store: AutopilotStore & { rows: typeof rows; posts: typeof posts; generationLogs: typeof generationLogs; hasAccount: boolean } = {
     rows,
     posts,
+    generationLogs,
     hasAccount: true,
     async get(userId) {
       return structuredClone(rows.get(userId) ?? emptyRow(userId))
@@ -96,6 +98,9 @@ export function memoryStore(initial?: Partial<AutopilotRow>) {
       return posts
         .filter((p) => p.userId === userId && p.status !== 'canceled' && p.slotKey.slice(0, 10) >= sinceDate)
         .map((p) => p.slotKey)
+    },
+    async logGeneration(userId, entry) {
+      generationLogs.push({ userId, ...entry })
     },
     async trimDrafts(userId, keep) {
       const drafts = posts.filter((p) => p.userId === userId && p.status === 'draft')
