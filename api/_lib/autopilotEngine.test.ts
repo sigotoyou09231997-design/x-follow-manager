@@ -595,6 +595,50 @@ describe('予約の文章をAIで整える', () => {
   })
 })
 
+describe('生成した文の記録（分析用）', () => {
+  it('試し書き・言葉から書く・整える・補充が、それぞれ種類つきで残る', async () => {
+    const store = ready()
+    const { deps } = makeDeps(store)
+    await previewPost(deps, OWNER)
+    await composePost(deps, OWNER, { material: 'コーヒー' })
+    await revisePost(deps, OWNER, { text: '元の文', instruction: '短く' })
+    expect(store.generationLogs.map((l) => l.kind)).toEqual(['preview', 'compose', 'revise'])
+    const compose = store.generationLogs[1]
+    expect(compose).toMatchObject({ userId: OWNER, quality: 'standard', model: 'claude-opus-5-5', problems: [], attempt: 0 })
+    expect(compose.text).not.toBe('')
+    expect(compose.yen).toBeGreaterThan(0)
+    expect(compose.context).toMatchObject({ material: 'コーヒー' })
+    expect(store.generationLogs[2].context).toMatchObject({ original: '元の文', instruction: '短く' })
+  })
+
+  it('検査に落ちて書き直した案も、1案ごとに残る（落ちた理由つき）', async () => {
+    const store = ready()
+    const { deps, writePost } = makeDeps(store)
+    writePost.mockResolvedValueOnce('https://example.com' as never)
+    await previewPost(deps, OWNER)
+    const logs = store.generationLogs.filter((l) => l.kind === 'preview')
+    expect(logs.length).toBeGreaterThanOrEqual(2)
+    expect(logs[0]).toMatchObject({ attempt: 0 })
+    expect(logs[0].problems).toContain('URLを含んでいる')
+    expect(logs[logs.length - 1].problems).toEqual([])
+  })
+
+  it('モデルは選んだ質のものが残る', async () => {
+    const store = ready({ settings: { ...DEFAULT_SETTINGS, quality: 'cheapest' } })
+    await composePost(makeDeps(store).deps, OWNER, { material: 'x' })
+    expect(store.generationLogs[0]).toMatchObject({ quality: 'cheapest', model: 'claude-haiku-5-5' })
+  })
+
+  it('記録に失敗しても、生成そのものは成功する', async () => {
+    const store = ready()
+    store.logGeneration = async () => {
+      throw new Error('db down')
+    }
+    const r = await composePost(makeDeps(store).deps, OWNER, { material: 'x' })
+    expect(r.text).toBeTruthy()
+  })
+})
+
 describe('試し書き', () => {
   it('文体のまとめが無ければ断る。あれば1本書いて、費用を使用状況に足す（予約には入れない）', async () => {
     await expect(previewPost(makeDeps(memoryStore()).deps, OWNER)).rejects.toThrow('文体をまとめて')

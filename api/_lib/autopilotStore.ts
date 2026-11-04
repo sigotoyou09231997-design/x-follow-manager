@@ -39,7 +39,24 @@ export class AutopilotNotReadyError extends Error {
   }
 }
 
+/** AI が書いた1案の記録（SQL 010 の x_autopilot_generations）。あとで分析するためのもので、投稿の動きには関わらない。 */
+export interface GenerationLog {
+  kind: 'auto' | 'preview' | 'compose' | 'revise'
+  quality: string
+  model: string
+  text: string
+  problems: string[]
+  attempt: number
+  inputTokens: number
+  outputTokens: number
+  yen: number
+  /** 材料・元の文・指示・予定時刻など、種類ごとの付随情報。 */
+  context?: Record<string, unknown>
+}
+
 export interface AutopilotStore {
+  /** 生成した1案を記録する。記録できなくても生成や投稿は止めない（投げない）。 */
+  logGeneration(userId: string, entry: GenerationLog): Promise<void>
   /** まだ何も保存していない人は、既定の設定の空の状態で返す。表が無ければ AutopilotNotReadyError。 */
   get(userId: string): Promise<AutopilotRow>
   /** 渡した項目だけ書き換える（行が無ければ作る）。 */
@@ -170,6 +187,30 @@ export function supabaseAutopilotStore(client: SupabaseClient = getSupabaseAdmin
         throw new Error(`${TABLE} の読み込みに失敗しました: ${error.message}`)
       }
       return data ? toRow(data) : emptyRow(userId)
+    },
+
+    async logGeneration(userId, entry) {
+      try {
+        const { error } = await client.from('x_autopilot_generations').insert({
+          user_id: userId,
+          kind: entry.kind,
+          quality: entry.quality,
+          model: entry.model,
+          text: entry.text,
+          problems: entry.problems,
+          attempt: entry.attempt,
+          input_tokens: entry.inputTokens,
+          output_tokens: entry.outputTokens,
+          yen: entry.yen,
+          context: entry.context ?? {},
+        })
+        // 表がまだ無い（SQL 010 未実行）あいだは黙って捨てる。記録のために生成を止めない。
+        if (error && !error.message?.includes('x_autopilot_generations') && !MISSING_TABLE_CODES.includes(error.code ?? '')) {
+          console.error('autopilot logGeneration failed:', error.message)
+        }
+      } catch (error) {
+        console.error('autopilot logGeneration failed:', error)
+      }
     },
 
     async save(userId, patch) {
