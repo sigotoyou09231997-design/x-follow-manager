@@ -20,6 +20,7 @@ import { append, pending, stats } from "./ledger.mjs";
 import { guardAccount, readId } from "../account-guard.mjs";
 import { checkVisible, createVisibilityWatch } from "./visibility.mjs";
 import { engagementRow, readEngagement } from "./engagement.mjs";
+import { appendSnapshot, diffChats, dueForSnapshot, lastSnapshot, readChats } from "./chats.mjs";
 import { pickCycleTargets } from "./rotation.mjs";
 import { pickTargets } from "./targets.mjs";
 import { loadCloud, pullState, pushStatus } from "./cloud.mjs";
@@ -30,6 +31,8 @@ import { holdAfterReboot } from "../boot-guard.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LOGS = join(HERE, "logs");
 const LEDGER = join(LOGS, "posted.jsonl");
+const CHATS = join(LOGS, "chats.jsonl"); // チャット一覧の定期記録（分析用。analyze-chats.mjs で集計）
+const CHAT_EVERY_MS = 30 * 60 * 1000;
 const ENGAGEMENT = join(LOGS, "engagement.jsonl"); // 消す直前に読んだ反応（分析用。analyze-engagement.mjs で集計）
 const STOP = join(HERE, "STOP");
 const LOCK = join(LOGS, "run.pid");
@@ -245,6 +248,25 @@ const SKIP_CYCLES = 12;
 // 外から見えない投稿が続いたら止める（3回続き。見えた回があれば数え直す）
 const visibilityWatch = createVisibilityWatch({ limit: 3 });
 
+// チャット一覧を30分に1回記録する。周回の最後（画面を空にしたあと）にだけ呼ぶ＝投稿・削除とぶつからない。
+// 読めなくても、記録を飛ばすだけで投稿は止めない。
+async function snapshotChatsIfDue(page) {
+  try {
+    if (existsSync(STOP) || pause.paused) return;
+    const prev = lastSnapshot(CHATS);
+    if (!dueForSnapshot(prev, CHAT_EVERY_MS)) return;
+    const snap = await readChats(page);
+    if (!snap) { log("チャット一覧を読めませんでした（今回の記録は飛ばします）"); return; }
+    appendSnapshot(CHATS, snap);
+    const d = diffChats(prev, snap);
+    log(`チャット記録: 会話${snap.rooms.length}件 / リクエスト${snap.requests ?? "?"}件${d.first ? "（最初の記録）" : ` / 新しい会話${d.newRooms}・相手から新着${d.incoming}`}`);
+  } catch {
+    // 記録は分析用。ここで失敗しても投稿は続ける
+  } finally {
+    await parkPage(page);
+  }
+}
+
 async function cycleTarget(page, target) {
   await removePrevious(page, target);
   await openTarget(page, target);
@@ -400,6 +422,7 @@ try {
     cycles++;
     reportStatus();
     await parkPage(page); // 次の周回までの数分は、yay.space を開いたままにしない（CPU とメモリが居座る）
+    await snapshotChatsIfDue(page);
     if (existsSync(STOP)) {
       log("STOP ファイルがあるので止めます");
       break;
