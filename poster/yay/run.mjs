@@ -19,6 +19,7 @@ import { backoffMs, isTransient, nextStep, shouldGiveUp } from "./failure.mjs";
 import { append, pending, stats } from "./ledger.mjs";
 import { guardAccount, readId } from "../account-guard.mjs";
 import { checkVisible, createVisibilityWatch } from "./visibility.mjs";
+import { engagementRow, readEngagement } from "./engagement.mjs";
 import { pickCycleTargets } from "./rotation.mjs";
 import { pickTargets } from "./targets.mjs";
 import { loadCloud, pullState, pushStatus } from "./cloud.mjs";
@@ -29,6 +30,7 @@ import { holdAfterReboot } from "../boot-guard.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LOGS = join(HERE, "logs");
 const LEDGER = join(LOGS, "posted.jsonl");
+const ENGAGEMENT = join(LOGS, "engagement.jsonl"); // 消す直前に読んだ反応（分析用。analyze-engagement.mjs で集計）
 const STOP = join(HERE, "STOP");
 const LOCK = join(LOGS, "run.pid");
 mkdirSync(LOGS, { recursive: true });
@@ -85,6 +87,9 @@ async function removePrevious(page, target) {
       }
       log(`一覧には出ませんが、投稿はまだあります。投稿のページから消します (${target}) ${prev.id}`);
     }
+    // 消す直前に、この投稿に付いた反応（いいね・返信・通報）を記録する。分析用で、読めなくても消す流れは止めない
+    const metrics = await readEngagement(prev.id);
+    if (metrics) append(ENGAGEMENT, engagementRow({ prev, metrics }));
     await deletePost(page, prev.id); // 一覧のカード、または開いている投稿のページのカードから消す
     if ((await postState(page, target, prev.id)) !== "deleted") throw new Error(`削除したのに残っています (${prev.id})`);
     append(LEDGER, { target, id: prev.id, deleted: true });
