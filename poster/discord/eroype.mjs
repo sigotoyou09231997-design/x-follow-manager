@@ -74,6 +74,9 @@ export function afterFailure({ failures, status }) {
   return failures >= 3 ? "stop" : "retry";
 }
 
+// 年齢確認が済んでいないときだけ出る案内（投稿の欄の代わりに出る）
+const AGE_GATE = "text=年齢確認へ進む";
+
 const firstLine = (e) => String(e?.message ?? e).split("\n")[0];
 
 export function createEroypePoster({
@@ -91,6 +94,7 @@ export function createEroypePoster({
   let failures = 0;
   let stopped = false;
   let loginNoticeSent = false;
+  let ageNoticeSent = false;
   let turnstileNoticeSent = false;
   let cooldownUntil = 0; // 投稿が冷却中（HTTP 429）と返された。この時刻まで送らない
 
@@ -170,6 +174,19 @@ export function createEroypePoster({
       return { status: "login" };
     }
     loginNoticeSent = false;
+
+    // 年齢確認が済んでいないアカウントは、投稿の欄そのものが出ず「年齢確認へ進む」だけが出る。
+    // これを失敗に数えると、確認が通るのを待つ間に3回続いて「やめる」になり、通ったあとも再起動するまで投稿されない。
+    // 失敗にも数えず見送り、確認が通って欄が出た回から自動で投稿する。
+    if ((await page.locator(AGE_GATE).count()) > 0) {
+      log("eroype は年齢確認が済んでいないので、今回は見送ります（確認が通れば、次の回から自動で投稿します）");
+      if (!ageNoticeSent) {
+        ageNoticeSent = true;
+        notify("eroype は年齢確認が済むまで投稿できません。通れば自動で始まります");
+      }
+      return { status: "age" };
+    }
+    ageNoticeSent = false;
 
     const box = page.locator(cfg.textSelector);
     // 欄の上限を超える文は、切らずに見送る（途中で切れた文を勝手に投稿しない）
