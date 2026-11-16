@@ -22,6 +22,7 @@ function fakePage(over = {}) {
     noPost: false, // 投稿の通信が出ない
     typedValue: null, // 欄に入った値（null なら打った文のまま）
     clickThrows: false,
+    ageGate: false, // 年齢確認が済んでいない（投稿の欄の代わりに「年齢確認へ進む」が出る）
     ...over,
   };
   const never = () => Promise.reject(new Error("timeout"));
@@ -33,7 +34,7 @@ function fakePage(over = {}) {
     },
     url: () => state.landed,
     locator: (selector) => ({
-      count: async () => (state.turnstile ? 1 : 0),
+      count: async () => (selector.includes("年齢確認") ? (state.ageGate ? 1 : 0) : state.turnstile ? 1 : 0),
       // 欄の上限を読む呼び出しと、ボタンを直接押す代わりの呼び出し
       evaluate: async (fn) => {
         if (String(fn).includes("maxLength")) return state.maxLength;
@@ -259,6 +260,15 @@ test("ログインが切れていれば、通知して見送る。ログイン�
   assert.equal((await t.poster.postTogether(t.page, "文")).status, "login");
   assert.equal(t.notes.length, 1);
   t.page.state.landed = "https://eroype.net/create";
+  assert.equal((await t.poster.postTogether(t.page, "文")).status, "posted");
+});
+
+test("年齢確認が済むまでは、通知して見送る（失敗に数えず、やめもしない）。通った回から自動で投稿する", async () => {
+  const t = setup({ ageGate: true });
+  for (let i = 0; i < 5; i++) assert.equal((await t.poster.postTogether(t.page, "文")).status, "age");
+  assert.equal(t.notes.length, 1);
+  assert.equal(t.page.calls.typed.length, 0);
+  t.page.state.ageGate = false;
   assert.equal((await t.poster.postTogether(t.page, "文")).status, "posted");
 });
 
