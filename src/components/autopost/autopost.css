@@ -1406,8 +1406,9 @@
     align-self: start;
   }
 
-  /* 料金が読めない（未設定・読み込み失敗）ときは左が空くので、スイッチを横いっぱいにする。 */
-  .autopost-home:not(:has(.usage-meter)) .switch-list {
+  /* X が読めない（未設定・読み込み失敗）ときは左の列（予定）が無く左が空くので、スイッチを横いっぱいにする。
+     料金はトップから外した（2026-11-22）ので、料金の有無では判定しない（いつも横いっぱいになり、予定の下へ回ってしまう）。 */
+  .autopost-home:not(:has(.xap__main)) .switch-list {
     grid-column: 1 / -1;
   }
 
@@ -1624,30 +1625,18 @@
   font-weight: 700;
 }
 
-/* 狭い画面（縦1列）: 左の列の入れ物は無いものとして、料金 → スイッチ → 予定 の順に並べる。 */
+/* 狭い画面（縦1列）: 左の列の入れ物は無いものとして、スイッチ → 予定 の順に並べる（止める操作を先に）。 */
 @media (max-width: 1023px) {
   .xap--summary .xap__main {
     display: contents;
   }
 
-  .xap--summary .usage-meter {
+  .xap--summary .switch-list {
     order: 1;
   }
 
-  .xap--summary .switch-list {
-    order: 2;
-  }
-
   .xap--summary section[aria-label='これから投稿される予定'] {
-    order: 3;
-  }
-
-  .xap--summary .xap__compose {
-    order: 4;
-  }
-
-  .xap--summary .xap__more {
-    order: 5;
+    order: 2;
   }
 }
 
