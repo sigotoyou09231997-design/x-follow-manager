@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useBulkTargets } from '../../lib/autopost/bulkTargets'
 import { CHANNEL_LABELS, CHANNEL_NAMES, setPaused, type ChannelName, type ChannelSnapshot, type Snapshots } from '../../lib/autopost/api'
 
 // トップの「すべての投稿を止める／再開する」。X の自動運転・ディスコード・Yay を、1回の操作でまとめて止める・戻す。
@@ -52,12 +53,15 @@ const errorOf = (err: unknown) => (err instanceof Error ? err.message : String(e
 export function AllSwitch({ x, snapshots, onChanged }: Props) {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<Notice>()
+  // 設定で外した投稿先には、止めるも再開も触らない。
+  const [included] = useBulkTargets()
 
   const channels = snapshots ? CHANNEL_NAMES.filter((name) => snapshots[name].pauseReady) : []
-  const runningChannels = channels.filter((name) => !snapshots![name].paused)
-  const pausedChannels = channels.filter((name) => snapshots![name].paused)
+  const targetChannels = channels.filter((name) => included[name])
+  const runningChannels = targetChannels.filter((name) => !snapshots![name].paused)
+  const pausedChannels = targetChannels.filter((name) => snapshots![name].paused)
 
-  const running: Target[] = [...(x.enabled ? (['x'] as const) : []), ...runningChannels]
+  const running: Target[] = [...(x.enabled && included.x ? (['x'] as const) : []), ...runningChannels]
   const mode: 'stop' | 'resume' = running.length > 0 ? 'stop' : 'resume'
 
   // 再開するもの: 「すべて止める」で止めたもののうち、いま止まっているもの。覚えが無ければ、止まっている投稿先だけ
@@ -65,8 +69,9 @@ export function AllSwitch({ x, snapshots, onChanged }: Props) {
   const remembered = readStopped()
   const resumeTargets: Target[] =
     remembered.length > 0
-      ? remembered.filter((t) => (t === 'x' ? !x.enabled : pausedChannels.includes(t)))
+      ? remembered.filter((t) => (t === 'x' ? included.x && !x.enabled : pausedChannels.includes(t)))
       : pausedChannels
+  const noneSelected = !included.x && !included.discord && !included.yay
   const nothingToDo = mode === 'resume' && resumeTargets.length === 0
   // 止められるものが何も読めていない（Xは読み込み済みで止まり、投稿先の保存先も無い）ときは、何も出さない。
   if (nothingToDo && channels.length === 0) return null
@@ -117,7 +122,7 @@ export function AllSwitch({ x, snapshots, onChanged }: Props) {
   }
 
   const xNote =
-    mode === 'stop' && x.enabled
+    mode === 'stop' && running.includes('x')
       ? 'X はまだ出ていない予約を取り消します（再開すると作り直します）'
       : mode === 'resume' && resumeTargets.includes('x')
         ? 'X は予約を作り直すので、並ぶまで数分かかります'
@@ -130,7 +135,9 @@ export function AllSwitch({ x, snapshots, onChanged }: Props) {
         <span>
           {mode === 'stop'
             ? `${running.map((t) => TARGET_LABELS[t]).join('・')} が動いています`
-            : nothingToDo
+            : noneSelected
+              ? '対象が選ばれていません（設定で選べます）'
+              : nothingToDo
               ? '再開できるものはありません'
               : 'すべて止まっています'}
         </span>

@@ -1718,3 +1718,27 @@
   white-space: pre-line;
   color: var(--text-h);
 }
+
+/* 設定: まとめて止める・再開の対象。1つずつ、押しやすい大きさの行にする。 */
+.bulk-targets {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bulk-target {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 4px;
+  font-size: 16px;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.bulk-target input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}

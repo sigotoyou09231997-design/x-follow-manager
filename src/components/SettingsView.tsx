@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState } from 'react'
+import { BULK_TARGETS, BULK_TARGET_LABELS, useBulkTargets } from '../lib/autopost/bulkTargets'
 import { FileDropZone } from './FileDropZone'
 import { Icon, type IconName } from './Icon'
 
@@ -27,6 +28,7 @@ interface Props {
 export function SettingsView({ onOpenFeature, tidyCounts, onReimport, onClearAll, lastImportedAt, importing }: Props) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [bulkTargets, setBulkTarget] = useBulkTargets()
 
   async function handleConfirmDelete() {
     setDeleting(true)
@@ -72,6 +74,27 @@ export function SettingsView({ onOpenFeature, tidyCounts, onReimport, onClearAll
               </span>
               <Icon name="chevron-right" size={18} className="link-row__chevron" />
             </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="settings-section" aria-label="まとめて止める・再開の対象">
+        <h2>
+          <span className="settings-section__icon">
+            <Icon name="send" size={16} />
+          </span>
+          まとめて止める・再開の対象
+        </h2>
+        <p className="settings-section__desc">
+          トップの「すべて止める／すべて再開」が動かす投稿先です。オフにした投稿先は、まとめて止めても動いたままで、まとめて再開しても止まったままです（それぞれの行のスイッチで止める・再開するのは今までどおり）。
+          この端末だけの設定です。
+        </p>
+        <div className="bulk-targets">
+          {BULK_TARGETS.map((target) => (
+            <label key={target} className="bulk-target">
+              <input type="checkbox" checked={bulkTargets[target]} onChange={(event) => setBulkTarget(target, event.target.checked)} />
+              <span>{BULK_TARGET_LABELS[target]}</span>
+            </label>
           ))}
         </div>
       </section>

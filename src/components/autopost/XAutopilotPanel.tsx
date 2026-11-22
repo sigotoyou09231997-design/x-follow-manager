@@ -608,31 +608,6 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children, chan
         <div className="xap__main">
           <UsageMeter usage={state.usage} budgetYen={state.settings.monthlyBudgetYen} />
           {upcomingSection}
-          <ComposeCard
-            disabled={!hasProfile || blocked}
-            onCompose={async (material, previous) => {
-              const reply = await run('compose', () => composeAutopilotPost(material, previous))
-              return reply.composed ?? { text: null, problems: ['AIが案を返しませんでした'] }
-            }}
-            onAdd={addComposed}
-          />
-          {/* 文体の取り込みと分析は、普段は閉じておく（トップをすっきりさせるため）。 */}
-          <details className="surface-card xap__more">
-            <summary>文体と分析</summary>
-            <StyleCard
-              state={state}
-              quality={form.quality}
-              busy={busy}
-              step={step}
-              working={working}
-              connected={connected}
-              blocked={blocked}
-              onSetup={() => void doSetup()}
-              onRefresh={() => void doRefreshStyle()}
-            />
-            <StyleInsights profile={state.profile} recentStyle={state.recentStyle} />
-            <RejectedInsights rejected={rejectedTexts} kept={keptTexts} />
-          </details>
         </div>
         <section className="surface-card switch-list" aria-label="稼働スイッチ">
           {channels && (
@@ -878,6 +853,15 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children, chan
       </section>
 
       {upcomingSection}
+
+      <ComposeCard
+        disabled={!hasProfile || blocked}
+        onCompose={async (material, previous) => {
+          const reply = await run('compose', () => composeAutopilotPost(material, previous))
+          return reply.composed ?? { text: null, problems: ['AIが案を返しませんでした'] }
+        }}
+        onAdd={addComposed}
+      />
     </div>
   )
 }

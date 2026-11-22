@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // 通知の設定は Supabase を連れてくるので、ここでは中身を見ない。
 vi.mock('./PushSettings', () => ({ PushSettings: () => null }))
@@ -57,5 +57,32 @@ describe('SettingsView: 機能の一覧', () => {
 
     expect(screen.getByText('アーカイブを読み込むと、非相互フォローを整理できます')).toBeInTheDocument()
     expect(screen.queryByText(/未確認 \d/)).not.toBeInTheDocument()
+  })
+})
+
+describe('SettingsView: まとめて止める・再開の対象', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('X・ディスコード・Yay を1つずつオンオフでき、初めは3つとも対象', () => {
+    renderSettings()
+    const section = screen.getByRole('region', { name: 'まとめて止める・再開の対象' })
+
+    for (const label of ['X', 'ディスコード', 'Yay']) {
+      expect(within(section).getByRole('checkbox', { name: label })).toBeChecked()
+    }
+
+    fireEvent.click(within(section).getByRole('checkbox', { name: 'ディスコード' }))
+
+    expect(within(section).getByRole('checkbox', { name: 'ディスコード' })).not.toBeChecked()
+    expect(within(section).getByRole('checkbox', { name: 'X' })).toBeChecked()
+    expect(JSON.parse(localStorage.getItem('sns-all-pause-targets') ?? '{}')).toEqual({ x: true, discord: false, yay: true })
+  })
+
+  it('開き直しても、切り替えを覚えている', () => {
+    localStorage.setItem('sns-all-pause-targets', JSON.stringify({ x: false, discord: true, yay: true }))
+    renderSettings()
+
+    expect(screen.getByRole('checkbox', { name: 'X' })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Yay' })).toBeChecked()
   })
 })
