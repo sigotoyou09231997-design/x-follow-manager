@@ -61,6 +61,7 @@ const snapshots = (): Snapshots => ({
 })
 
 beforeEach(() => {
+  localStorage.clear()
   auth.state = { session: {}, loading: false, configured: true }
   api.fetchSnapshots.mockReset().mockResolvedValue(snapshots())
   api.setPaused.mockReset()
@@ -244,5 +245,21 @@ describe('AutoPostHome（アプリを開いて最初の1画面）', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '閉じる' }))
     expect(screen.queryByRole('dialog', { name: 'Yayの文' })).not.toBeInTheDocument()
+  })
+
+  it('設定でトップから外した投稿先は、行を出さない', async () => {
+    localStorage.setItem('sns-top-shown', JSON.stringify({ x: true, discord: false, yay: true }))
+    render(<AutoPostHome onOpenDetail={() => {}} />)
+
+    await waitFor(() => expect(toggleOf('Yay')).toBeEnabled())
+    expect(screen.queryByRole('switch', { name: 'ディスコードの自動投稿' })).not.toBeInTheDocument()
+  })
+
+  it('3つとも外していたら、何も無い画面にせず、戻し方を出す', async () => {
+    localStorage.setItem('sns-top-shown', JSON.stringify({ x: false, discord: false, yay: false }))
+    render(<AutoPostHome onOpenDetail={() => {}} />)
+
+    expect(await screen.findByText('トップに出す投稿先がありません。')).toBeInTheDocument()
+    expect(screen.queryByText(/X自動運転の中身/)).not.toBeInTheDocument()
   })
 })

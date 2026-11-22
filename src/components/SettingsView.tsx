@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from 'react'
-import { BULK_TARGETS, BULK_TARGET_LABELS, useBulkTargets } from '../lib/autopost/bulkTargets'
+import { BULK_TARGETS, BULK_TARGET_LABELS, useBulkTargets, useTopShown } from '../lib/autopost/bulkTargets'
 import { FileDropZone } from './FileDropZone'
 import { Toggle } from './Toggle'
 import { Icon, type IconName } from './Icon'
@@ -30,6 +30,7 @@ export function SettingsView({ onOpenFeature, tidyCounts, onReimport, onClearAll
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [bulkTargets, setBulkTarget] = useBulkTargets()
+  const [topShown, setTopShown] = useTopShown()
 
   async function handleConfirmDelete() {
     setDeleting(true)
@@ -79,6 +80,27 @@ export function SettingsView({ onOpenFeature, tidyCounts, onReimport, onClearAll
         </div>
       </section>
 
+      <section className="settings-section" aria-label="トップに出す投稿先">
+        <h2>
+          <span className="settings-section__icon">
+            <Icon name="home" size={16} />
+          </span>
+          トップに出す投稿先
+        </h2>
+        <p className="settings-section__desc">
+          使っていない投稿先をオフにすると、トップに出さず、「すべて止める／すべて再開」でも動かしません。
+          隠すだけで、投稿は止まりません（止めたいときは、隠す前にトップのスイッチで止めます）。この端末だけの設定です。
+        </p>
+        <div className="bulk-targets">
+          {BULK_TARGETS.map((target) => (
+            <div key={target} className="bulk-target">
+              <span>{BULK_TARGET_LABELS[target]}</span>
+              <Toggle on={topShown[target]} label={`${BULK_TARGET_LABELS[target]}をトップに出す`} onClick={() => setTopShown(target, !topShown[target])} />
+            </div>
+          ))}
+        </div>
+      </section>
+
       <section className="settings-section" aria-label="まとめて止める・再開の対象">
         <h2>
           <span className="settings-section__icon">
@@ -93,8 +115,16 @@ export function SettingsView({ onOpenFeature, tidyCounts, onReimport, onClearAll
         <div className="bulk-targets">
           {BULK_TARGETS.map((target) => (
             <div key={target} className="bulk-target">
-              <span>{BULK_TARGET_LABELS[target]}</span>
-              <Toggle on={bulkTargets[target]} label={BULK_TARGET_LABELS[target]} onClick={() => setBulkTarget(target, !bulkTargets[target])} />
+              <span>
+                {BULK_TARGET_LABELS[target]}
+                {!topShown[target] && <span className="bulk-target__note">トップに出していないので、対象外です</span>}
+              </span>
+              <Toggle
+                on={bulkTargets[target] && topShown[target]}
+                disabled={!topShown[target]}
+                label={BULK_TARGET_LABELS[target]}
+                onClick={() => setBulkTarget(target, !bulkTargets[target])}
+              />
             </div>
           ))}
         </div>
