@@ -30,7 +30,9 @@ import { createScheduledPost, updateScheduledPost } from '../../lib/schedule/pos
 import { Icon } from '../Icon'
 import type { ChannelSnapshot, Snapshots } from '../../lib/autopost/api'
 import { AllSwitch } from './AllSwitch'
-import { SwitchRow, Toggle } from './ChannelControls'
+import { SwitchRow, TextButton, Toggle } from './ChannelControls'
+import { Sheet } from './Sheet'
+import { AutoTextarea } from './TextBox'
 import { RejectedInsights } from './RejectedInsights'
 import { StyleInsights } from './StyleInsights'
 import { ComposeCard } from './ComposeCard'
@@ -105,6 +107,23 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children, chan
   const [refilling, setRefilling] = useState(0)
   // 並んだ予約の本文・時刻を直している最中の1件。
   const [editing, setEditing] = useState<{ id: string; saving: boolean; error?: string }>()
+  // トップの X の行の「文」から開くポップアップ。過去に投稿した文を呼び出して直し、予約に加える欄の中身。
+  const [textOpen, setTextOpen] = useState(false)
+  const [reuse, setReuse] = useState('')
+  const [reuseMsg, setReuseMsg] = useState<Notice>()
+  const [reusing, setReusing] = useState(false)
+
+  // これまでに X へ出した文（新しい順）。「文」のポップアップで、呼び出して直し、もう一度予約に加えられるようにする。
+  const postedTexts = useMemo(
+    () =>
+      posts
+        .filter((p) => p.status === 'posted')
+        .sort((a, b) => (b.scheduledAt ?? b.updatedAt).localeCompare(a.scheduledAt ?? a.updatedAt))
+        .map((p) => ({ id: p.id, at: p.scheduledAt ?? p.updatedAt, text: p.segments.map((s) => s.text).join('\n') }))
+        .filter((p) => p.text.trim())
+        .slice(0, 30),
+    [posts]
+  )
 
   const upcoming = useMemo(
     () =>
@@ -557,6 +576,28 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children, chan
     </section>
   )
 
+  function closeText() {
+    if (reuse.trim() && !window.confirm('予約に加えていない文があります。閉じると消えます。閉じますか？')) return
+    setTextOpen(false)
+    setReuse('')
+    setReuseMsg(undefined)
+  }
+
+  async function addReuse() {
+    if (!reuse.trim() || reusing) return
+    setReusing(true)
+    setReuseMsg(undefined)
+    try {
+      const text = await addComposed(reuse.trim())
+      setReuse('')
+      setReuseMsg({ text, kind: 'ok' })
+    } catch (err) {
+      setReuseMsg({ text: errorOf(err), kind: 'err' })
+    } finally {
+      setReusing(false)
+    }
+  }
+
   if (variant === 'summary') {
     const ready = hasProfile && connected
     const waitingCount = upcoming.filter((p) => p.status === 'draft').length
@@ -621,10 +662,89 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children, chan
             tone={state.enabled ? (state.lastError ? 'warn' : 'on') : 'off'}
             status={state.enabled ? `今日 ${todayCount}/${state.settings.postsPerDay}本${waitingCount > 0 ? ` ・ 確認待ち${waitingCount}件` : ''}` : ready ? '止まっています' : '先に、Xとの連携と文体のまとめが必要です'}
             note={state.enabled && state.lastError ? `補充を止めています: ${state.lastError}` : undefined}
-            action={!state.enabled && !ready && onOpenDetail ? setupButton : toggle}
+            action={
+              <>
+                <TextButton name="X" onClick={() => setTextOpen(true)} />
+                {!state.enabled && !ready && onOpenDetail ? setupButton : toggle}
+              </>
+            }
           />
           {children}
         </section>
+        {textOpen && (
+          <Sheet title="Xの文" onClose={closeText}>
+            <section className="text-sheet__section" aria-label="いま出ている投稿">
+              <h3 className="text-sheet__sub">いま出ている投稿</h3>
+              {postedTexts[0] ? (
+                <div className="text-sheet__current">
+                  <span className="text-sheet__when">{whenLabel(postedTexts[0].at, state.settings.timeZone)}に投稿</span>
+                  <p className="text-sheet__current-text">{postedTexts[0].text}</p>
+                </div>
+              ) : (
+                <p className="autopost__empty">まだ投稿していません。</p>
+              )}
+            </section>
+
+            <section className="text-sheet__section" aria-label="これから投稿される文">
+              <h3 className="text-sheet__sub">これから投稿される文</h3>
+              {upcoming.length === 0 ? (
+                <p className="autopost__empty">まだありません。自動運転を始めると、ここに並びます。</p>
+              ) : (
+                // トップの予定と同じカード（編集・取り消す・投稿可能にする が同じように使える）
+                <ul className="autopost__history xap__upcoming">{upcoming.map(renderPost)}</ul>
+              )}
+            </section>
+
+            <section className="text-sheet__section" aria-label="文を予約に加える">
+              <h3 className="text-sheet__sub">文を予約に加える</h3>
+              <AutoTextarea
+                value={reuse}
+                onChange={(e) => setReuse(e.target.value)}
+                aria-label="予約に加える文"
+                placeholder="ここに書くか、下の「これまでに投稿した文」から「使う」で呼び出して直します"
+              />
+              {reuseMsg && (
+                <p className={`autopost__msg autopost__msg--${reuseMsg.kind}`} role={reuseMsg.kind === 'err' ? 'alert' : 'status'}>
+                  {reuseMsg.text}
+                </p>
+              )}
+              <div className="text-sheet__actions">
+                <button type="button" className="btn btn--primary" onClick={() => void addReuse()} disabled={!reuse.trim() || reusing}>
+                  {reusing ? '加えています…' : '予約に加える'}
+                </button>
+              </div>
+            </section>
+
+            <section className="text-sheet__archive" aria-label="これまでに投稿した文">
+              <h3 className="text-sheet__sub">これまでに投稿した文</h3>
+              {postedTexts.length === 0 ? (
+                <p className="autopost__empty">まだありません。</p>
+              ) : (
+                <ul className="text-sheet__history">
+                  {postedTexts.map((p) => (
+                    <li key={p.id}>
+                      <span className="text-sheet__history-text">
+                        <span className="text-sheet__when">{whenLabel(p.at, state.settings.timeZone)}</span>
+                        {p.text}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--small"
+                        aria-label={`「${p.text.slice(0, 20)}」を使う`}
+                        onClick={() => {
+                          setReuse(p.text)
+                          setReuseMsg({ text: '「文を予約に加える」の欄に入れました。直してから「予約に加える」を押します。', kind: 'ok' })
+                        }}
+                      >
+                        使う
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </Sheet>
+        )}
       </div>
     )
   }

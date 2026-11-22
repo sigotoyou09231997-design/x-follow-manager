@@ -85,13 +85,19 @@ const post = (id, status, msFromNow, text) => ({
   updated_at: iso(-HOUR),
 })
 
-// 撮る場面: ふだん（全部動いている）と、全部止めたあと。
+// 撮る場面: ふだん（全部動いている）と、全部止めたあと。open があれば、そのボタンを押して開いた状態も撮る。
 const SCENES = [
   {
     name: 'running',
+    open: ['ディスコードの文を見る・直す', 'Xの文を見る・直す'],
     x: xState(true),
-    channels: { discord: channel('discord'), yay: channel('yay', { status: { lastPost: { t: iso(-2 * MIN), text: 'x' }, today: 96, at: iso(-20 * 1000) } }) },
+    channels: {
+      discord: channel('discord', { archive: ['前に使っていた募集の文です', '週末だけ見てます。気軽にどうぞ'] }),
+      yay: channel('yay', { status: { lastPost: { t: iso(-2 * MIN), text: 'x' }, today: 96, at: iso(-20 * 1000) } }),
+    },
     posts: [
+      { ...post('p1', 'posted', -3 * HOUR, '雨の音を聞きながら昼寝した。'), ai_prompt: null },
+      { ...post('p2', 'posted', -27 * HOUR, '駅前のパン屋、今日も行列だった。') },
       post('a', 'scheduled', 3 * HOUR, '昼ごはんは近所の定食屋。焼き魚がうまかった。'),
       post('b', 'scheduled', 7 * HOUR, '今日は早めに帰れそう。'),
       post('c', 'draft', 26 * HOUR, '朝の電車がいつもより空いていた。'),
@@ -165,8 +171,18 @@ async function shoot(browser, scene, viewport, theme) {
   await page.waitForTimeout(800) // 出てくる動きが終わるのを待つ
   const file = path.join(OUT_DIR, `${scene.name}-${viewport.name}-${theme}.png`)
   await page.screenshot({ path: file, fullPage: true })
+  const files = [file]
+  for (const label of scene.open ?? []) {
+    await page.getByRole('button', { name: label }).click()
+    await page.getByRole('dialog').waitFor()
+    await page.waitForTimeout(400)
+    const opened = path.join(OUT_DIR, `${scene.name}-${viewport.name}-${theme}-${label.slice(0, label.indexOf('の'))}.png`)
+    await page.screenshot({ path: opened })
+    files.push(opened)
+    await page.getByRole('button', { name: '閉じる' }).click()
+  }
   await context.close()
-  return file
+  return files.join('\n')
 }
 
 await mkdir(OUT_DIR, { recursive: true })

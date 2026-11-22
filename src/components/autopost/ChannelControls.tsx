@@ -213,13 +213,25 @@ interface ChannelSwitchRowProps {
   busy: boolean
   error?: string
   onChange: (paused: boolean) => void
+  /** 「文」ボタン（いま投稿している文を見る・直す）を押したとき。無ければボタンを出さない。 */
+  onOpenText?: () => void
+}
+
+/** 行の右の「文」ボタン。いま投稿している文を、ポップアップで見る・直す。 */
+export function TextButton({ name, onClick }: { name: string; onClick: () => void }) {
+  return (
+    <button type="button" className="text-button" onClick={onClick} aria-label={`${name}の文を見る・直す`}>
+      <Icon name="edit" size={15} />
+      <span className="text-button__label">文</span>
+    </button>
+  )
 }
 
 const timeLabel = (iso: string) =>
   new Date(iso).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 /** ディスコード／Yay を、止める・再開するの1行にしたもの。押したあとの状態の見分け方は PauseControl と同じ。 */
-export function ChannelSwitchRow({ snapshot, now, busy, error, onChange }: ChannelSwitchRowProps) {
+export function ChannelSwitchRow({ snapshot, now, busy, error, onChange, onOpenText }: ChannelSwitchRowProps) {
   const name = CHANNEL_LABELS[snapshot.channel]
   const icon = CHANNEL_ICONS[snapshot.channel]
 
@@ -262,13 +274,16 @@ export function ChannelSwitchRow({ snapshot, now, busy, error, onChange }: Chann
   // オフ＝止まっている（paused）か、停止を頼んで受け取り待ち（pausing）。押すと再開（停止の取り消し）。
   const stopping = state === 'running' || state === 'resuming'
   const action = (
-    <Toggle
-      on={stopping}
-      pending={busy || state === 'pausing' || state === 'resuming'}
-      disabled={busy}
-      label={`${name}の自動投稿`}
-      onClick={() => onChange(stopping)}
-    />
+    <>
+      {onOpenText && <TextButton name={name} onClick={onOpenText} />}
+      <Toggle
+        on={stopping}
+        pending={busy || state === 'pausing' || state === 'resuming'}
+        disabled={busy}
+        label={`${name}の自動投稿`}
+        onClick={() => onChange(stopping)}
+      />
+    </>
   )
 
   return <SwitchRow name={name} icon={icon} tone={view[state].tone} status={view[state].status} note={error} action={action} />

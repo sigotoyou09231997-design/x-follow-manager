@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AutoPostHome } from './AutoPostHome'
 import type { ChannelSnapshot, Snapshots } from '../../lib/autopost/api'
@@ -16,6 +16,7 @@ vi.mock('../../hooks/useSupabaseAuth', () => ({
 const api = vi.hoisted(() => ({
   fetchSnapshots: vi.fn(),
   setPaused: vi.fn(),
+  saveMessages: vi.fn(),
   fetchRestart: vi.fn(),
   requestRestart: vi.fn(),
 }))
@@ -63,6 +64,7 @@ beforeEach(() => {
   auth.state = { session: {}, loading: false, configured: true }
   api.fetchSnapshots.mockReset().mockResolvedValue(snapshots())
   api.setPaused.mockReset()
+  api.saveMessages.mockReset()
   api.fetchRestart.mockReset().mockResolvedValue({ ready: true, requestedAt: null, handledAt: null, result: null })
   api.requestRestart.mockReset()
 })
@@ -196,5 +198,51 @@ describe('AutoPostHome（アプリを開いて最初の1画面）', () => {
     await waitFor(() => expect(stopButton('ディスコード')).toBeEnabled())
 
     expect(screen.queryByRole('button', { name: /文や回数を変える/ })).not.toBeInTheDocument()
+  })
+
+  it('「文」でポップアップが開き、いまの文を見て、直して保存できる', async () => {
+    api.fetchSnapshots.mockResolvedValue({
+      discord: channel({ channel: 'discord', messages: ['いまの募集の文'], version: 7 }),
+      yay: channel({ channel: 'yay' }),
+    })
+    api.saveMessages.mockResolvedValue(channel({ channel: 'discord', messages: ['直した募集の文'], version: 8 }))
+    render(<AutoPostHome onOpenDetail={() => {}} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'ディスコードの文を見る・直す' }))
+    const sheet = screen.getByRole('dialog', { name: 'ディスコードの文' })
+    const box = within(sheet).getByRole('textbox', { name: '投稿する文' })
+    expect(box).toHaveValue('いまの募集の文')
+    expect(within(sheet).getByRole('button', { name: '保存する' })).toBeDisabled()
+
+    fireEvent.change(box, { target: { value: '直した募集の文' } })
+    fireEvent.click(within(sheet).getByRole('button', { name: '保存する' }))
+
+    await waitFor(() => expect(api.saveMessages).toHaveBeenCalledWith('discord', ['直した募集の文'], 7, [null]))
+    expect(await within(sheet).findByText(/保存しました/)).toBeInTheDocument()
+  })
+
+  it('ポップアップの「これまでの文」の「使う」で、上の欄に入る（押しただけでは保存しない）', async () => {
+    api.fetchSnapshots.mockResolvedValue({
+      discord: channel({ channel: 'discord', messages: ['いまの文'], archive: ['前の文'] }),
+      yay: channel({ channel: 'yay' }),
+    })
+    render(<AutoPostHome onOpenDetail={() => {}} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'ディスコードの文を見る・直す' }))
+    const sheet = screen.getByRole('dialog', { name: 'ディスコードの文' })
+    fireEvent.click(within(sheet).getByRole('button', { name: '「前の文」を使う' }))
+
+    expect(within(sheet).getByRole('textbox', { name: '投稿する文' })).toHaveValue('前の文')
+    expect(within(sheet).getByRole('button', { name: '保存する' })).toBeEnabled()
+    expect(api.saveMessages).not.toHaveBeenCalled()
+  })
+
+  it('ポップアップは×で閉じる', async () => {
+    render(<AutoPostHome onOpenDetail={() => {}} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Yayの文を見る・直す' }))
+    expect(screen.getByRole('dialog', { name: 'Yayの文' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '閉じる' }))
+    expect(screen.queryByRole('dialog', { name: 'Yayの文' })).not.toBeInTheDocument()
   })
 })
