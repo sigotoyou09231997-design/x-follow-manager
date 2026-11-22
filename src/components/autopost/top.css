@@ -1,0 +1,368 @@
+/* ============================================================
+   トップ（自動投稿の1画面）の仕上げ — 2026-11-22
+   本人の希望「デザインももっと凝ってシンプルに」。
+   - 主役は「すべての自動投稿」の1枚。いまの状態をひとことで大きく、押すボタンは1つ。
+   - 個別の行は、赤い「止める」ボタンを縦に並べず、オンオフのスイッチにする（色で動いているかが分かる）。
+   - 予定は、二重の枠と大きなボタンをやめ、細い線のカードと控えめな文字のボタンにする。
+   色は全部トークン（--accent など）から作るので、ダークでもそのまま切り替わる。
+   ============================================================ */
+
+/* トップの一番下のアーカイブの注意書きは、フォロー整理の話でトップの中身と関係がないので出さない。 */
+.app-shell[data-screen='home'] .app-footer {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- 主役: すべての自動投稿 */
+
+.autopost-home .all-switch {
+  --tone: var(--accent);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 28px;
+  border: 1px solid color-mix(in srgb, var(--tone) 24%, var(--border));
+  border-radius: 28px;
+  background:
+    radial-gradient(90% 160% at 100% 0%, color-mix(in srgb, var(--tone) 20%, transparent) 0%, transparent 60%),
+    linear-gradient(135deg, color-mix(in srgb, var(--tone) 9%, var(--surface)) 0%, var(--surface) 70%);
+}
+
+.autopost-home .all-switch--resume {
+  --tone: var(--warning);
+}
+
+.all-switch__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.all-switch__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+/* 動いているあいだだけ、点のまわりに波を広げる（止まっているときは静かな点だけ）。 */
+.all-switch__pulse {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tone);
+}
+
+.all-switch--stop .all-switch__pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--tone);
+  animation: all-switch-pulse 2.4s ease-out infinite;
+}
+
+@keyframes all-switch-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(3.2);
+    opacity: 0;
+  }
+}
+
+.all-switch__headline {
+  font-size: clamp(24px, 2.6vw, 34px);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--text-h);
+}
+
+.all-switch__note {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.all-switch__result {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.all-switch__result--err {
+  color: var(--danger);
+}
+
+/* 押すボタンは1つだけなので、大きく、丸く。止める＝墨色、再開＝青緑。 */
+.all-switch__button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 28px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text-h);
+  color: var(--surface);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.all-switch--resume .all-switch__button {
+  background: var(--accent);
+  color: #fff;
+}
+
+.all-switch__button:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.all-switch__button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.all-switch__button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.all-switch__button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------- 見出し（予定・それぞれ） */
+
+.autopost-home section[aria-label='これから投稿される予定'] > .autopost__sub {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+/* ---------------------------------------------------------------- それぞれの行（X・ディスコード・Yay） */
+
+.app-shell[data-screen='home'] .autopost-home .switch-list {
+  border-color: var(--border);
+  border-radius: 22px;
+  box-shadow: none;
+}
+
+.autopost-home .switch-row {
+  gap: 14px;
+  padding: 16px 20px;
+}
+
+.autopost-home .switch-row + .switch-row::before {
+  left: 70px;
+}
+
+.autopost-home .switch-row__badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+
+.autopost-home .switch-row__text strong {
+  font-size: 16px;
+}
+
+.autopost-home .switch-row__text {
+  font-size: 13px;
+}
+
+/* 止まっているかどうかはスイッチの色で分かるので、行の面までは塗らない（塗ると画面がまだらになる）。
+   見てほしい状態（応答なし・依頼中など）だけ、これまでどおり薄く塗る。 */
+.autopost-home .switch-row--off {
+  background: transparent;
+}
+
+.autopost-home .switch-row--off .switch-row__badge {
+  background: var(--fill);
+  color: var(--text-muted);
+}
+
+/* ---------------------------------------------------------------- オンオフのスイッチ */
+
+.toggle {
+  position: relative;
+  flex: none;
+  width: 52px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 32%, transparent);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.toggle--on {
+  background: var(--accent);
+}
+
+.toggle__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  transition: transform 0.2s ease;
+}
+
+.toggle--on .toggle__thumb {
+  transform: translateX(20px);
+}
+
+/* 押したあと、Mac・サーバーが受け取るまで。つまみを薄く点滅させ、まだ確定していないと分かるようにする。 */
+.toggle--pending .toggle__thumb {
+  animation: toggle-pending 1.2s ease-in-out infinite;
+}
+
+@keyframes toggle-pending {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.toggle:disabled {
+  cursor: default;
+}
+
+.toggle:disabled:not(.toggle--pending) {
+  opacity: 0.4;
+}
+
+/* ---------------------------------------------------------------- Xの予定 */
+
+/* 「投稿可能」「確認待ち」の二重の枠はやめ、小さな色の点つきの見出しだけで分ける。 */
+.autopost-home .xap__zone {
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.autopost-home .xap__zone-head {
+  align-items: center;
+}
+
+.autopost-home .xap__zone-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+
+.autopost-home .xap__zone-title::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--zone-ink);
+}
+
+.autopost-home .xap__zone-note {
+  font-size: 12px;
+}
+
+/* 1件ずつのカード。影はやめて細い線だけにする（カードが並んだときに重く見えないように）。 */
+.app-shell[data-screen='home'] .autopost-home .xap__upcoming li {
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+.app-shell[data-screen='home'] .autopost-home .xap__zone--draft .xap__upcoming li {
+  background: color-mix(in srgb, var(--warning) 5%, var(--surface));
+}
+
+/* 操作は、主な1つ（投稿可能にする）だけ大きく。確認待ちに戻す・編集・取り消すは、小さな文字のボタンを左に寄せる。 */
+.autopost-home .xap__upcoming .xap__card-actions {
+  gap: 2px 4px;
+  margin-inline: -8px;
+}
+
+.autopost-home .xap__upcoming .xap__card-actions > .btn--ghost {
+  flex: none;
+  min-height: 36px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.autopost-home .xap__upcoming .xap__card-actions > .btn--ghost.btn--danger {
+  color: var(--danger);
+}
+
+.autopost-home .xap__upcoming .xap__card-actions > .xap__approve {
+  margin-inline: 8px;
+  min-height: 48px;
+  border-radius: 14px;
+}
+
+/* ---------------------------------------------------------------- 狭い画面 */
+
+@media (max-width: 640px) {
+  .autopost-home .all-switch {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 18px;
+    padding: 22px;
+    border-radius: 24px;
+  }
+
+  .all-switch__button {
+    width: 100%;
+  }
+
+  .autopost-home .switch-row {
+    padding: 14px 16px;
+  }
+
+  .autopost-home .switch-row + .switch-row::before {
+    left: 66px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .all-switch--stop .all-switch__pulse::after,
+  .toggle--pending .toggle__thumb {
+    animation: none;
+  }
+
+  .toggle,
+  .toggle__thumb,
+  .all-switch__button {
+    transition: none;
+  }
+}

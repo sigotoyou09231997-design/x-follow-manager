@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useBulkTargets } from '../../lib/autopost/bulkTargets'
+import { Icon } from '../Icon'
 import { CHANNEL_LABELS, CHANNEL_NAMES, setPaused, type ChannelName, type ChannelSnapshot, type Snapshots } from '../../lib/autopost/api'
 
 // トップの「すべての投稿を止める／再開する」。X の自動運転・ディスコード・Yay を、1回の操作でまとめて止める・戻す。
@@ -123,24 +124,33 @@ export function AllSwitch({ x, snapshots, onChanged }: Props) {
 
   const xNote =
     mode === 'stop' && running.includes('x')
-      ? 'X はまだ出ていない予約を取り消します（再開すると作り直します）'
+      ? 'X のまだ出ていない予約は取り消されます（再開で作り直し）'
       : mode === 'resume' && resumeTargets.includes('x')
         ? 'X は予約を作り直すので、並ぶまで数分かかります'
         : null
 
+  // 見出しは、いまの状態をひとことで。対象が全部動いていれば「すべて動いています」、一部なら名前を並べる。
+  const targetCount = (included.x ? 1 : 0) + targetChannels.length
+  const headline =
+    mode === 'stop'
+      ? running.length === targetCount
+        ? 'すべて動いています'
+        : `${running.map((t) => TARGET_LABELS[t]).join('・')} が動いています`
+      : noneSelected
+        ? '対象が選ばれていません'
+        : nothingToDo
+          ? '再開できるものはありません'
+          : 'すべて止まっています'
+
   return (
-    <div className={`all-switch all-switch--${mode}`}>
+    <section className={`all-switch all-switch--${mode}`} aria-label="すべての自動投稿">
       <div className="all-switch__text">
-        <strong>すべての自動投稿</strong>
-        <span>
-          {mode === 'stop'
-            ? `${running.map((t) => TARGET_LABELS[t]).join('・')} が動いています`
-            : noneSelected
-              ? '対象が選ばれていません（設定で選べます）'
-              : nothingToDo
-              ? '再開できるものはありません'
-              : 'すべて止まっています'}
+        <span className="all-switch__eyebrow">
+          <span className="all-switch__pulse" aria-hidden="true" />
+          すべての自動投稿
         </span>
+        <strong className="all-switch__headline">{headline}</strong>
+        {noneSelected && <span className="all-switch__note">設定の「まとめて止める・再開の対象」で選べます</span>}
         {xNote && <span className="all-switch__note">{xNote}</span>}
         {notice && (
           <span className={`all-switch__result all-switch__result--${notice.kind}`} role={notice.kind === 'err' ? 'alert' : 'status'}>
@@ -150,13 +160,14 @@ export function AllSwitch({ x, snapshots, onChanged }: Props) {
       </div>
       <button
         type="button"
-        className={`btn btn--small ${mode === 'stop' ? 'autopost__pause-stop' : 'btn--primary'}`}
+        className="all-switch__button"
         onClick={() => void change()}
         disabled={busy || nothingToDo}
         aria-label={mode === 'stop' ? 'すべての自動投稿を止める' : 'すべての自動投稿を再開する'}
       >
+        <Icon name={mode === 'stop' ? 'pause' : 'play'} size={18} />
         {busy ? '送信中…' : mode === 'stop' ? 'すべて止める' : 'すべて再開'}
       </button>
-    </div>
+    </section>
   )
 }

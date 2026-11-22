@@ -30,7 +30,7 @@ import { createScheduledPost, updateScheduledPost } from '../../lib/schedule/pos
 import { Icon } from '../Icon'
 import type { ChannelSnapshot, Snapshots } from '../../lib/autopost/api'
 import { AllSwitch } from './AllSwitch'
-import { SwitchRow } from './ChannelControls'
+import { SwitchRow, Toggle } from './ChannelControls'
 import { RejectedInsights } from './RejectedInsights'
 import { StyleInsights } from './StyleInsights'
 import { ComposeCard } from './ComposeCard'
@@ -566,21 +566,15 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children, chan
       Date.now(),
       { postsPerDay: state.settings.postsPerDay, timeZone: state.settings.timeZone }
     )
-    const stopButton = (
-      <button type="button" className="btn btn--small autopost__pause-stop" onClick={() => void doStop()} disabled={working} aria-label="自動運転を止める">
-        {busy === 'stop' ? '止めています…' : '止める'}
-      </button>
-    )
-    const startButton = (
-      <button
-        type="button"
-        className="btn btn--small btn--primary"
-        onClick={() => void doStart()}
-        disabled={!ready || working || blocked}
-        aria-label="自動運転を始める"
-      >
-        {busy === 'start' ? '始めています…' : '始める'}
-      </button>
+    // 自動運転のオンオフ。ディスコード・Yay の行と同じスイッチにそろえる。
+    const toggle = (
+      <Toggle
+        on={state.enabled}
+        pending={busy === 'stop' || busy === 'start'}
+        disabled={working || (!state.enabled && (!ready || blocked))}
+        label="Xの自動運転"
+        onClick={() => void (state.enabled ? doStop() : doStart())}
+      />
     )
     // 連携や文体がまだなら、押せない「始める」より、それを済ませる画面への入口を出す。
     const setupButton = (
@@ -600,30 +594,31 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children, chan
             別の文を作り直しています…（数十秒かかります）
           </p>
         )}
-        {/* 料金と予定は左の列（xap__main）にまとめる。右のスイッチは背が高いので、同じ行の高さに合わせて料金のカードを伸ばさないため。 */}
+        {/* すべてまとめて止める・再開する。トップのいちばん上の、主役のカード。 */}
+        {channels && (
+          <AllSwitch
+            x={{
+              enabled: state.enabled,
+              ready,
+              stop: () => runForAll('stop', () => stopAutopilot()),
+              start: () => runForAll('start', saveThen(startAutopilot)),
+            }}
+            snapshots={channels.snapshots}
+            onChanged={channels.onChanged}
+          />
+        )}
+        {/* 予定は左の列（xap__main）、スイッチは右の列。 */}
         <div className="xap__main">
           {upcomingSection}
         </div>
         <section className="surface-card switch-list" aria-label="稼働スイッチ">
-          {channels && (
-            <AllSwitch
-              x={{
-                enabled: state.enabled,
-                ready,
-                stop: () => runForAll('stop', () => stopAutopilot()),
-                start: () => runForAll('start', saveThen(startAutopilot)),
-              }}
-              snapshots={channels.snapshots}
-              onChanged={channels.onChanged}
-            />
-          )}
           <SwitchRow
             name="X"
             icon="x-logo"
             tone={state.enabled ? (state.lastError ? 'warn' : 'on') : 'off'}
-            status={state.enabled ? `自動運転中・今日の投稿 ${todayCount}/${state.settings.postsPerDay}本${waitingCount > 0 ? `・確認待ち${waitingCount}件` : ''}` : ready ? '自動運転は止まっています' : '先に、Xとの連携と文体のまとめが必要です'}
+            status={state.enabled ? `今日 ${todayCount}/${state.settings.postsPerDay}本${waitingCount > 0 ? ` ・ 確認待ち${waitingCount}件` : ''}` : ready ? '止まっています' : '先に、Xとの連携と文体のまとめが必要です'}
             note={state.enabled && state.lastError ? `補充を止めています: ${state.lastError}` : undefined}
-            action={state.enabled ? stopButton : !ready && onOpenDetail ? setupButton : startButton}
+            action={!state.enabled && !ready && onOpenDetail ? setupButton : toggle}
           />
           {children}
         </section>

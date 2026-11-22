@@ -120,6 +120,38 @@ export function PauseControl({ snapshot, now, busy, error, onChange }: PauseCont
 
 // ------------------------------------------------------------------ トップの1画面用（1行のスイッチ）
 
+interface ToggleProps {
+  /** オン＝動いている（止める操作を受け付ける）。 */
+  on: boolean
+  /** 押したあと、相手（Mac・サーバー）が受け取るまでの途中。つまみを薄くして、まだ確定していないと分かるようにする。 */
+  pending?: boolean
+  disabled?: boolean
+  /** 何のスイッチか（例: 「ディスコードの自動投稿」）。状態は aria-checked で伝える。 */
+  label: string
+  onClick: () => void
+}
+
+/**
+ * 止める・再開するのオンオフ。トップに赤い「止める」ボタンが縦に何個も並ぶと、画面がうるさく、
+ * どれが動いているのかも色で読み取りにくかったので、動いている＝青緑のオン、止まっている＝灰色のオフ、の1つにした。
+ */
+export function Toggle({ on, pending, disabled, label, onClick }: ToggleProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      aria-busy={pending || undefined}
+      className={`toggle${on ? ' toggle--on' : ''}${pending ? ' toggle--pending' : ''}`}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      <span className="toggle__thumb" aria-hidden="true" />
+    </button>
+  )
+}
+
 export type SwitchTone = 'on' | 'off' | 'warn' | 'rest'
 
 /** 投稿先ごとの札のアイコン。行が文字だけで始まると、どのサービスの行か一瞬で判別できない。 */
@@ -199,15 +231,10 @@ export function ChannelSwitchRow({ snapshot, now, busy, error, onChange }: Chann
   const liveness = livenessOf(snapshot.status, now)
   const { status } = snapshot
 
+  // 動いているあいだは、点の色（青緑）が「Macが動いている」を伝えるので、文は最後の投稿と今日の件数だけにする。
   const running =
     liveness === 'alive' && status
-      ? [
-          'Macは動いています',
-          status.lastPost ? `最後 ${agoLabel(status.lastPost.t, now)}` : null,
-          `今日${status.today}件`,
-        ]
-          .filter(Boolean)
-          .join(' ・ ')
+      ? [status.lastPost ? `${agoLabel(status.lastPost.t, now)}に投稿` : '投稿待ち', `今日${status.today}件`].join(' ・ ')
       : liveness === 'silent' && status
         ? `Macから応答がありません（最後は${agoLabel(status.at, now)}）`
         : 'Macからの報告はまだありません'
@@ -231,17 +258,17 @@ export function ChannelSwitchRow({ snapshot, now, busy, error, onChange }: Chann
     resuming: { tone: 'warn', status: '再開を依頼しました（Macが受け取ると再開します）' },
   }
 
+  // オン＝動いている（running）か、再開を頼んで Mac の受け取り待ち（resuming）。押すと止める。
+  // オフ＝止まっている（paused）か、停止を頼んで受け取り待ち（pausing）。押すと再開（停止の取り消し）。
   const stopping = state === 'running' || state === 'resuming'
   const action = (
-    <button
-      type="button"
-      className={`btn btn--small ${stopping ? 'autopost__pause-stop' : state === 'paused' ? 'btn--primary' : 'btn--secondary'}`}
-      onClick={() => onChange(stopping)}
+    <Toggle
+      on={stopping}
+      pending={busy || state === 'pausing' || state === 'resuming'}
       disabled={busy}
-      aria-label={`${name}の${stopping ? '投稿を止める' : state === 'paused' ? '投稿を再開する' : '停止を取り消す'}`}
-    >
-      {busy ? '送信中…' : stopping ? '止める' : state === 'paused' ? '再開' : '取り消す'}
-    </button>
+      label={`${name}の自動投稿`}
+      onClick={() => onChange(stopping)}
+    />
   )
 
   return <SwitchRow name={name} icon={icon} tone={view[state].tone} status={view[state].status} note={error} action={action} />
