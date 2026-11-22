@@ -502,6 +502,7 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children, chan
             </button>
           ) : (
             <button type="button" className="btn btn--ghost btn--small" onClick={() => void setApproved(post.id, false)} aria-label="この予約を確認待ちに戻す">
+              <Icon name="undo" size={14} />
               確認待ちに戻す
             </button>
           )}

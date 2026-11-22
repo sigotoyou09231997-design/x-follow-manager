@@ -202,7 +202,7 @@ export function AutoPostView() {
   const head = (
     <header className="autopost__head">
       <div>
-        <p className="overline">AUTO POST</p>
+        <p className="overline">自動投稿</p>
         <h1 className="autopost__title">{tab === 'x' ? 'Xの自動運転' : '投稿する文'}</h1>
       </div>
       <button type="button" className="btn btn--ghost btn--small" onClick={() => void signOut()} aria-label="ログアウト">

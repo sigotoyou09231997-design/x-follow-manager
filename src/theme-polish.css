@@ -1,0 +1,320 @@
+/* ============================================================================
+   仕上げと動き（全画面）— 2026-11-22
+   本人の希望: 「トップに限らず他のページもデザインを上げて、もう少し動きをつけたい」
+             「取り消す・編集が近くて、間違えて他のボタンを押しそうになる。押しやすく、押したくなるボタンに」
+   theme-teal.css のあとに読み込む（main.tsx）。色は全部トークンから作るので、ダークでもそのまま切り替わる。
+   ============================================================================ */
+
+/* ---------------------------------------------------------------- 1. ボタンの手ざわり
+   押した瞬間に少し沈む。主なボタンは、触れると少し浮いて影がつく（押せる、が見て分かる）。 */
+
+.btn {
+  transition:
+    transform 0.14s cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 0.15s ease,
+    box-shadow 0.2s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+@media (hover: hover) {
+  .btn--primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px -8px color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+
+  .btn--primary:active:not(:disabled) {
+    transform: scale(0.96);
+    box-shadow: none;
+  }
+}
+
+/* ---------------------------------------------------------------- 2. カードの中の操作ボタン（押せる札）
+   以前は文字だけのボタンが狭い間隔で並び、「編集」のつもりで「取り消す」を押しそうになった。
+   1つずつを、高さ44pxの色の付いた札にして間を空ける。取り消す・削除は赤い札にして、ほかと見分けられるようにする。 */
+
+.app-shell :is(.xap__card-actions, .post-item__actions),
+.text-sheet .xap__card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-inline: 0;
+}
+
+.app-shell :is(.xap__card-actions, .post-item__actions) > :is(.btn--ghost, a.btn),
+.text-sheet .xap__card-actions > .btn--ghost {
+  flex: 1 1 0;
+  min-width: max-content;
+  max-width: 220px;
+  min-height: 44px;
+  padding: 0 16px;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--fill);
+  color: var(--text-h);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+@media (hover: hover) {
+  .app-shell :is(.xap__card-actions, .post-item__actions) > :is(.btn--ghost, a.btn):hover:not(:disabled),
+  .text-sheet .xap__card-actions > .btn--ghost:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--text-h) 9%, var(--fill));
+  }
+}
+
+/* 取り消す・削除は、赤い札で、いちばん右（PC）に離して置く。 */
+.app-shell :is(.xap__card-actions, .post-item__actions) > .btn.btn--ghost.btn--danger,
+.text-sheet .xap__card-actions > .btn.btn--ghost.btn--danger {
+  margin-left: auto;
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+@media (hover: hover) {
+  .app-shell :is(.xap__card-actions, .post-item__actions) > .btn.btn--ghost.btn--danger:hover:not(:disabled),
+  .text-sheet .xap__card-actions > .btn.btn--ghost.btn--danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 16%, var(--surface));
+  }
+}
+
+/* 主な1つ（投稿可能にする）は、これまでどおり横いっぱいの大きなボタン。 */
+.app-shell .xap__card-actions > .xap__approve,
+.text-sheet .xap__card-actions > .xap__approve {
+  flex: 1 1 100%;
+  max-width: none;
+  min-height: 52px;
+  border-radius: 14px;
+}
+
+/* 狭い画面では、札を横いっぱいに広げる（指で押す的を大きく）。字は折り返さず、入りきらなければ次の行へ回す
+   （「確認待ちに戻す」が2行に割れて、札の高さがそろわなかった）。 */
+@media (max-width: 640px) {
+  .app-shell :is(.xap__card-actions, .post-item__actions) > :is(.btn--ghost, a.btn),
+  .text-sheet .xap__card-actions > .btn--ghost {
+    flex: 1 1 auto;
+    max-width: none;
+    padding: 0 14px;
+    white-space: nowrap;
+  }
+
+  .app-shell :is(.xap__card-actions, .post-item__actions) > .btn.btn--ghost.btn--danger,
+  .text-sheet .xap__card-actions > .btn.btn--ghost.btn--danger {
+    margin-left: 0;
+  }
+}
+
+/* ---------------------------------------------------------------- 3. カードに触れると浮く（マウスのとき） */
+
+@media (hover: hover) {
+  .post-item,
+  .xap__upcoming li:not(.xap__editing),
+  .link-row {
+    transition:
+      transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+      box-shadow 0.2s ease,
+      background-color 0.15s ease;
+  }
+
+  .post-item:hover,
+  .xap__upcoming li:not(.xap__editing):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px -14px rgb(0 0 0 / 0.22);
+  }
+
+  /* 設定の「機能」の行: 面を薄く塗り、右の矢印が少し前へ出る（開ける、が分かる）。 */
+  .link-row:hover {
+    background: var(--fill);
+  }
+
+  .link-row .link-row__chevron {
+    transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .link-row:hover .link-row__chevron {
+    transform: translateX(3px);
+  }
+}
+
+/* ---------------------------------------------------------------- 4. 画面を開くと、上から順に現れる
+   トップ・予約投稿・フォロー整理にはあった（theme-teal.css の 7.）。設定と、文と設定の画面にも同じ動きをつける。 */
+
+:is(.settings-view, .autopost:not(.autopost-home)) > * {
+  animation: teal-rise 260ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+
+:is(.settings-view, .autopost:not(.autopost-home)) > :nth-child(2) {
+  animation-delay: 40ms;
+}
+
+:is(.settings-view, .autopost:not(.autopost-home)) > :nth-child(3) {
+  animation-delay: 80ms;
+}
+
+:is(.settings-view, .autopost:not(.autopost-home)) > :nth-child(4) {
+  animation-delay: 120ms;
+}
+
+:is(.settings-view, .autopost:not(.autopost-home)) > :nth-child(n + 5) {
+  animation-delay: 160ms;
+}
+
+/* 予定のカードも、1枚ずつ少し遅れて出る（5枚目より下は待たせない）。 */
+.xap__upcoming > li {
+  animation: teal-rise 280ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+
+.xap__upcoming > li:nth-child(2) {
+  animation-delay: 50ms;
+}
+
+.xap__upcoming > li:nth-child(3) {
+  animation-delay: 100ms;
+}
+
+.xap__upcoming > li:nth-child(n + 4) {
+  animation-delay: 150ms;
+}
+
+/* ---------------------------------------------------------------- 5. タブ・絞り込みの切り替えを滑らかに */
+
+.autopost__tab {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.14s ease;
+}
+
+.autopost__tab:active {
+  transform: scale(0.96);
+}
+
+/* ---------------------------------------------------------------- 6. オンオフのスイッチ（トップ・設定で共通） */
+
+.toggle {
+  position: relative;
+  flex: none;
+  width: 52px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 32%, transparent);
+  cursor: pointer;
+  transition: background 0.25s ease;
+}
+
+.toggle--on {
+  background: var(--accent);
+}
+
+.toggle__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  /* 少し行き過ぎて戻る（弾む）動き。オンオフが切り替わったことが指先で分かる。 */
+  transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.toggle--on .toggle__thumb {
+  transform: translateX(20px);
+}
+
+.toggle:active:not(:disabled) .toggle__thumb {
+  width: 30px;
+}
+
+.toggle--on:active:not(:disabled) .toggle__thumb {
+  transform: translateX(16px);
+}
+
+/* 押したあと、Mac・サーバーが受け取るまで。つまみを薄く点滅させ、まだ確定していないと分かるようにする。 */
+.toggle--pending .toggle__thumb {
+  animation: toggle-pending 1.2s ease-in-out infinite;
+}
+
+@keyframes toggle-pending {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.toggle:disabled {
+  cursor: default;
+}
+
+.toggle:disabled:not(.toggle--pending) {
+  opacity: 0.4;
+}
+
+/* 設定の「まとめて止める・再開の対象」。名前とスイッチを1行ずつ、細い線で区切る。 */
+.bulk-targets {
+  display: flex;
+  flex-direction: column;
+}
+
+.bulk-target {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.bulk-target + .bulk-target {
+  border-top: 1px solid var(--border);
+}
+
+/* ---------------------------------------------------------------- 7. 一番下の注意書き
+   フォロー整理（アーカイブ）の話なので、その話が出てくる画面（フォロー整理・残すリスト・履歴・設定）だけに出す。 */
+
+.app-shell:is([data-screen='home'], [data-screen='schedule'], [data-screen='autopost']) .app-footer {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- 動きを減らす設定 */
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .post-item,
+  .xap__upcoming li,
+  .link-row,
+  .link-row .link-row__chevron,
+  .autopost__tab,
+  .toggle,
+  .toggle__thumb {
+    transition: none;
+  }
+
+  :is(.settings-view, .autopost:not(.autopost-home)) > *,
+  .xap__upcoming > li,
+  .toggle--pending .toggle__thumb {
+    animation: none;
+  }
+
+  .btn:active:not(:disabled),
+  .autopost__tab:active {
+    transform: none;
+  }
+}

@@ -3,6 +3,9 @@ import type { ChannelName, ChannelSnapshot } from '../../lib/autopost/api'
 import { CHANNEL_LABELS } from '../../lib/autopost/api'
 import { agoLabel, livenessOf, pauseStateOf } from '../../lib/autopost/draft'
 import { Icon, type IconName } from '../Icon'
+import { Toggle } from '../Toggle'
+
+export { Toggle }
 
 // ディスコード・Yay の「Macは動いているか」と「止める／再開する」。
 // 文を書き換える画面（AutoPostView）と、トップの1画面（AutoPostHome）で同じものを使う。
@@ -120,37 +123,6 @@ export function PauseControl({ snapshot, now, busy, error, onChange }: PauseCont
 
 // ------------------------------------------------------------------ トップの1画面用（1行のスイッチ）
 
-interface ToggleProps {
-  /** オン＝動いている（止める操作を受け付ける）。 */
-  on: boolean
-  /** 押したあと、相手（Mac・サーバー）が受け取るまでの途中。つまみを薄くして、まだ確定していないと分かるようにする。 */
-  pending?: boolean
-  disabled?: boolean
-  /** 何のスイッチか（例: 「ディスコードの自動投稿」）。状態は aria-checked で伝える。 */
-  label: string
-  onClick: () => void
-}
-
-/**
- * 止める・再開するのオンオフ。トップに赤い「止める」ボタンが縦に何個も並ぶと、画面がうるさく、
- * どれが動いているのかも色で読み取りにくかったので、動いている＝青緑のオン、止まっている＝灰色のオフ、の1つにした。
- */
-export function Toggle({ on, pending, disabled, label, onClick }: ToggleProps) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      aria-busy={pending || undefined}
-      className={`toggle${on ? ' toggle--on' : ''}${pending ? ' toggle--pending' : ''}`}
-      onClick={onClick}
-      disabled={disabled}
-    >
-      <span className="toggle__thumb" aria-hidden="true" />
-    </button>
-  )
-}
 
 export type SwitchTone = 'on' | 'off' | 'warn' | 'rest'
 

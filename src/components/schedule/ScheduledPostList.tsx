@@ -216,6 +216,7 @@ export function ScheduledPostList({ posts, onChanged, onEdit, onCompose }: Props
                     }
                     disabled={busy}
                   >
+                    <Icon name="undo" size={15} />
                     予約を解除
                   </button>
                 )}
