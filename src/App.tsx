@@ -10,6 +10,7 @@ import { UpdateBanner } from './components/UpdateBanner'
 import { QuickMenu } from './components/QuickMenu'
 import { Icon } from './components/Icon'
 import { X_CALLBACK_PATH } from './lib/schedule/constants'
+import { syncThemeColor } from './lib/themeColor'
 import { useAccounts, useCurrentBatchKeys, useSummary } from '#accounts-hook'
 import { parseArchiveFile } from './lib/archiveParser'
 import { computeNonMutual } from './lib/nonMutual'
@@ -64,6 +65,19 @@ function App() {
   // Xの認可画面から戻ってきた直後は、そのまま予約投稿を開く。
   // 「自動投稿が止まっているかもしれません」の通知から開いたとき（?open=autopost）も、再起動のボタンがある1画面（home）から始まる。
   const [tab, setTab] = useState<Tab>(() => (window.location.pathname === X_CALLBACK_PATH ? 'schedule' : 'home'))
+
+  // スマホの一番上の帯の色を、開いている画面の地の色にそろえる（トップは白・ほかは薄い灰青緑）。
+  // ライト／ダークが切り替わったときも合わせ直す。
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => syncThemeColor())
+    const scheme = window.matchMedia?.('(prefers-color-scheme: dark)')
+    const onScheme = () => requestAnimationFrame(() => syncThemeColor())
+    scheme?.addEventListener?.('change', onScheme)
+    return () => {
+      cancelAnimationFrame(frame)
+      scheme?.removeEventListener?.('change', onScheme)
+    }
+  }, [tab])
   const [filter, setFilter] = useState<FilterKey>('all')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [search, setSearch] = useState('')
