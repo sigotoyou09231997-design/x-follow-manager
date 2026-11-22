@@ -28,6 +28,8 @@ import { nextApprovalWindow, pickApprovalTime, postsOnDay, REFILL_MIN_LEAD_MS, t
 import { whenParts } from '../../lib/xAutopilot/whenLabel'
 import { createScheduledPost, updateScheduledPost } from '../../lib/schedule/postsStore'
 import { Icon } from '../Icon'
+import type { ChannelSnapshot, Snapshots } from '../../lib/autopost/api'
+import { AllSwitch } from './AllSwitch'
 import { SwitchRow } from './ChannelControls'
 import { RejectedInsights } from './RejectedInsights'
 import { StyleInsights } from './StyleInsights'
@@ -87,9 +89,11 @@ interface PanelProps {
    * X の読み込みが終わっていなくても・失敗していても出す（どちらかが読めなくても、もう一方は使えるように）。
    */
   children?: ReactNode
+  /** summary のとき、「すべて止める／再開」でまとめて動かすディスコード・Yay の状態と、変わったときの受け取り口。 */
+  channels?: { snapshots: Snapshots | null; onChanged: (snapshot: ChannelSnapshot) => void }
 }
 
-export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: PanelProps = {}) {
+export function XAutopilotPanel({ variant = 'full', onOpenDetail, children, channels }: PanelProps = {}) {
   const { state, loading, error, setupNeeded, busy, reload, run } = useXAutopilot(true)
   const { posts, reload: reloadPosts } = useScheduledPosts(true)
   const [edits, setEdits] = useState<Partial<AutopilotSettings>>({})
@@ -269,6 +273,18 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
       setNotice({ text: '自動運転を始めました。予約はこのあと数分で並びます', kind: 'ok' })
       void reloadPosts()
     })
+
+  // 「すべて止める／再開」から呼ぶ。個々の行のボタンと違い、結果の知らせは呼び出し側が出すので、失敗は理由の文字列で返す。
+  const runForAll = async (label: string, action: () => Promise<ActionReply>) => {
+    try {
+      await run(label, action)
+      void reloadPosts()
+      return undefined
+    } catch (err) {
+      void reload()
+      return errorOf(err)
+    }
+  }
 
   const doStop = () =>
     act('stop', () => stopAutopilot(), (reply) => {
@@ -619,6 +635,18 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children }: Pa
           </details>
         </div>
         <section className="surface-card switch-list" aria-label="稼働スイッチ">
+          {channels && (
+            <AllSwitch
+              x={{
+                enabled: state.enabled,
+                ready,
+                stop: () => runForAll('stop', () => stopAutopilot()),
+                start: () => runForAll('start', saveThen(startAutopilot)),
+              }}
+              snapshots={channels.snapshots}
+              onChanged={channels.onChanged}
+            />
+          )}
           <SwitchRow
             name="X"
             icon="x-logo"

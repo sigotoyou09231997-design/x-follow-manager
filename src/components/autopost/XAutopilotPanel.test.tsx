@@ -631,6 +631,17 @@ describe('XAutopilotPanel: トップの1画面用（summary）', () => {
     expect(screen.getByText('差し込み')).toBeInTheDocument()
   })
 
+  it('トップの「すべて止める」で、X の自動運転も止まる（予約の取り消しも、個別の「止める」と同じ）', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    api.stopAutopilot.mockResolvedValue({ state: withProfile({ enabled: false }), result: { canceled: 2 } })
+    render(<XAutopilotPanel variant="summary" channels={{ snapshots: null, onChanged: () => {} }} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'すべての自動投稿を止める' }))
+
+    await waitFor(() => expect(api.stopAutopilot).toHaveBeenCalledTimes(1))
+    expect(await screen.findByRole('button', { name: 'すべての自動投稿を再開する' })).toBeInTheDocument()
+  })
+
   it('完全版（full）では差し込みを出さない', async () => {
     render(
       <XAutopilotPanel>

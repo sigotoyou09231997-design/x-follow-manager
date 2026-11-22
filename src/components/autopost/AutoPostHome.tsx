@@ -81,7 +81,7 @@ export function AutoPostHome({ onOpenDetail }: Props) {
       {/* 止まっているかもしれないときだけ、いちばん上に出す（普段は文を変える画面にある）。 */}
       {silent && <RestartControl enabled={loggedIn} silent />}
 
-      <XAutopilotPanel variant="summary" onOpenDetail={onOpenDetail}>
+      <XAutopilotPanel variant="summary" onOpenDetail={onOpenDetail} channels={{ snapshots: snapshots ?? null, onChanged: applySnapshot }}>
         {channelRows}
       </XAutopilotPanel>
 
