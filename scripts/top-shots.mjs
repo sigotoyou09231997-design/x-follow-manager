@@ -100,11 +100,16 @@ const post = (id, status, msFromNow, text) => ({
 const SCENES = [
   {
     name: 'running',
-    open: ['ディスコードの文を見る・直す', 'Xの文を見る・直す'],
+    open: ['ディスコードの文を見る・直す', 'Yayの文を見る・直す', 'Xの文を見る・直す'],
     x: xState(true),
     channels: {
       discord: channel('discord', { archive: ['前に使っていた募集の文です', '週末だけ見てます。気軽にどうぞ'] }),
-      yay: channel('yay', { status: { lastPost: { t: iso(-2 * MIN), text: 'x' }, today: 96, at: iso(-20 * 1000) } }),
+      yay: channel('yay', {
+        messages: ['夜のお手本の文', '昼のお手本の文', '時間を決めていない文'],
+        hours: [[22, 23, 0, 1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12, 13, 14, 15, 16], null],
+        schedule: { hour: 12, activeIndexes: [1], idle: false, nextHour: null },
+        status: { lastPost: { t: iso(-2 * MIN), text: 'x' }, today: 96, at: iso(-20 * 1000) },
+      }),
     },
     posts: [
       { ...post('p1', 'posted', -3 * HOUR, '雨の音を聞きながら昼寝した。'), ai_prompt: null },
@@ -219,6 +224,16 @@ async function shoot(browser, scene, viewport, theme) {
     const opened = path.join(OUT_DIR, `${scene.name}-${viewport.name}-${theme}-${label.slice(0, label.indexOf('の'))}.png`)
     await page.screenshot({ path: opened })
     files.push(opened)
+    // Yay: キーボードが出て画面が低くなったときに、2つ目の欄にふれると、その欄が見える所まで動くか
+    if (label.startsWith('Yay') && viewport.isMobile) {
+      await page.setViewportSize({ width: viewport.width, height: 420 })
+      await page.getByRole('textbox', { name: '2つ目の文' }).focus()
+      await page.waitForTimeout(700)
+      const typing = path.join(OUT_DIR, `${scene.name}-${viewport.name}-${theme}-Yay-typing.png`)
+      await page.screenshot({ path: typing })
+      files.push(typing)
+      await page.setViewportSize({ width: viewport.width, height: viewport.height })
+    }
     await page.getByRole('button', { name: '閉じる' }).click()
   }
   await context.close()

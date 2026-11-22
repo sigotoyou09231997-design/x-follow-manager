@@ -35,24 +35,26 @@ export function Box({ index, total, slot, nowActive, saved, maxLength, onChange,
   const length = slot.text.trim().length
   const name = total > 1 ? `${index + 1}つ目の文` : '投稿する文'
   return (
-    <div className={`autopost__box${saved ? ' autopost__box--saved' : ''}`}>
+    // 1つの文の、見出し・本文・文字数・投稿する時間帯を、1枚の枠にまとめる。
+    // 枠が無いと、時間帯の札が上の文のものか下の文のものか分からなかった（文が2つ以上のとき）。
+    <div className={`autopost__box${saved ? ' autopost__box--saved' : ''}`} role="group" aria-label={name}>
       {saved && (
         <span className="autopost__saved" aria-hidden="true">
           <Icon name="check" size={13} />
           保存しました
         </span>
       )}
-      {total > 1 && (
-        <div className="autopost__box-head">
-          <span>
-            {index + 1}つ目
-            {nowActive && <span className="autopost__now">いま投稿中</span>}
-          </span>
+      <div className="autopost__box-head">
+        <span>
+          {total > 1 ? `${index + 1}つ目` : '投稿する文'}
+          {nowActive && <span className="autopost__now">いま投稿中</span>}
+        </span>
+        {total > 1 && (
           <button type="button" className="btn btn--ghost btn--small" onClick={onRemove}>
             この文を外す
           </button>
-        </div>
-      )}
+        )}
+      </div>
       <AutoTextarea
         value={slot.text}
         onChange={(e) => onChange({ ...slot, text: e.target.value })}
