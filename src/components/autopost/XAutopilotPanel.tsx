@@ -508,7 +508,7 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children, chan
   const showWaitingZone = state.settings.requireApproval && state.enabled
   const upcomingSection = (
     <section aria-label="これから投稿される予定">
-      <h2 className="autopost__sub">{variant === 'summary' ? 'Xの、これから投稿される予定' : 'これから投稿される予定'}</h2>
+      <h2 className="autopost__sub">{variant === 'summary' ? 'Xの予定' : 'これから投稿される予定'}</h2>
       {upcoming.length === 0 && !showWaitingZone ? (
         <p className="autopost__empty">まだありません。自動運転を始めると、ここに並びます。</p>
       ) : (
@@ -546,13 +546,10 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children, chan
           )}
         </div>
       )}
-      {upcoming.length > 0 && (
+      {/* 使い方の説明は詳細の画面だけ。トップは見出しと予定だけにする（シンプルにしたい、という本人の希望）。 */}
+      {upcoming.length > 0 && variant !== 'summary' && (
         <p className="xap__muted">
-          {variant === 'summary'
-            ? state.settings.requireApproval
-              ? '「編集」で本文と投稿時刻を直せます。取り消すと、近い時刻の枠は空いたまま、遠い枠は別の文を作り直します。'
-              : '「編集」で本文と投稿時刻を直せます。取り消すと、近い時刻の枠から別の文を作り直します（数十秒）。'
-            : state.settings.requireApproval
+          {state.settings.requireApproval
               ? '「編集」で本文と投稿時刻を直せます。取り消すと、近い時刻（2時間以内）の枠は空いたまま、遠い枠は別の文を作り直します。取り消した文は覚えておき、似た話題・型は作らないようにします。'
               : '「編集」で本文と投稿時刻を直せます。取り消すと、いちばん近い時刻の枠から、別の文を作り直して並べます（数十秒）。取り消した文は覚えておき、似た話題・型は作らないようにします。'}
         </p>
@@ -603,10 +600,8 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children, chan
             別の文を作り直しています…（数十秒かかります）
           </p>
         )}
-        {/* 今月のAI料金。トップのいちばん上（稼働スイッチの上）に、上限に対する割合の棒つきで出す。 */}
         {/* 料金と予定は左の列（xap__main）にまとめる。右のスイッチは背が高いので、同じ行の高さに合わせて料金のカードを伸ばさないため。 */}
         <div className="xap__main">
-          <UsageMeter usage={state.usage} budgetYen={state.settings.monthlyBudgetYen} />
           {upcomingSection}
         </div>
         <section className="surface-card switch-list" aria-label="稼働スイッチ">
@@ -653,6 +648,9 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children, chan
           別の文を作り直しています…（数十秒かかります）
         </p>
       )}
+
+      {/* 今月のAI料金。トップをシンプルにするため、2026-11-22 にトップからここへ移した。 */}
+      <UsageMeter usage={state.usage} budgetYen={state.settings.monthlyBudgetYen} />
 
       <StyleInsights profile={state.profile} recentStyle={state.recentStyle} />
       <RejectedInsights rejected={rejectedTexts} kept={keptTexts} />

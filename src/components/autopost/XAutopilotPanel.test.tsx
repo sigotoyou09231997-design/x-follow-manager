@@ -524,7 +524,10 @@ describe('XAutopilotPanel: トップの1画面用（summary）', () => {
 
     expect(await screen.findByText(/^自動運転中・今日の投稿 \d\/3本/)).toBeInTheDocument()
     expect(button('自動運転を止める')).toBeEnabled()
-    expect(screen.getByRole('heading', { name: 'Xの、これから投稿される予定' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Xの予定' })).toBeInTheDocument()
+    // 今月のAI料金と、予定の使い方の説明は、詳細の画面だけ
+    expect(screen.queryByRole('region', { name: '今月のAI料金' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/「編集」で本文と投稿時刻を直せます/)).not.toBeInTheDocument()
     expect(screen.getByText('自動運転の本文 a')).toBeInTheDocument()
 
     // トップをすっきりさせるため、文体の取り込み・分析・作文は出さない（詳細の画面にある）
@@ -641,6 +644,12 @@ describe('XAutopilotPanel: トップの1画面用（summary）', () => {
 
     await waitFor(() => expect(api.stopAutopilot).toHaveBeenCalledTimes(1))
     expect(await screen.findByRole('button', { name: 'すべての自動投稿を再開する' })).toBeInTheDocument()
+  })
+
+  it('今月のAI料金は、詳細の画面（full）に出す（トップからここへ移した）', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    render(<XAutopilotPanel />)
+    expect(await screen.findByRole('region', { name: '今月のAI料金' })).toBeInTheDocument()
   })
 
   it('完全版（full）では差し込みを出さない', async () => {

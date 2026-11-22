@@ -12,8 +12,8 @@ import { RestartControl } from './RestartControl'
 import { XAutopilotPanel } from './XAutopilotPanel'
 
 // アプリを開いて最初に出る1画面。自動投稿の「いま」だけを並べる:
-//   すべて止める／再開 → X・ディスコード・Yay の稼働スイッチ（1行ずつ）→ X のこれから投稿される予定。
-// 文を書き換える・文体・回数・予約投稿・フォロー整理など、ほかの機能は設定から開く。
+//   すべて止める／再開 → X・ディスコード・Yay の稼働スイッチ（1行ずつ）→ X の予定。
+// 今月のAI料金・文を書き換える・文体・回数・予約投稿・フォロー整理など、ほかの機能は設定（または右下のメニュー）から開く。
 
 interface Props {
   /** 文や細かい設定を変える画面（ディスコード・Yay・X のタブがある自動投稿の詳細）を開く。 */
@@ -83,19 +83,6 @@ export function AutoPostHome({ onOpenDetail }: Props) {
       <XAutopilotPanel variant="summary" onOpenDetail={onOpenDetail} channels={{ snapshots: snapshots ?? null, onChanged: applySnapshot }}>
         {channelRows}
       </XAutopilotPanel>
-
-      <div className="surface-card link-list">
-        <button type="button" className="link-row" onClick={onOpenDetail}>
-          <span className="link-row__icon">
-            <Icon name="edit" size={18} />
-          </span>
-          <span className="link-row__body">
-            <span className="link-row__label">文や回数を変える</span>
-            <span className="link-row__desc">ディスコード・Yay の文、X の文体・1日の投稿数</span>
-          </span>
-          <Icon name="chevron-right" size={18} className="link-row__chevron" />
-        </button>
-      </div>
     </div>
   )
 }

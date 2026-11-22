@@ -167,12 +167,10 @@ describe('AutoPostHome（アプリを開いて最初の1画面）', () => {
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   })
 
-  it('「文や回数を変える」で、詳細の画面を開く', async () => {
-    const open = vi.fn()
-    render(<AutoPostHome onOpenDetail={open} />)
+  it('トップに「文や回数を変える」の入口カードは置かない（設定・右下のメニューから開く）', async () => {
+    render(<AutoPostHome onOpenDetail={() => {}} />)
+    await waitFor(() => expect(stopButton('ディスコード')).toBeEnabled())
 
-    fireEvent.click(await screen.findByRole('button', { name: /文や回数を変える/ }))
-
-    expect(open).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: /文や回数を変える/ })).not.toBeInTheDocument()
   })
 })
