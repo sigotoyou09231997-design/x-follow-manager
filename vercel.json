@@ -2,6 +2,9 @@
   "ignoreCommand": "[ \"$VERCEL_GIT_COMMIT_REF\" != \"main\" ]",
   "buildCommand": "SKIP_BUILD_TSC=1 npm run build",
   "outputDirectory": "dist",
+  "regions": [
+    "icn1"
+  ],
   "headers": [
     {
       "source": "/(sw.js|version.json|push-sw.js)",

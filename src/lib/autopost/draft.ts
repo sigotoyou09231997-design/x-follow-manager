@@ -95,3 +95,12 @@ export function notYetPosted(snapshot: ChannelSnapshot): boolean {
   if (!last || snapshot.messages.length === 0) return false
   return !snapshot.messages.some((m) => m === last.text || flat(m) === last.text)
 }
+
+/**
+ * 止める・再開するを押した瞬間の見え方。サーバーの返事（関数はソウル・DB もソウルだが、それでも往復ぶん待つ）を待たずに
+ * スイッチを切り替えて見せ、返事が来たら返事で置き換える（失敗したら押す前の状態に戻す）。
+ * 投稿役が受け取ったかどうか（status.paused）には触らないので、受け取るまでは「依頼しました」の途中の状態として出る。
+ */
+export function optimisticPause(snapshot: ChannelSnapshot, paused: boolean, at: Date): ChannelSnapshot {
+  return { ...snapshot, paused, pausedAt: paused ? at.toISOString() : null }
+}
