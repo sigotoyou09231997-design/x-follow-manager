@@ -522,8 +522,10 @@ describe('XAutopilotPanel: トップの1画面用（summary）', () => {
     posts.list = [post('a')]
     render(<XAutopilotPanel variant="summary" />)
 
-    expect(await screen.findByText(/^自動運転中・今日の投稿 \d\/3本/)).toBeInTheDocument()
-    expect(button('自動運転を止める')).toBeEnabled()
+    expect(await screen.findByText(/^今日 \d\/3本/)).toBeInTheDocument()
+    const toggle = screen.getByRole('switch', { name: 'Xの自動運転' })
+    expect(toggle).toBeEnabled()
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByRole('heading', { name: 'Xの予定' })).toBeInTheDocument()
     // 今月のAI料金と、予定の使い方の説明は、詳細の画面だけ
     expect(screen.queryByRole('region', { name: '今月のAI料金' })).not.toBeInTheDocument()
@@ -582,7 +584,9 @@ describe('XAutopilotPanel: トップの1画面用（summary）', () => {
     api.startAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
     render(<XAutopilotPanel variant="summary" />)
 
-    fireEvent.click(await screen.findByRole('button', { name: '自動運転を始める' }))
+    const toggle = await screen.findByRole('switch', { name: 'Xの自動運転' })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(toggle)
 
     await waitFor(() => expect(api.startAutopilot).toHaveBeenCalledTimes(1))
   })
@@ -592,15 +596,15 @@ describe('XAutopilotPanel: トップの1画面用（summary）', () => {
     render(<XAutopilotPanel variant="summary" onOpenDetail={open} />)
 
     expect(await screen.findByText('先に、Xとの連携と文体のまとめが必要です')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '自動運転を始める' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: 'Xの自動運転' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Xとの連携と文体を設定する' }))
     expect(open).toHaveBeenCalledTimes(1)
   })
 
-  it('入口が渡されていなければ、押せない「始める」を出す', async () => {
+  it('入口が渡されていなければ、押せないスイッチを出す', async () => {
     render(<XAutopilotPanel variant="summary" />)
 
-    expect(await screen.findByRole('button', { name: '自動運転を始める' })).toBeDisabled()
+    expect(await screen.findByRole('switch', { name: 'Xの自動運転' })).toBeDisabled()
   })
 
   it('スイッチの下に差し込んだ部分（ディスコード・Yay）が出る。X が読み込み中・失敗・未準備でも出る', async () => {
@@ -611,7 +615,7 @@ describe('XAutopilotPanel: トップの1画面用（summary）', () => {
       </XAutopilotPanel>
     )
     expect(screen.getByText('差し込み')).toBeInTheDocument() // 読み込み中でも
-    await screen.findByText('自動運転は止まっています')
+    await screen.findByText('止まっています')
     expect(screen.getByText('差し込み')).toBeInTheDocument()
     unmount()
 
@@ -956,7 +960,7 @@ describe('XAutopilotPanel: 投稿可能（確認してから投稿する）', ()
     posts.list = [post('a', { status: 'draft', scheduledAt: future(3) }), post('b', { status: 'draft', scheduledAt: future(6) })]
     render(<XAutopilotPanel variant="summary" />)
 
-    expect(await screen.findByText(/^自動運転中・今日の投稿 \d\/3本・確認待ち2件$/)).toBeInTheDocument()
+    expect(await screen.findByText(/^今日 \d\/3本 ・ 確認待ち2件$/)).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'この予約を投稿可能にする' })).toHaveLength(2)
   })
 })

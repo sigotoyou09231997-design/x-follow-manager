@@ -46,7 +46,7 @@ describe('AllSwitch（すべての自動投稿をまとめて止める・再開�
     const onChanged = vi.fn()
     render(<AllSwitch x={x} snapshots={running()} onChanged={onChanged} />)
 
-    expect(screen.getByText('X・ディスコード・Yay が動いています')).toBeInTheDocument()
+    expect(screen.getByText('すべて動いています')).toBeInTheDocument()
     fireEvent.click(stopAll())
 
     await waitFor(() => expect(x.stop).toHaveBeenCalledTimes(1))
@@ -56,12 +56,23 @@ describe('AllSwitch（すべての自動投稿をまとめて止める・再開�
     expect(await screen.findByText('X・ディスコード・Yay を止めました')).toBeInTheDocument()
   })
 
+  it('一部だけ動いているときは、動いているものの名前を出す', () => {
+    render(
+      <AllSwitch
+        x={xControls({ enabled: false })}
+        snapshots={{ discord: channel({ channel: 'discord' }), yay: channel({ channel: 'yay', paused: true }) }}
+        onChanged={() => {}}
+      />
+    )
+    expect(screen.getByText('ディスコード が動いています')).toBeInTheDocument()
+  })
+
   it('X が自動運転中のあいだだけ、予約が取り消されることを先に知らせる', () => {
     const { rerender } = render(<AllSwitch x={xControls()} snapshots={running()} onChanged={() => {}} />)
-    expect(screen.getByText(/まだ出ていない予約を取り消します/)).toBeInTheDocument()
+    expect(screen.getByText(/まだ出ていない予約は取り消されます/)).toBeInTheDocument()
 
     rerender(<AllSwitch x={xControls({ enabled: false })} snapshots={running()} onChanged={() => {}} />)
-    expect(screen.queryByText(/まだ出ていない予約を取り消します/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/まだ出ていない予約は取り消されます/)).not.toBeInTheDocument()
   })
 
   it('1つ失敗しても、ほかは止める。失敗したものの理由を出す', async () => {
@@ -171,7 +182,8 @@ describe('AllSwitch（すべての自動投稿をまとめて止める・再開�
     const x = xControls()
     render(<AllSwitch x={x} snapshots={running()} onChanged={() => {}} />)
 
-    expect(screen.getByText('ディスコード が動いています')).toBeInTheDocument()
+    // 対象はディスコードだけなので、それが動いていれば「すべて」
+    expect(screen.getByText('すべて動いています')).toBeInTheDocument()
     fireEvent.click(stopAll())
 
     await waitFor(() => expect(api.setPaused).toHaveBeenCalledWith('discord', true))
@@ -183,7 +195,8 @@ describe('AllSwitch（すべての自動投稿をまとめて止める・再開�
     localStorage.setItem('sns-all-pause-targets', JSON.stringify({ x: false, discord: false, yay: false }))
     render(<AllSwitch x={xControls()} snapshots={running()} onChanged={() => {}} />)
 
-    expect(screen.getByText('対象が選ばれていません（設定で選べます）')).toBeInTheDocument()
+    expect(screen.getByText('対象が選ばれていません')).toBeInTheDocument()
+    expect(screen.getByText(/まとめて止める・再開の対象/)).toBeInTheDocument()
     expect(resumeAll()).toBeDisabled()
   })
 })

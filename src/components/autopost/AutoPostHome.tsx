@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import './autopost.css'
+import './top.css'
 import { signInWithGoogle, useSupabaseAuth } from '../../hooks/useSupabaseAuth'
 import { useAutopost } from '../../hooks/useAutopost'
 import { useNow } from '../../hooks/useNow'

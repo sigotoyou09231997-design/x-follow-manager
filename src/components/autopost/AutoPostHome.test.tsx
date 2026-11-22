@@ -67,7 +67,9 @@ beforeEach(() => {
   api.requestRestart.mockReset()
 })
 
-const stopButton = (name: string) => screen.getByRole('button', { name: `${name}の投稿を止める` })
+// 行ごとのオンオフのスイッチ。オン（aria-checked=true）は動いている。
+const toggleOf = (name: string) => screen.getByRole('switch', { name: `${name}の自動投稿` })
+const stopButton = toggleOf
 
 describe('AutoPostHome（アプリを開いて最初の1画面）', () => {
   it('X・ディスコード・Yay の稼働スイッチを、1枚のカードに1行ずつ並べる（Xの下にディスコードとYay）', async () => {
@@ -79,7 +81,9 @@ describe('AutoPostHome（アプリを開いて最初の1画面）', () => {
     expect(stopButton('Yay')).toBeEnabled()
     expect(card).toContainElement(stopButton('ディスコード'))
     expect(card).toContainElement(stopButton('Yay'))
-    expect(screen.getAllByText(/Macは動いています/)).toHaveLength(2)
+    expect(toggleOf('ディスコード')).toHaveAttribute('aria-checked', 'true')
+    expect(toggleOf('Yay')).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getAllByText(/今日3件/)).toHaveLength(2)
 
     // 文の入力欄は、この画面には出さない（文を変えるのは詳細の画面）。普段は再起動の案内も出さない
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
@@ -96,7 +100,9 @@ describe('AutoPostHome（アプリを開いて最初の1画面）', () => {
     await waitFor(() => expect(api.setPaused).toHaveBeenCalledWith('discord', true))
     expect(api.setPaused).toHaveBeenCalledTimes(1)
     expect(await screen.findByText(/停止を依頼しました/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'ディスコードの停止を取り消す' })).toBeInTheDocument()
+    // 停止を頼んだところ: スイッチはオフ・受け取り待ち。もう一度押すと停止を取り消せる
+    expect(toggleOf('ディスコード')).toHaveAttribute('aria-checked', 'false')
+    expect(toggleOf('ディスコード')).toHaveAttribute('aria-busy', 'true')
     expect(stopButton('Yay')).toBeEnabled() // Yay はそのまま動いている行のまま
   })
 
@@ -109,7 +115,8 @@ describe('AutoPostHome（アプリを開いて最初の1画面）', () => {
     render(<AutoPostHome onOpenDetail={() => {}} />)
 
     expect(await screen.findByText(/停止中（/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Yayの投稿を再開する' }))
+    expect(toggleOf('Yay')).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(toggleOf('Yay'))
 
     await waitFor(() => expect(api.setPaused).toHaveBeenCalledWith('yay', false))
   })
