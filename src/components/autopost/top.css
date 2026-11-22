@@ -366,3 +366,193 @@
     transition: none;
   }
 }
+
+/* ---------------------------------------------------------------- 行の「文」ボタンと、そのポップアップ（2026-11-22） */
+
+.autopost-home .switch-row__action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 「文」ボタン。スイッチの横に添える、小さな枠線の丸ボタン（スイッチより目立たせない）。 */
+.text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.text-button:hover {
+  background: var(--fill);
+}
+
+.text-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ポップアップの中身。見出しと×は上に残し、中身だけをスクロールさせる。 */
+.text-sheet__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 8px 20px calc(24px + env(safe-area-inset-bottom));
+}
+
+.text-sheet__body > * {
+  flex: none;
+}
+
+.text-sheet__lead {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.text-sheet__boxes,
+.text-sheet__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.text-sheet__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.text-sheet__sub {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.text-sheet__section textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 16px; /* iOS で入力欄にふれたとき、画面が勝手に拡大されない大きさ */
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.text-sheet__current {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+
+.text-sheet__current-text {
+  margin: 4px 0 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  color: var(--text-h);
+}
+
+.text-sheet__when {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.text-sheet__archive {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.text-sheet__history {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.text-sheet__history li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.text-sheet__history-text {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  color: var(--text-h);
+}
+
+/* ポップアップの中の予定のカード（トップの予定と同じ見た目にそろえる。ポップアップは画面の外側に出すので、トップ用の指定が届かない）。 */
+.text-sheet .xap__upcoming {
+  gap: 10px;
+}
+
+.text-sheet .xap__upcoming li {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.text-sheet .xap__upcoming .xap__card-actions > .btn--ghost {
+  flex: none;
+  min-height: 36px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .autopost-home .switch-row__action {
+    gap: 8px;
+  }
+
+  /* 狭い画面では鉛筆の丸だけにする（「文」の字があると、状態の文が変なところで折り返す）。名前は aria-label が伝える。 */
+  .text-button {
+    width: 36px;
+    min-height: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .text-button__label {
+    display: none;
+  }
+}
+
+/* 状態の文（「今日 2/3本 ・ 確認待ち1件」）は、言葉の途中で割らず「・」の前後で折り返す。
+   区切りの無い長い文（「先に、Xとの連携と…」）だけは、はみ出さないよう、どこでも折り返してよい。 */
+.autopost-home .switch-row__status {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}

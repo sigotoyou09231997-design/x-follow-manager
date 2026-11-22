@@ -9,6 +9,7 @@ import { livenessOf, optimisticPause } from '../../lib/autopost/draft'
 import { Icon } from '../Icon'
 import { PageHero } from '../PageHero'
 import { ChannelSwitchRow, SwitchRow } from './ChannelControls'
+import { ChannelTextSheet } from './ChannelTextSheet'
 import { RestartControl } from './RestartControl'
 import { XAutopilotPanel } from './XAutopilotPanel'
 
@@ -99,6 +100,7 @@ interface ChannelRowProps {
 function ChannelRow({ channel, snapshot, now, onChanged }: ChannelRowProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
+  const [textOpen, setTextOpen] = useState(false)
 
   async function change(next: boolean) {
     if (busy) return
@@ -118,5 +120,18 @@ function ChannelRow({ channel, snapshot, now, onChanged }: ChannelRowProps) {
   }
 
   // トップは「名前・状態・止めるボタン」の1行だけ。いま投稿している文・過去の文の選び方は、文を変える画面にある。
-  return <ChannelSwitchRow snapshot={snapshot} now={now} busy={busy} error={error} onChange={(next) => void change(next)} />
+  // 「文」を押すと、いま投稿している文をポップアップで見る・直す・これまでの文を呼び戻す。
+  return (
+    <>
+      <ChannelSwitchRow
+        snapshot={snapshot}
+        now={now}
+        busy={busy}
+        error={error}
+        onChange={(next) => void change(next)}
+        onOpenText={() => setTextOpen(true)}
+      />
+      {textOpen && <ChannelTextSheet snapshot={snapshot} onChanged={onChanged} onClose={() => setTextOpen(false)} />}
+    </>
+  )
 }

@@ -20,11 +20,11 @@ vi.mock('../../lib/xAutopilot/api', async (importOriginal) => ({
   ...api,
 }))
 
-const posts = vi.hoisted(() => ({ list: [] as unknown[], reload: vi.fn(), update: vi.fn() }))
+const posts = vi.hoisted(() => ({ list: [] as unknown[], reload: vi.fn(), update: vi.fn(), create: vi.fn() }))
 vi.mock('../../hooks/useScheduledPosts', () => ({
   useScheduledPosts: () => ({ posts: posts.list, loading: false, reload: posts.reload }),
 }))
-vi.mock('../../lib/schedule/postsStore', () => ({ updateScheduledPost: posts.update }))
+vi.mock('../../lib/schedule/postsStore', () => ({ updateScheduledPost: posts.update, createScheduledPost: posts.create }))
 
 import { XAutopilotError } from '../../lib/xAutopilot/api'
 import { XAutopilotPanel } from './XAutopilotPanel'
@@ -1099,3 +1099,46 @@ describe('XAutopilotPanel: 「投稿可能にする」を押す前に、投稿�
     await waitFor(() => expect(posts.update).toHaveBeenCalledWith('a', { status: 'scheduled' })) // 時刻は動かさない
   })
 })
+
+describe('XAutopilotPanel: トップの X の行の「文」（ポップアップ）', () => {
+  it('いま出ている投稿・これから投稿される文・これまでに投稿した文を見られる', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    posts.list = [
+      post('next', { status: 'scheduled', scheduledAt: new Date(Date.now() + 3 * 3600_000).toISOString() }),
+      post('old', { status: 'posted', scheduledAt: '2026-11-20T03:00:00.000Z', segments: [{ text: 'おとといの投稿', media: [] }] }),
+      post('new', { status: 'posted', scheduledAt: '2026-11-21T03:00:00.000Z', segments: [{ text: 'きのうの投稿', media: [] }] }),
+    ]
+    render(<XAutopilotPanel variant="summary" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Xの文を見る・直す' }))
+    const sheet = screen.getByRole('dialog', { name: 'Xの文' })
+    // いま出ているのは、いちばん新しい投稿
+    expect(within(within(sheet).getByRole('region', { name: 'いま出ている投稿' })).getByText('きのうの投稿')).toBeInTheDocument()
+    expect(within(within(sheet).getByRole('region', { name: 'これから投稿される文' })).getByText('自動運転の本文 next')).toBeInTheDocument()
+    const past = within(sheet).getByRole('region', { name: 'これまでに投稿した文' })
+    expect(within(past).getByText('きのうの投稿')).toBeInTheDocument()
+    expect(within(past).getByText('おとといの投稿')).toBeInTheDocument()
+  })
+
+  it('これまでの文を「使う」で呼び出し、直して「予約に加える」と予約が1件できる', async () => {
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    posts.list = [post('old', { status: 'posted', scheduledAt: '2026-11-20T03:00:00.000Z', segments: [{ text: '前の投稿', media: [] }] })]
+    posts.create.mockReset().mockResolvedValue(undefined)
+    render(<XAutopilotPanel variant="summary" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Xの文を見る・直す' }))
+    const sheet = screen.getByRole('dialog', { name: 'Xの文' })
+    fireEvent.click(within(sheet).getByRole('button', { name: '「前の投稿」を使う' }))
+    const box = within(sheet).getByRole('textbox', { name: '予約に加える文' })
+    expect(box).toHaveValue('前の投稿')
+
+    fireEvent.change(box, { target: { value: '前の投稿を少し直した' } })
+    fireEvent.click(within(sheet).getByRole('button', { name: '予約に加える' }))
+
+    await waitFor(() => expect(posts.create).toHaveBeenCalledTimes(1))
+    expect(posts.create.mock.calls[0][0]).toMatchObject({ segments: [{ text: '前の投稿を少し直した', media: [] }], status: 'draft' })
+    expect(await within(sheet).findByText(/確認待ちに追加しました/)).toBeInTheDocument()
+    expect(box).toHaveValue('')
+  })
+})
+
