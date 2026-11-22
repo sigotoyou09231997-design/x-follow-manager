@@ -201,4 +201,16 @@ describe('AllSwitch（すべての自動投稿をまとめて止める・再開�
     expect(screen.getByText(/まとめて止める・再開の対象/)).toBeInTheDocument()
     expect(resumeAll()).toBeDisabled()
   })
+
+  it('トップに出していない投稿先は、まとめての対象の設定がオンでも触らない', async () => {
+    localStorage.setItem('sns-top-shown', JSON.stringify({ x: false, discord: true, yay: true }))
+    const x = xControls()
+    render(<AllSwitch x={x} snapshots={running()} onChanged={() => {}} />)
+
+    fireEvent.click(stopAll())
+
+    await waitFor(() => expect(api.setPaused).toHaveBeenCalledTimes(2))
+    expect(x.stop).not.toHaveBeenCalled()
+  })
 })
+

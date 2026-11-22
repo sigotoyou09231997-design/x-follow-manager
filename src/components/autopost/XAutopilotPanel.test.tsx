@@ -1142,3 +1142,21 @@ describe('XAutopilotPanel: トップの X の行の「文」（ポップアッ�
   })
 })
 
+describe('XAutopilotPanel: 設定でトップから X を外したとき', () => {
+  it('X の行・予定は出さず、差し込み（ディスコード・Yay）だけを出す', async () => {
+    localStorage.setItem('sns-top-shown', JSON.stringify({ x: false, discord: true, yay: true }))
+    api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
+    render(
+      <XAutopilotPanel variant="summary" channels={{ snapshots: null, onChanged: () => {} }}>
+        <p>差し込み</p>
+      </XAutopilotPanel>
+    )
+
+    expect(screen.getByText('差し込み')).toBeInTheDocument()
+    await waitFor(() => expect(api.fetchAutopilot).toHaveBeenCalled())
+    expect(screen.queryByRole('switch', { name: 'Xの自動運転' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Xの予定' })).not.toBeInTheDocument()
+    localStorage.clear()
+  })
+})
+

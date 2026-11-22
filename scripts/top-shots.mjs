@@ -24,6 +24,7 @@ const OUT_DIR = path.resolve(ROOT, arg('--out', '.design-shots/top'))
 const SUPABASE = 'https://demo.supabase.co'
 const WITH_PAGES = args.includes('--pages')
 const ONLY = arg('--only', '') // 例: running-mobile-light
+const HIDE = arg('--hide', '') // 例: x
 // 設定から開く画面。feature が無いものは設定の画面そのもの。
 const PAGES = [
   { name: 'settings' },
@@ -147,9 +148,17 @@ async function shoot(browser, scene, viewport, theme) {
     locale: 'ja-JP',
     timezoneId: 'Asia/Tokyo',
   })
-  await context.addInitScript((value) => {
-    localStorage.setItem('sb-demo-auth-token', value)
-  }, JSON.stringify(session))
+  await context.addInitScript(
+    ([value, hidden]) => {
+      localStorage.setItem('sb-demo-auth-token', value)
+      // --hide x,yay: 設定の「トップに出す投稿先」で外した状態を撮る
+      if (hidden) {
+        const off = hidden.split(',')
+        localStorage.setItem('sns-top-shown', JSON.stringify({ x: !off.includes('x'), discord: !off.includes('discord'), yay: !off.includes('yay') }))
+      }
+    },
+    [JSON.stringify(session), HIDE]
+  )
 
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url())
@@ -202,6 +211,8 @@ async function shoot(browser, scene, viewport, theme) {
     await page.getByRole('region', { name: '稼働スイッチ' }).waitFor({ timeout: 15_000 })
   }
   for (const label of scene.open ?? []) {
+    // 隠した投稿先（--hide）のボタンは無いので飛ばす
+    if ((await page.getByRole('button', { name: label }).count()) === 0) continue
     await page.getByRole('button', { name: label }).click()
     await page.getByRole('dialog').waitFor()
     await page.waitForTimeout(400)

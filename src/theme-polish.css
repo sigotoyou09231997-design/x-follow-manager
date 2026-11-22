@@ -318,3 +318,16 @@
     transform: none;
   }
 }
+
+/* 設定: トップに出していない投稿先は「まとめて止める・再開の対象」にできないことを、名前の下に小さく添える。 */
+.bulk-target > span:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bulk-target__note {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}

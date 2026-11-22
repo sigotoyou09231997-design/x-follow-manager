@@ -5,6 +5,7 @@ import { signInWithGoogle, useSupabaseAuth } from '../../hooks/useSupabaseAuth'
 import { useAutopost } from '../../hooks/useAutopost'
 import { useNow } from '../../hooks/useNow'
 import { CHANNEL_NAMES, setPaused, type ChannelName, type ChannelSnapshot } from '../../lib/autopost/api'
+import { useTopShown } from '../../lib/autopost/bulkTargets'
 import { livenessOf, optimisticPause } from '../../lib/autopost/draft'
 import { Icon } from '../Icon'
 import { PageHero } from '../PageHero'
@@ -27,6 +28,8 @@ export function AutoPostHome({ onOpenDetail }: Props) {
   const loggedIn = !!session
   const { snapshots, loading, error, reload, applySnapshot } = useAutopost(loggedIn)
   const now = useNow(30_000)
+  // 設定の「トップに出す投稿先」。外したものは、行も（X なら予定も）出さない。
+  const [shown] = useTopShown()
 
   if (authLoading) return <p className="loading-indicator">読み込み中…</p>
 
@@ -49,12 +52,13 @@ export function AutoPostHome({ onOpenDetail }: Props) {
     )
   }
 
-  const silent = CHANNEL_NAMES.some((name) => livenessOf(snapshots?.[name]?.status ?? null, now) === 'silent')
+  const shownChannels = CHANNEL_NAMES.filter((name) => shown[name])
+  const silent = shownChannels.some((name) => livenessOf(snapshots?.[name]?.status ?? null, now) === 'silent')
 
   // ディスコード・Yay の保存先（SQL 005）が読めなくても、X の自動運転は使える（逆も同じ）ので、ここだけの表示にとどめる。
   const needsSetup = !!error && error.includes('autopost_')
   const channelRows =
-    error && !snapshots ? (
+    shownChannels.length === 0 ? null : error && !snapshots ? (
       <SwitchRow
         name="ディスコード・Yay"
         tone="warn"
@@ -70,7 +74,7 @@ export function AutoPostHome({ onOpenDetail }: Props) {
     ) : loading || !snapshots ? (
       <p className="autopost__empty">読み込み中…</p>
     ) : (
-      CHANNEL_NAMES.map((name) => (
+      shownChannels.map((name) => (
         <ChannelRow key={name} channel={name} snapshot={snapshots[name]} now={now} onChanged={applySnapshot} />
       ))
     )
@@ -82,9 +86,17 @@ export function AutoPostHome({ onOpenDetail }: Props) {
       {/* 止まっているかもしれないときだけ、いちばん上に出す（普段は文を変える画面にある）。 */}
       {silent && <RestartControl enabled={loggedIn} silent />}
 
-      <XAutopilotPanel variant="summary" onOpenDetail={onOpenDetail} channels={{ snapshots: snapshots ?? null, onChanged: applySnapshot }}>
-        {channelRows}
-      </XAutopilotPanel>
+      {!shown.x && shownChannels.length === 0 ? (
+        // 3つとも隠しているとき。何も無い画面にせず、戻し方を出す。
+        <div className="surface-card autopost--notice">
+          <p>トップに出す投稿先がありません。</p>
+          <p className="autopost__hint">設定の「トップに出す投稿先」で、出すものを選べます（隠しても投稿は止まりません）。</p>
+        </div>
+      ) : (
+        <XAutopilotPanel variant="summary" onOpenDetail={onOpenDetail} channels={{ snapshots: snapshots ?? null, onChanged: applySnapshot }}>
+          {channelRows}
+        </XAutopilotPanel>
+      )}
     </div>
   )
 }

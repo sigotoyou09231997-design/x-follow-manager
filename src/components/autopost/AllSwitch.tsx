@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { optimisticPause } from '../../lib/autopost/draft'
-import { useBulkTargets } from '../../lib/autopost/bulkTargets'
+import { useBulkTargets, useTopShown } from '../../lib/autopost/bulkTargets'
 import { Icon } from '../Icon'
 import { CHANNEL_LABELS, CHANNEL_NAMES, setPaused, type ChannelName, type ChannelSnapshot, type Snapshots } from '../../lib/autopost/api'
 
@@ -56,7 +56,10 @@ export function AllSwitch({ x, snapshots, onChanged }: Props) {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<Notice>()
   // 設定で外した投稿先には、止めるも再開も触らない。
-  const [included] = useBulkTargets()
+  // トップに出していない投稿先（設定の「トップに出す投稿先」で外したもの）も、使っていないものとして触らない。
+  const [bulk] = useBulkTargets()
+  const [shown] = useTopShown()
+  const included = { x: bulk.x && shown.x, discord: bulk.discord && shown.discord, yay: bulk.yay && shown.yay }
 
   const channels = snapshots ? CHANNEL_NAMES.filter((name) => snapshots[name].pauseReady) : []
   const targetChannels = channels.filter((name) => included[name])

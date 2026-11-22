@@ -29,6 +29,7 @@ import { whenParts } from '../../lib/xAutopilot/whenLabel'
 import { createScheduledPost, updateScheduledPost } from '../../lib/schedule/postsStore'
 import { Icon } from '../Icon'
 import type { ChannelSnapshot, Snapshots } from '../../lib/autopost/api'
+import { useTopShown } from '../../lib/autopost/bulkTargets'
 import { AllSwitch } from './AllSwitch'
 import { SwitchRow, TextButton, Toggle } from './ChannelControls'
 import { Sheet } from './Sheet'
@@ -76,6 +77,14 @@ interface Notice {
   kind: 'ok' | 'err'
 }
 
+/** トップで X を隠しているときに「すべて止める」へ渡す X。対象から外れるので、呼ばれることはない。 */
+const HIDDEN_X = {
+  enabled: false,
+  ready: false,
+  stop: async () => undefined,
+  start: async () => undefined,
+}
+
 const errorOf = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
 interface PanelProps {
@@ -107,6 +116,8 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children, chan
   const [refilling, setRefilling] = useState(0)
   // 並んだ予約の本文・時刻を直している最中の1件。
   const [editing, setEditing] = useState<{ id: string; saving: boolean; error?: string }>()
+  // 設定の「トップに出す投稿先」。X を外していれば、トップには X の行も予定も出さない。
+  const [topShown] = useTopShown()
   // トップの X の行の「文」から開くポップアップ。過去に投稿した文を呼び出して直し、予約に加える欄の中身。
   const [textOpen, setTextOpen] = useState(false)
   const [reuse, setReuse] = useState('')
@@ -165,6 +176,21 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children, chan
     ) : (
       node
     )
+
+  // トップで X を隠しているとき: X の行・予定・読み込み中や失敗の案内は出さず、すべて止める と ディスコード・Yay の行だけにする。
+  // X は「すべて止める／すべて再開」でも動かさない（AllSwitch が同じ設定を見て外す）。
+  if (variant === 'summary' && !topShown.x) {
+    return (
+      <div className="xap xap--summary">
+        {channels && <AllSwitch x={HIDDEN_X} snapshots={channels.snapshots} onChanged={channels.onChanged} />}
+        {children && (
+          <section className="surface-card switch-list" aria-label="稼働スイッチ">
+            {children}
+          </section>
+        )}
+      </div>
+    )
+  }
 
   if (setupNeeded) {
     return beforeReady(

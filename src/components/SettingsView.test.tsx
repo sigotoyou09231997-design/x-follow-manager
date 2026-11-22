@@ -86,3 +86,22 @@ describe('SettingsView: まとめて止める・再開の対象', () => {
     expect(screen.getByRole('switch', { name: 'Yay' })).toBeChecked()
   })
 })
+
+describe('SettingsView: トップに出す投稿先', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('1つずつオンオフでき、外したものは「まとめて止める・再開の対象」で選べなくなる', () => {
+    renderSettings()
+    const shown = screen.getByRole('region', { name: 'トップに出す投稿先' })
+    expect(within(shown).getByRole('switch', { name: 'Xをトップに出す' })).toBeChecked()
+
+    fireEvent.click(within(shown).getByRole('switch', { name: 'Xをトップに出す' }))
+
+    expect(within(shown).getByRole('switch', { name: 'Xをトップに出す' })).not.toBeChecked()
+    expect(JSON.parse(localStorage.getItem('sns-top-shown') ?? '{}')).toEqual({ x: false, discord: true, yay: true })
+    const bulk = screen.getByRole('region', { name: 'まとめて止める・再開の対象' })
+    expect(within(bulk).getByRole('switch', { name: 'X' })).toBeDisabled()
+    expect(within(bulk).getByText('トップに出していないので、対象外です')).toBeInTheDocument()
+  })
+})
+
