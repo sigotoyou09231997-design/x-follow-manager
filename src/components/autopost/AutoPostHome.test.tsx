@@ -154,17 +154,17 @@ describe('AutoPostHome（アプリを開いて最初の1画面）', () => {
     expect(api.fetchSnapshots).not.toHaveBeenCalled()
   })
 
-  it('ディスコード・Yay の、いま投稿されている文と、過去の文のドロップダウンも出す', async () => {
+  it('トップは1行ずつのスイッチだけ。いま投稿している文・過去の文の選び方は出さない（文を変える画面にある）', async () => {
     api.fetchSnapshots.mockResolvedValue({
       discord: channel({ channel: 'discord', messages: ['ディスコードの文'], archive: ['ディスコードの昔の文'] }),
       yay: channel({ channel: 'yay', messages: ['Yayの文'], archive: ['Yayの昔の文'] }),
     })
     render(<AutoPostHome onOpenDetail={() => {}} />)
 
-    expect(await screen.findByText('ディスコードの文')).toBeInTheDocument()
-    expect(screen.getByText('Yayの文')).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'ディスコードの過去の文' })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Yayの過去の文' })).toBeInTheDocument()
+    await waitFor(() => expect(stopButton('ディスコード')).toBeEnabled())
+    expect(screen.queryByText('ディスコードの文')).not.toBeInTheDocument()
+    expect(screen.queryByText('Yayの文')).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   })
 
   it('「文や回数を変える」で、詳細の画面を開く', async () => {

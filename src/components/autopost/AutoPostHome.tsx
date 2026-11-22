@@ -8,12 +8,11 @@ import { livenessOf } from '../../lib/autopost/draft'
 import { Icon } from '../Icon'
 import { PageHero } from '../PageHero'
 import { ChannelSwitchRow, SwitchRow } from './ChannelControls'
-import { ChannelTextRow } from './ChannelTextRow'
 import { RestartControl } from './RestartControl'
 import { XAutopilotPanel } from './XAutopilotPanel'
 
 // アプリを開いて最初に出る1画面。自動投稿の「いま」だけを並べる:
-//   X・ディスコード・Yay の稼働スイッチ（ディスコード・Yay は、いま投稿している文と、過去の文の選び方も同じ枠の中）→ X のこれから投稿される予定。
+//   すべて止める／再開 → X・ディスコード・Yay の稼働スイッチ（1行ずつ）→ X のこれから投稿される予定。
 // 文を書き換える・文体・回数・予約投稿・フォロー整理など、ほかの機能は設定から開く。
 
 interface Props {
@@ -76,7 +75,7 @@ export function AutoPostHome({ onOpenDetail }: Props) {
 
   return (
     <div className="autopost autopost-home">
-      <PageHero title="自動投稿" subtitle="いま動いているものと、これから投稿される予定です。" compact />
+      <PageHero title="自動投稿" compact />
 
       {/* 止まっているかもしれないときだけ、いちばん上に出す（普段は文を変える画面にある）。 */}
       {silent && <RestartControl enabled={loggedIn} silent />}
@@ -126,13 +125,6 @@ function ChannelRow({ channel, snapshot, now, onChanged }: ChannelRowProps) {
     }
   }
 
-  // 1つの枠の中に、「名前・状態・止めるボタン」の行と、その下に「いま投稿している文・過去の文の選び方」を続ける。
-  return (
-    <div className="channel-block">
-      <ChannelSwitchRow snapshot={snapshot} now={now} busy={busy} error={error} onChange={(next) => void change(next)} />
-      <div className="channel-block__text">
-        <ChannelTextRow snapshot={snapshot} onChanged={onChanged} showName={false} />
-      </div>
-    </div>
-  )
+  // トップは「名前・状態・止めるボタン」の1行だけ。いま投稿している文・過去の文の選び方は、文を変える画面にある。
+  return <ChannelSwitchRow snapshot={snapshot} now={now} busy={busy} error={error} onChange={(next) => void change(next)} />
 }

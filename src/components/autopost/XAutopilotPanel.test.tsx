@@ -517,7 +517,7 @@ describe('XAutopilotPanel: 準備と失敗', () => {
 })
 
 describe('XAutopilotPanel: トップの1画面用（summary）', () => {
-  it('スイッチと「これから投稿される予定」と、文体の取り込みを出し、試し書き・細かい設定は出さない', async () => {
+  it('スイッチと「これから投稿される予定」だけを出す。文体・分析・作文・試し書き・細かい設定は、詳細の画面に任せる', async () => {
     api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
     posts.list = [post('a')]
     render(<XAutopilotPanel variant="summary" />)
@@ -527,18 +527,19 @@ describe('XAutopilotPanel: トップの1画面用（summary）', () => {
     expect(screen.getByRole('heading', { name: 'Xの、これから投稿される予定' })).toBeInTheDocument()
     expect(screen.getByText('自動運転の本文 a')).toBeInTheDocument()
 
-    // 文体の取り込みは、トップからも押せる（詳細画面と同じ操作）
-    expect(screen.getByText('あなたの文体')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /最新の投稿を取り込んで、文体に反映する/ })).toBeEnabled()
+    // トップをすっきりさせるため、文体の取り込み・分析・作文は出さない（詳細の画面にある）
+    expect(screen.queryByText('あなたの文体')).not.toBeInTheDocument()
+    expect(screen.queryByText('文体と分析')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /最新の投稿を取り込んで、文体に反映する/ })).not.toBeInTheDocument()
     expect(screen.queryByText('試しに1本書いてみる')).not.toBeInTheDocument()
     expect(screen.queryByText('1日の投稿数')).not.toBeInTheDocument()
   })
 
-  it('トップの「最新の投稿を取り込んで、文体に反映する」を押すと、取り込んでまとめ直す', async () => {
+  it('詳細の画面の「最新の投稿を取り込んで、文体に反映する」を押すと、取り込んでまとめ直す', async () => {
     api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
     api.readAutopilotHistory.mockResolvedValue({ state: withProfile({ enabled: true }), result: { fetched: 4, added: 3, total: 120 } })
     api.buildAutopilotProfile.mockResolvedValue({ state: withProfile({ enabled: true }) })
-    render(<XAutopilotPanel variant="summary" />)
+    render(<XAutopilotPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /最新の投稿を取り込んで、文体に反映する/ }))
     expect(await screen.findByText('新しく 3 件を取り込み（読み取り 4 件）、文体に反映しました')).toBeInTheDocument()
     expect(api.readAutopilotHistory).toHaveBeenCalledWith()
@@ -1032,15 +1033,15 @@ describe('XAutopilotPanel: 取り消した文の分析', () => {
     expect(within(card).getByText('取り消し3回')).toBeInTheDocument()
   })
 
-  it('トップの1画面（summary）にも出す（本人の希望。以前は詳細の画面だけだった）', async () => {
+  it('トップの1画面（summary）には出さない（トップをシンプルにするため、詳細の画面だけに戻した）', async () => {
     posts.list = [rejected('a', '焼き芋の匂いがした。')]
     api.fetchAutopilot.mockResolvedValue({ state: withProfile({ enabled: true }) })
     render(<XAutopilotPanel variant="summary" />)
     await screen.findByRole('region', { name: '稼働スイッチ' })
-    expect(await screen.findByRole('region', { name: '取り消した文の分析' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '取り消した文の分析' })).not.toBeInTheDocument()
   })
 
-  it('トップに、文体のまとめの中身（要約・語尾・話題）と、最近の投稿の傾向を出す', async () => {
+  it('詳細の画面に、文体のまとめの中身（要約・語尾・話題）と、最近の投稿の傾向を出す', async () => {
     api.fetchAutopilot.mockResolvedValue({
       state: withProfile({
         enabled: true,
@@ -1053,7 +1054,7 @@ describe('XAutopilotPanel: 取り消した文の分析', () => {
         recentStyle: '長さは平均38字。句点で終わるのは7割。',
       }),
     })
-    render(<XAutopilotPanel variant="summary" />)
+    render(<XAutopilotPanel />)
     const card = await screen.findByRole('region', { name: '文体のまとめ' })
     expect(within(card).getByText('ゆるい独り言が多い')).toBeInTheDocument()
     expect(within(card).getByText('〜やろ / 〜わ')).toBeInTheDocument()

@@ -165,4 +165,25 @@ describe('AllSwitch（すべての自動投稿をまとめて止める・再開�
     await waitFor(() => expect(x.stop).toHaveBeenCalledTimes(1))
     expect(api.setPaused).not.toHaveBeenCalled()
   })
+
+  it('設定でオフにした投稿先には、止めるも再開も触らない', async () => {
+    localStorage.setItem('sns-all-pause-targets', JSON.stringify({ x: false, discord: true, yay: false }))
+    const x = xControls()
+    render(<AllSwitch x={x} snapshots={running()} onChanged={() => {}} />)
+
+    expect(screen.getByText('ディスコード が動いています')).toBeInTheDocument()
+    fireEvent.click(stopAll())
+
+    await waitFor(() => expect(api.setPaused).toHaveBeenCalledWith('discord', true))
+    expect(api.setPaused).toHaveBeenCalledTimes(1)
+    expect(x.stop).not.toHaveBeenCalled()
+  })
+
+  it('3つともオフなら、押せず、設定で選ぶよう案内する', () => {
+    localStorage.setItem('sns-all-pause-targets', JSON.stringify({ x: false, discord: false, yay: false }))
+    render(<AllSwitch x={xControls()} snapshots={running()} onChanged={() => {}} />)
+
+    expect(screen.getByText('対象が選ばれていません（設定で選べます）')).toBeInTheDocument()
+    expect(resumeAll()).toBeDisabled()
+  })
 })
