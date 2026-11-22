@@ -5,7 +5,7 @@ import { signInWithGoogle, useSupabaseAuth } from '../../hooks/useSupabaseAuth'
 import { useAutopost } from '../../hooks/useAutopost'
 import { useNow } from '../../hooks/useNow'
 import { CHANNEL_NAMES, setPaused, type ChannelName, type ChannelSnapshot } from '../../lib/autopost/api'
-import { livenessOf } from '../../lib/autopost/draft'
+import { livenessOf, optimisticPause } from '../../lib/autopost/draft'
 import { Icon } from '../Icon'
 import { PageHero } from '../PageHero'
 import { ChannelSwitchRow, SwitchRow } from './ChannelControls'
@@ -104,9 +104,13 @@ function ChannelRow({ channel, snapshot, now, onChanged }: ChannelRowProps) {
     if (busy) return
     setBusy(true)
     setError(undefined)
+    // 返事を待たずに切り替えて見せる（待つと、押してからスイッチが動くまで1秒ほど止まって見えた）。
+    const before = snapshot
+    onChanged(optimisticPause(snapshot, next, new Date()))
     try {
       onChanged(await setPaused(channel, next))
     } catch (err) {
+      onChanged(before)
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setBusy(false)

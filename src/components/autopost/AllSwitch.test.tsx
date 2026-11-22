@@ -52,7 +52,9 @@ describe('AllSwitch（すべての自動投稿をまとめて止める・再開�
     await waitFor(() => expect(x.stop).toHaveBeenCalledTimes(1))
     expect(api.setPaused).toHaveBeenCalledWith('discord', true)
     expect(api.setPaused).toHaveBeenCalledWith('yay', true)
-    expect(onChanged).toHaveBeenCalledTimes(2)
+    // 押した瞬間の見え方（返事を待たない）と、返事の2回ずつ
+    expect(onChanged).toHaveBeenCalledTimes(4)
+    expect(onChanged.mock.calls[0][0]).toMatchObject({ channel: 'discord', paused: true })
     expect(await screen.findByText('X・ディスコード・Yay を止めました')).toBeInTheDocument()
   })
 

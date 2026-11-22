@@ -567,9 +567,12 @@ export function XAutopilotPanel({ variant = 'full', onOpenDetail, children, chan
       { postsPerDay: state.settings.postsPerDay, timeZone: state.settings.timeZone }
     )
     // 自動運転のオンオフ。ディスコード・Yay の行と同じスイッチにそろえる。
+    // 押している間（止める・始めるの返事待ち）は、押した先の向きで見せる（返事を待つと、スイッチが動くまで止まって見えた）。
+    // 失敗したときは act が状態を取り直すので、元の向きに戻る。
+    const toggleOn = busy === 'stop' ? false : busy === 'start' ? true : state.enabled
     const toggle = (
       <Toggle
-        on={state.enabled}
+        on={toggleOn}
         pending={busy === 'stop' || busy === 'start'}
         disabled={working || (!state.enabled && (!ready || blocked))}
         label="Xの自動運転"

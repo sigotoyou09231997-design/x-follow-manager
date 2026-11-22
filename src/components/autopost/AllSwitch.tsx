@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { optimisticPause } from '../../lib/autopost/draft'
 import { useBulkTargets } from '../../lib/autopost/bulkTargets'
 import { Icon } from '../Icon'
 import { CHANNEL_LABELS, CHANNEL_NAMES, setPaused, type ChannelName, type ChannelSnapshot, type Snapshots } from '../../lib/autopost/api'
@@ -86,7 +87,15 @@ export function AllSwitch({ x, snapshots, onChanged }: Props) {
             const error = await (pause ? x.stop() : x.start())
             return error ? { target, error } : { target }
           }
-          onChanged(await setPaused(target, pause))
+          // ディスコード・Yay は、返事を待たずに切り替えて見せる。失敗したら押す前に戻す。
+          const before = snapshots?.[target]
+          if (before) onChanged(optimisticPause(before, pause, new Date()))
+          try {
+            onChanged(await setPaused(target, pause))
+          } catch (err) {
+            if (before) onChanged(before)
+            throw err
+          }
           return { target }
         } catch (err) {
           return { target, error: errorOf(err) }

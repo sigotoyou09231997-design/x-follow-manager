@@ -106,6 +106,23 @@ describe('AutoPostHome（アプリを開いて最初の1画面）', () => {
     expect(stopButton('Yay')).toBeEnabled() // Yay はそのまま動いている行のまま
   })
 
+  it('押した瞬間にスイッチが切り替わる（サーバーの返事を待たない）。失敗したら元に戻して理由を出す', async () => {
+    let fail: (err: Error) => void = () => {}
+    api.setPaused.mockReturnValue(new Promise((_, reject) => (fail = reject)))
+    render(<AutoPostHome onOpenDetail={() => {}} />)
+    await waitFor(() => expect(toggleOf('Yay')).toBeEnabled())
+
+    fireEvent.click(toggleOf('Yay'))
+
+    // 返事はまだ来ていないが、もうオフに見えている（受け取り待ちの点滅つき）
+    expect(toggleOf('Yay')).toHaveAttribute('aria-checked', 'false')
+    expect(toggleOf('Yay')).toHaveAttribute('aria-busy', 'true')
+
+    fail(new Error('通信に失敗しました'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('通信に失敗しました')
+    expect(toggleOf('Yay')).toHaveAttribute('aria-checked', 'true')
+  })
+
   it('止まっている投稿先は「再開」で戻せる', async () => {
     api.fetchSnapshots.mockResolvedValue({
       discord: channel({ channel: 'discord' }),
