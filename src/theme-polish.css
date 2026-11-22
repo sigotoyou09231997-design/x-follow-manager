@@ -331,3 +331,49 @@
   font-weight: 500;
   color: var(--text-muted);
 }
+
+/* ---------------------------------------------------------------- 8. 投稿する文の1枠（文と設定の画面・「文」のポップアップ）
+   見出し・本文・文字数・投稿する時間帯を1枚の枠にまとめる。枠が無いと、時間帯の札が上の文のものか下の文のものか
+   分からなかった（iPhone で本人が指摘、2026-11-22）。枠と枠の間も空けて、まとまりを目で追えるようにする。 */
+
+.autopost__box {
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.autopost__box + .autopost__box {
+  margin-top: 6px;
+}
+
+.autopost__box-head {
+  min-height: 32px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.autopost__box textarea {
+  border-radius: 12px;
+}
+
+/* 保存できた直後の色づけは、枠の形のまま（以前は枠が無かったので、外へはみ出して色をつけていた）。 */
+.autopost__box.autopost__box--saved {
+  padding: 14px;
+  margin: 0;
+  border-radius: 18px;
+}
+
+.autopost__box + .autopost__box.autopost__box--saved {
+  margin-top: 6px;
+}
+
+.text-sheet__boxes {
+  gap: 14px;
+}
+
+/* ポップアップを開いている間は、右下の丸いメニューボタンを隠す（Sheet.tsx が body に付ける印）。 */
+body.sheet-open .quick-fab {
+  display: none;
+}
