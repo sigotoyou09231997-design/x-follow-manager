@@ -22,6 +22,16 @@ const BASE_URL = arg('--url', 'http://localhost:4173')
 const OUT_DIR = path.resolve(ROOT, arg('--out', '.design-shots/top'))
 
 const SUPABASE = 'https://demo.supabase.co'
+const WITH_PAGES = args.includes('--pages')
+const ONLY = arg('--only', '') // 例: running-mobile-light
+// 設定から開く画面。feature が無いものは設定の画面そのもの。
+const PAGES = [
+  { name: 'settings' },
+  { name: 'detail-discord', feature: /^自動投稿の文と設定/, tab: 'ディスコード' },
+  { name: 'detail-x', feature: /^自動投稿の文と設定/, tab: 'X' },
+  { name: 'schedule', feature: /^予約投稿/ },
+  { name: 'tidy', feature: /^フォロー整理/ },
+]
 const now = Date.now()
 const iso = (msFromNow) => new Date(now + msFromNow).toISOString()
 const MIN = 60_000
@@ -157,6 +167,7 @@ async function shoot(browser, scene, viewport, theme) {
     if (url.origin === SUPABASE) {
       if (url.pathname.startsWith('/rest/v1/scheduled_posts')) return json(scene.posts)
       if (url.pathname.startsWith('/auth/v1/user')) return json(session.user)
+      if (url.pathname.startsWith('/rest/v1/rpc/my_x_account')) return json([{ x_user_id: '1', username: 'sample', connected_at: iso(-30 * 24 * HOUR) }])
       if (url.pathname.startsWith('/rest/v1/')) return json([])
       return json({})
     }
@@ -172,6 +183,24 @@ async function shoot(browser, scene, viewport, theme) {
   const file = path.join(OUT_DIR, `${scene.name}-${viewport.name}-${theme}.png`)
   await page.screenshot({ path: file, fullPage: true })
   const files = [file]
+  // トップ以外の画面（設定・機能の画面）。--pages を付けたときだけ撮る。
+  if (WITH_PAGES && scene.name === 'running') {
+    for (const target of PAGES) {
+      await page.goto(BASE_URL)
+      await page.getByRole('region', { name: '稼働スイッチ' }).waitFor({ timeout: 15_000 })
+      await page.getByRole('button', { name: '設定を開く' }).click()
+      if (target.feature) {
+        await page.getByRole('region', { name: '機能' }).getByRole('button', { name: target.feature }).click()
+      }
+      if (target.tab) await page.getByRole('tab', { name: target.tab }).click()
+      await page.waitForTimeout(900)
+      const shot = path.join(OUT_DIR, `page-${target.name}-${viewport.name}-${theme}.png`)
+      await page.screenshot({ path: shot, fullPage: true })
+      files.push(shot)
+    }
+    await page.goto(BASE_URL)
+    await page.getByRole('region', { name: '稼働スイッチ' }).waitFor({ timeout: 15_000 })
+  }
   for (const label of scene.open ?? []) {
     await page.getByRole('button', { name: label }).click()
     await page.getByRole('dialog').waitFor()
@@ -191,6 +220,7 @@ try {
   for (const scene of SCENES) {
     for (const viewport of VIEWPORTS) {
       for (const theme of ['light', 'dark']) {
+        if (ONLY && `${scene.name}-${viewport.name}-${theme}` !== ONLY) continue
         console.log(await shoot(browser, scene, viewport, theme))
       }
     }

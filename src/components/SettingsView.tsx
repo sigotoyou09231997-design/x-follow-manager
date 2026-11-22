@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from 'react'
 import { BULK_TARGETS, BULK_TARGET_LABELS, useBulkTargets } from '../lib/autopost/bulkTargets'
 import { FileDropZone } from './FileDropZone'
+import { Toggle } from './Toggle'
 import { Icon, type IconName } from './Icon'
 
 // 通知の設定はSupabase（ログイン状態と購読情報の保存）を必要とする。
@@ -91,10 +92,10 @@ export function SettingsView({ onOpenFeature, tidyCounts, onReimport, onClearAll
         </p>
         <div className="bulk-targets">
           {BULK_TARGETS.map((target) => (
-            <label key={target} className="bulk-target">
-              <input type="checkbox" checked={bulkTargets[target]} onChange={(event) => setBulkTarget(target, event.target.checked)} />
+            <div key={target} className="bulk-target">
               <span>{BULK_TARGET_LABELS[target]}</span>
-            </label>
+              <Toggle on={bulkTargets[target]} label={BULK_TARGET_LABELS[target]} onClick={() => setBulkTarget(target, !bulkTargets[target])} />
+            </div>
           ))}
         </div>
       </section>

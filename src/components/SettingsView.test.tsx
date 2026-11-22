@@ -68,13 +68,13 @@ describe('SettingsView: まとめて止める・再開の対象', () => {
     const section = screen.getByRole('region', { name: 'まとめて止める・再開の対象' })
 
     for (const label of ['X', 'ディスコード', 'Yay']) {
-      expect(within(section).getByRole('checkbox', { name: label })).toBeChecked()
+      expect(within(section).getByRole('switch', { name: label })).toBeChecked()
     }
 
-    fireEvent.click(within(section).getByRole('checkbox', { name: 'ディスコード' }))
+    fireEvent.click(within(section).getByRole('switch', { name: 'ディスコード' }))
 
-    expect(within(section).getByRole('checkbox', { name: 'ディスコード' })).not.toBeChecked()
-    expect(within(section).getByRole('checkbox', { name: 'X' })).toBeChecked()
+    expect(within(section).getByRole('switch', { name: 'ディスコード' })).not.toBeChecked()
+    expect(within(section).getByRole('switch', { name: 'X' })).toBeChecked()
     expect(JSON.parse(localStorage.getItem('sns-all-pause-targets') ?? '{}')).toEqual({ x: true, discord: false, yay: true })
   })
 
@@ -82,7 +82,7 @@ describe('SettingsView: まとめて止める・再開の対象', () => {
     localStorage.setItem('sns-all-pause-targets', JSON.stringify({ x: false, discord: true, yay: true }))
     renderSettings()
 
-    expect(screen.getByRole('checkbox', { name: 'X' })).not.toBeChecked()
-    expect(screen.getByRole('checkbox', { name: 'Yay' })).toBeChecked()
+    expect(screen.getByRole('switch', { name: 'X' })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Yay' })).toBeChecked()
   })
 })
