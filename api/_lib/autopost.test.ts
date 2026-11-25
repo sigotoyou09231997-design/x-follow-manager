@@ -397,6 +397,33 @@ describe('Mac の投稿役向け（合鍵）', () => {
     })
   })
 
+  describe('いま投稿できていない理由（problem）', () => {
+    const problem = { message: 'ログインが切れています', since: '2026-10-07T12:00:00.000Z', count: 3, stopped: true }
+
+    it('報告に載った理由を保存して画面に返し、null が来たら消す（投稿できたら Mac が null を送る）', async () => {
+      const screenStatus = async () => {
+        const r = await call(t.screen, { method: 'GET', ...AS_OWNER })
+        return (r.body as { channels: Record<string, { status: PosterStatus | null }> }).channels.yay.status
+      }
+      const post = (body: unknown) => call(t.posterStatus, { method: 'POST', ...AS_MAC, query: { ch: 'yay' }, body })
+      expect((await post({ lastPost: null, today: 0, problem })).status).toBe(200)
+      expect((await screenStatus())?.problem).toEqual(problem)
+      expect((await post({ lastPost: null, today: 1, problem: null })).status).toBe(200)
+      expect((await screenStatus())?.problem).toBeNull()
+    })
+
+    it('形のおかしい理由は受けない（読み違えて警告を出したり消したりしない）', async () => {
+      const post = (p: unknown) => call(t.posterStatus, { method: 'POST', ...AS_MAC, body: { lastPost: null, today: 0, problem: p } })
+      expect((await post('ログイン切れ')).status).toBe(400)
+      expect((await post({ ...problem, message: '' })).status).toBe(400)
+      expect((await post({ ...problem, message: 'あ'.repeat(301) })).status).toBe(400)
+      expect((await post({ ...problem, since: 'きのう' })).status).toBe(400)
+      expect((await post({ ...problem, count: 0 })).status).toBe(400)
+      expect((await post({ ...problem, stopped: 'true' })).status).toBe(400)
+      expect(t.store.rows.size).toBe(0)
+    })
+  })
+
   it('状態の報告は文に触らず、画面の状態に反映される', async () => {
     await call(t.screen, { method: 'POST', ...AS_OWNER, body: { channel: 'yay', messages: ['やっほー'], baseVersion: 0 } })
     const report = { lastPost: { t: '2026-10-07T12:25:00.000Z', text: 'やっほー' }, today: 12 }

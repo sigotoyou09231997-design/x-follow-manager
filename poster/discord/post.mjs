@@ -26,6 +26,7 @@ import { checkBoard } from "../board-visibility.mjs";
 import { createVisibilityWatch } from "../yay/visibility.mjs";
 import { acquireLock, keepAwake } from "./single-instance.mjs";
 import { holdAfterReboot } from "../boot-guard.mjs";
+import { createProblem } from "../problem.mjs";
 import { chromeArgs } from "./chrome-args.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -199,17 +200,25 @@ async function currentMessages() {
   return messages;
 }
 
-// 画面に「Mac は動いている・最後の投稿はこれ」を出すための報告。届かなくても投稿には影響しない
+// 画面に「Mac は動いている・最後の投稿はこれ・いま投稿できていない理由」を出すための報告。届かなくても投稿には影響しない。
+// 止まる直前は待って送り切る（送り切る前に終わると、画面は「動いています」のまま残る）ので、Promise を返す
 let lastReportAt = 0;
+const problem = createProblem();
 function reportStatus(force = false) {
-  if (!CLOUD || (!force && Date.now() - lastReportAt < 2 * 60 * 1000)) return;
+  if (!CLOUD || (!force && Date.now() - lastReportAt < 2 * 60 * 1000)) return Promise.resolve();
   lastReportAt = Date.now();
   const last = postedLines().at(-1);
-  pushStatus(CLOUD, {
+  return pushStatus(CLOUD, {
     lastPost: last ? { t: last.t, text: last.text } : null,
     today: todayCount(),
     paused: pause.paused,
+    problem: problem.value,
   }).catch(() => {});
+}
+// 投稿できなかったことを、すぐ画面へ（止まるときは stopped: true で、送り切ってから止まる）
+async function reportProblem(message, { stopped = false } = {}) {
+  problem.fail(message, { stopped });
+  await reportStatus(true);
 }
 
 // 画面で止められた（再開された）ことを、投稿の合間を待たずに知るため、一定の間隔で読み直す。
@@ -313,6 +322,7 @@ async function run(browser) {
     if (new URL(page.url()).pathname !== CREATE_PATH) {
       log(`ログインが切れています (${page.url()})。Chrome 窓でログインし直してください`);
       notify("ログインが切れました。Chrome 窓でログインし直してください");
+      await reportProblem("ログインが切れて止まりました。Mac の専用 Chrome でログインし直してください", { stopped: true });
       process.exitCode = 2;
       break;
     }
@@ -357,6 +367,7 @@ async function run(browser) {
     } catch {
       log("Cloudflare の認証が通っていません。Chrome 窓でチェックを押してください");
       notify("Cloudflare の認証を手で押してください");
+      await reportProblem("Cloudflare の確認で待っています。Mac の専用 Chrome でチェックを押してください");
       try {
         await page.waitForFunction(
           () => document.querySelector('input[name="cf-turnstile-response"]')?.value,
@@ -401,6 +412,7 @@ async function run(browser) {
     } catch (e) {
       failures++;
       log(`送信の結果が確認できません (${failures}回目): ${e.message.split("\n")[0]}`);
+      await reportProblem(`送信の結果が確認できません: ${e.message}`, { stopped: failures >= 3 });
       if (failures >= 3) {
         notify("送信が3回続けて確認できず止まりました");
         process.exitCode = 1;
@@ -413,6 +425,7 @@ async function run(browser) {
     if (status >= 400) {
       failures++;
       log(`送信が拒否されました: HTTP ${status} (${failures}回目)`);
+      await reportProblem(`送信が拒否されました（HTTP ${status}）`, { stopped: status === 403 || status === 429 || failures >= 3 });
       // 403/429 は制限がかかっている可能性。続けず止める
       if (status === 403 || status === 429 || failures >= 3) {
         notify(`投稿が拒否されました (HTTP ${status})。止めました`);
@@ -431,6 +444,7 @@ async function run(browser) {
     if (!succeeded) {
       failures++;
       log(`HTTP ${status} だが成功の表示が出ていません (${failures}回目): ${page.url()}`);
+      await reportProblem("送ったが「投稿が成功しました」が出ません", { stopped: failures >= 3 });
       if (failures >= 3) {
         notify("成功の表示が3回続けて出ず止まりました");
         process.exitCode = 1;
@@ -449,6 +463,7 @@ async function run(browser) {
       JSON.stringify({ t: new Date().toISOString(), text: text.replace(/\n/g, " / "), status, url: page.url() }) + "\n",
     );
     log(`投稿しました (HTTP ${status}, 今日${todayCount()}件目): ${text.replace(/\n/g, " / ")} → ${page.url()}`);
+    problem.clear(); // 直ったことも、次の報告（すぐ下）で画面へ
     reportStatus(true);
 
     // 外から見えているかを、掲示板の流れが速いうち（直後）に確かめる
@@ -484,6 +499,7 @@ while (true) {
   } catch (e) {
     crashes++;
     log(`エラー: ${e.message.split("\n")[0]} (${crashes}回目)`);
+    await reportProblem(crashes >= 5 ? `エラーが続いて止まりました: ${e.message}` : `エラー: ${e.message}`, { stopped: crashes >= 5 });
     if (crashes >= 5) {
       notify(`エラーが続いて止まりました: ${e.message.slice(0, 50)}`);
       process.exit(1);

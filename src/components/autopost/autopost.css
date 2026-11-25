@@ -110,6 +110,13 @@
   color: var(--text-muted);
 }
 
+/* 動いているのに投稿できていない理由。ほかの行（動いています・最後の投稿）より先に、行を分けて目立たせる。 */
+.autopost__problem {
+  flex-basis: 100%;
+  color: var(--warning);
+  font-weight: 600;
+}
+
 .autopost__live {
   display: inline-flex;
   align-items: center;

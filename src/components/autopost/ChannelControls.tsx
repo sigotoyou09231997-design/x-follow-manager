@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { ChannelName, ChannelSnapshot } from '../../lib/autopost/api'
 import { CHANNEL_LABELS } from '../../lib/autopost/api'
-import { agoLabel, livenessOf, pauseStateOf } from '../../lib/autopost/draft'
+import { agoLabel, livenessOf, pauseStateOf, problemLabel, problemOf } from '../../lib/autopost/draft'
 import { Icon, type IconName } from '../Icon'
 import { Toggle } from '../Toggle'
 
@@ -17,8 +17,10 @@ export function PosterStatusLine({ snapshot, now }: { snapshot: ChannelSnapshot;
     return <p className="autopost__status">投稿側(Mac)からの報告はまだありません</p>
   }
   const last = status.lastPost
+  const problem = problemOf(snapshot, now)
   return (
     <p className="autopost__status">
+      {problem && <span className="autopost__problem">{problemLabel(problem)}</span>}
       <span className="autopost__live">
         <span className={`autopost__dot autopost__dot--${liveness === 'alive' ? 'on' : 'off'}`} aria-hidden="true" />
         {liveness === 'alive'
@@ -214,6 +216,8 @@ export function ChannelSwitchRow({ snapshot, now, busy, error, onChange, onOpenT
   const state = pauseStateOf(snapshot)
   const liveness = livenessOf(snapshot.status, now)
   const { status } = snapshot
+  // 動いているのに投稿できていない（2026-11-25、Yay のログイン切れ）・止まった、を「動いています」より先に出す
+  const problem = problemOf(snapshot, now)
 
   // 動いているあいだは、点の色（青緑）が「Macが動いている」を伝えるので、文は最後の投稿と今日の件数だけにする。
   const running =
@@ -224,8 +228,9 @@ export function ChannelSwitchRow({ snapshot, now, busy, error, onChange, onOpenT
         : 'Macからの報告はまだありません'
 
   const view: Record<typeof state, { tone: SwitchTone; status: string }> = {
-    running:
-      snapshot.schedule.idle && liveness === 'alive'
+    running: problem
+      ? { tone: 'warn', status: problemLabel(problem, { short: true }) }
+      : snapshot.schedule.idle && liveness === 'alive'
         ? {
             tone: 'rest',
             status: `いまは投稿を休む時間帯です${snapshot.schedule.nextHour !== null ? `（${snapshot.schedule.nextHour}時から再開）` : ''}`,

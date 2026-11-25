@@ -21,6 +21,22 @@ export interface PosterStatus {
   paused?: boolean
   /** サーバーが報告を受け取った時刻。 */
   at: string
+  /**
+   * いま投稿できていない理由（Mac が失敗のたびに送り、投稿できたら null で消す）。
+   * この項目より前の投稿役は送ってこないので、無いことがある。
+   */
+  problem?: PosterProblem | null
+}
+
+export interface PosterProblem {
+  /** 何が起きているか（1行） */
+  message: string
+  /** 失敗が続き始めた時刻 */
+  since: string
+  /** 続けて何回失敗したか */
+  count: number
+  /** それで投稿役が止まったか（止まると報告も来なくなる） */
+  stopped: boolean
 }
 
 /** いま（日本時間の何時か）どの文が使われるか。サーバーが決めて返す。 */

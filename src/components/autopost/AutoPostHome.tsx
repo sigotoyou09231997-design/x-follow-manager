@@ -4,9 +4,9 @@ import './top.css'
 import { signInWithGoogle, useSupabaseAuth } from '../../hooks/useSupabaseAuth'
 import { useAutopost } from '../../hooks/useAutopost'
 import { useNow } from '../../hooks/useNow'
-import { CHANNEL_NAMES, setPaused, type ChannelName, type ChannelSnapshot } from '../../lib/autopost/api'
+import { CHANNEL_LABELS, CHANNEL_NAMES, setPaused, type ChannelName, type ChannelSnapshot } from '../../lib/autopost/api'
 import { useTopShown } from '../../lib/autopost/bulkTargets'
-import { livenessOf, optimisticPause } from '../../lib/autopost/draft'
+import { livenessOf, optimisticPause, problemLabel, problemOf } from '../../lib/autopost/draft'
 import { Icon } from '../Icon'
 import { PageHero } from '../PageHero'
 import { ChannelSwitchRow, SwitchRow } from './ChannelControls'
@@ -54,6 +54,13 @@ export function AutoPostHome({ onOpenDetail }: Props) {
 
   const shownChannels = CHANNEL_NAMES.filter((name) => shown[name])
   const silent = shownChannels.some((name) => livenessOf(snapshots?.[name]?.status ?? null, now) === 'silent')
+  // 投稿役は動いていて報告も届くのに、投稿できていない（2026-11-25、Yay のログイン切れで30分空回りしてから止まった）。
+  // 行の中だけだと見落とすので、いちばん上にも出す。
+  const problems = shownChannels.flatMap((name) => {
+    const snapshot = snapshots?.[name]
+    const problem = snapshot ? problemOf(snapshot, now) : null
+    return problem ? [{ name, problem }] : []
+  })
 
   // ディスコード・Yay の保存先（SQL 005）が読めなくても、X の自動運転は使える（逆も同じ）ので、ここだけの表示にとどめる。
   const needsSetup = !!error && error.includes('autopost_')
@@ -84,6 +91,18 @@ export function AutoPostHome({ onOpenDetail }: Props) {
       <PageHero title="自動投稿" compact />
 
       {/* 止まっているかもしれないときだけ、いちばん上に出す（普段は文を変える画面にある）。 */}
+      {problems.length > 0 && (
+        <section className="surface-card autopost__pause autopost__pause--pausing" role="status" aria-label="投稿できていない投稿先">
+          <div className="autopost__pause-text">
+            <strong>うまく投稿できていない投稿先があります</strong>
+            {problems.map(({ name, problem }) => (
+              <span key={name}>
+                {CHANNEL_LABELS[name]}：{problemLabel(problem)}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
       {silent && <RestartControl enabled={loggedIn} silent />}
 
       {!shown.x && shownChannels.length === 0 ? (

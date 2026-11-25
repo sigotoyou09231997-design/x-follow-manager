@@ -1,4 +1,4 @@
-import type { ChannelSnapshot, PosterStatus } from './api'
+import type { ChannelSnapshot, PosterProblem, PosterStatus } from './api'
 import { normalizeHours, type Hours } from './hours'
 
 // 自動投稿の「書きかけ」の扱い。画面の部品から切り離してあるので、そのまま単体で確かめられる。
@@ -61,6 +61,46 @@ export type Liveness = 'never' | 'alive' | 'silent'
 export function livenessOf(status: PosterStatus | null, now: number): Liveness {
   if (!status) return 'never'
   return minutesAgo(status.at, now) < ALIVE_WITHIN_MINUTES ? 'alive' : 'silent'
+}
+
+/**
+ * いま投稿できていない理由。画面に出すべきときだけ返す。
+ *   ・画面で止めている／止めると押した・投稿を休む時間帯は出さない（投稿しないのが正常なので）
+ *   ・止まった（stopped）なら、報告が途絶えていても出す（止まる直前に送った最後の報告に理由が残っている）
+ *   ・止まっていないのに報告が途絶えたら出さない（「Macから応答がありません」のほうが今の状態を正しく言う）
+ */
+export function problemOf(snapshot: ChannelSnapshot, now: number): PosterProblem | null {
+  const problem = snapshot.status?.problem
+  if (!problem) return null
+  const state = pauseStateOf(snapshot)
+  if (state === 'paused' || state === 'pausing') return null
+  if (snapshot.schedule.idle && !problem.stopped) return null
+  if (!problem.stopped && livenessOf(snapshot.status, now) !== 'alive') return null
+  return problem
+}
+
+/**
+ * 投稿役のエラー文（Playwright などの英語）を、読む人に分かる言い方にする。知らないものはそのまま出す
+ * （言い換えで中身を失うより、原文のほうが調べられる）。URL（どのページで起きたか）は要らないので外す。
+ */
+export function readableProblem(message: string): string {
+  const m = message.replace(/\s*\(https?:\/\/[^)]*\)/g, '').trim()
+  if (/Timeout \d+ms exceeded/i.test(m)) return '画面のボタンや欄が出てこず、時間切れになりました（ログイン切れ・画面の変化・サイトの不調など）'
+  if (/fetch failed|net::ERR_|ECONNRESET|ENOTFOUND|ETIMEDOUT/i.test(m)) return 'サイトにつながりません（通信の不調）'
+  if (/Target (page|closed)|has been closed|Browser has been closed/i.test(m)) return '専用の Chrome が閉じられました'
+  return m
+}
+
+/**
+ * 画面に出す1行。short は稼働スイッチの行用（行が縦に伸びないよう、理由はいちばん上のカードに任せる）。
+ */
+export function problemLabel(problem: PosterProblem, { short = false }: { short?: boolean } = {}): string {
+  const since = new Date(problem.since).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  if (short) return problem.stopped ? `止まりました（${since}から失敗）` : `投稿できていません（${since}から${problem.count}回失敗）`
+  const message = readableProblem(problem.message)
+  return problem.stopped
+    ? `${message}（${since}から失敗）`
+    : `投稿できていません：${message}（${since}から${problem.count}回失敗）`
 }
 
 /**

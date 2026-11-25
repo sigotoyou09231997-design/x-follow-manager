@@ -27,6 +27,7 @@ import { loadCloud, pullState, pushStatus } from "./cloud.mjs";
 import { createPauseTracker } from "../pause-state.mjs";
 import { acquireLock, keepAwake } from "./single-instance.mjs";
 import { holdAfterReboot } from "../boot-guard.mjs";
+import { createProblem } from "../problem.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LOGS = join(HERE, "logs");
@@ -157,9 +158,12 @@ async function refreshText() {
   }
 }
 
-// 画面に「Mac は動いている・最後の投稿はこれ」を出すための報告。届かなくても投稿には影響しない
+// 画面に「Mac は動いている・最後の投稿はこれ・いま投稿できていない理由」を出すための報告。届かなくても投稿には影響しない。
+// 止まる直前は待って送り切る（送り切る前に終わると、画面は「動いています」のまま残る）ので、Promise を返す
+const problem = createProblem();
 function reportStatus() {
-  if (CLOUD) pushStatus(CLOUD, { ...stats(LEDGER), paused: pause.paused }).catch(() => {});
+  if (!CLOUD) return Promise.resolve();
+  return pushStatus(CLOUD, { ...stats(LEDGER), paused: pause.paused, problem: problem.value }).catch(() => {});
 }
 
 // 画面で止められた（再開された）ことを、周回の途中や待ち時間にも早く知るため、一定の間隔で印だけ読み直す。
@@ -330,6 +334,8 @@ for (let attempt = 1; ; attempt++) {
     }
     log(`止まります: 起動時の確認に失敗: ${msg}`);
     notify(`起動できません: ${e.message.slice(0, 60)}`);
+    problem.fail(`起動できずに止まりました: ${msg}`, { stopped: true });
+    await reportStatus();
     await browser.close().catch(() => {});
     process.exit(1);
   }
@@ -383,6 +389,7 @@ try {
         transientStreak = 0;
         transientSince = null;
         badRounds.delete(target);
+        if (problem.clear()) reportStatus(); // 直ったことを、次の周回の報告を待たずに画面へ
       } catch (e) {
         const msg = e.message.split("\n")[0];
         // 一時的な不調（時間切れ・サーバーの答えが無い 等）は、止まらずに待って続ける。ログイン切れ・403/429 は別（すぐ止まる）。
@@ -391,6 +398,8 @@ try {
           transientStreak++;
           transientSince ??= Date.now();
           log(`失敗 (${target}) 一時的な不調${transientStreak}回目: ${msg}`);
+          problem.fail(msg);
+          reportStatus();
           if (shouldGiveUp(transientSince, Date.now())) {
             throw new Fatal(`${Math.round((Date.now() - transientSince) / 60000)}分間、不調が続いています: ${msg}`);
           }
@@ -404,6 +413,8 @@ try {
         }
         failures++;
         log(`失敗 (${target}) ${failures}回目: ${msg}`);
+        problem.fail(msg);
+        reportStatus();
         if (fatalPattern.test(msg) || failures >= 3) throw new Fatal(msg);
         const bad = (badRounds.get(target) ?? 0) + 1;
         badRounds.set(target, bad);
@@ -440,6 +451,8 @@ try {
 } catch (e) {
   log(`止まります: ${e.message.split("\n")[0]}`);
   notify(`止まりました: ${e.message.slice(0, 60)}`);
+  problem.fail(`止まりました: ${e.message}`, { stopped: true });
+  await reportStatus();
   process.exitCode = 1;
 } finally {
   await browser.close().catch(() => {});
