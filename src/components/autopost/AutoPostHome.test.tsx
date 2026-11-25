@@ -263,3 +263,33 @@ describe('AutoPostHome（アプリを開いて最初の1画面）', () => {
     expect(screen.queryByText(/X自動運転の中身/)).not.toBeInTheDocument()
   })
 })
+
+describe('AutoPostHome: 投稿できていないときの表示', () => {
+  it('Mac は動いているのに失敗が続いていたら、その行と画面のいちばん上に理由を出す', async () => {
+    api.fetchSnapshots.mockResolvedValue({
+      discord: channel({ channel: 'discord' }),
+      yay: channel({
+        channel: 'yay',
+        status: {
+          lastPost: null,
+          today: 3,
+          at: iso(10),
+          problem: { message: 'locator.click: Timeout 10000ms exceeded.', since: iso(600), count: 3, stopped: false },
+        },
+      }),
+    })
+    render(<AutoPostHome onOpenDetail={() => {}} />)
+    const notice = await screen.findByRole('status', { name: '投稿できていない投稿先' })
+    expect(within(notice).getByText(/Yay：投稿できていません：画面のボタンや欄が出てこず/)).toBeTruthy()
+    expect(within(notice).queryByText(/ディスコード/)).toBeNull()
+    // 行の中も「動いています」ではなく、投稿できていないことを短く出す（理由は上のカード）
+    const rows = screen.getByRole('region', { name: '稼働スイッチ' })
+    expect(within(rows).getByText(/^投稿できていません（.+から3回失敗）$/)).toBeTruthy()
+  })
+
+  it('失敗していなければ、いちばん上には何も出さない', async () => {
+    render(<AutoPostHome onOpenDetail={() => {}} />)
+    await screen.findAllByRole('switch')
+    expect(screen.queryByRole('status', { name: '投稿できていない投稿先' })).toBeNull()
+  })
+})

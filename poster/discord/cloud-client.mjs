@@ -56,6 +56,10 @@ export async function pullState(cloud) {
   }
 }
 
-export async function pushStatus(cloud, { lastPost, today, paused }) {
-  await call(cloud, "poster-status", { method: "POST", body: JSON.stringify({ lastPost, today, paused: paused === true }) });
+// problem … いま投稿できていない理由（../problem.mjs）。無ければ null を送り、画面の警告を消す
+export async function pushStatus(cloud, { lastPost, today, paused, problem = null }) {
+  await call(cloud, "poster-status", {
+    method: "POST",
+    body: JSON.stringify({ lastPost, today, paused: paused === true, problem: problem ?? null }),
+  });
 }

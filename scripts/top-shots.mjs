@@ -119,6 +119,23 @@ const SCENES = [
       post('c', 'draft', 26 * HOUR, '朝の電車がいつもより空いていた。'),
     ],
   },
+  // Mac は動いていて報告も届くのに、Yay が投稿できていない（2026-11-25 のログイン切れ）
+  {
+    name: 'problem',
+    x: xState(true),
+    channels: {
+      discord: channel('discord'),
+      yay: channel('yay', {
+        status: {
+          lastPost: { t: iso(-40 * MIN), text: 'x' },
+          today: 30,
+          at: iso(-20 * 1000),
+          problem: { message: 'locator.click: Timeout 10000ms exceeded.', since: iso(-25 * MIN), count: 4, stopped: false },
+        },
+      }),
+    },
+    posts: [],
+  },
   {
     name: 'stopped',
     x: xState(false),

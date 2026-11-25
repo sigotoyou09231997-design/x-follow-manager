@@ -7,6 +7,9 @@ import {
   livenessOf,
   notYetPosted,
   pauseStateOf,
+  problemLabel,
+  problemOf,
+  readableProblem,
   slotsOf,
   withArchived,
 } from './draft'
@@ -176,5 +179,51 @@ describe('止める／再開するの状態（押したことと、Mac が受け
   it('休んでいる時間帯でも、画面で止めたなら「停止中」になる', () => {
     const idle = { hour: 3, activeIndexes: [], idle: true, nextHour: 9 }
     expect(pauseStateOf(snapshot({ paused: true, schedule: idle, status: report(true) }))).toBe('paused')
+  })
+})
+
+describe('いま投稿できていない理由（problemOf / problemLabel）', () => {
+  const problem = { message: 'ログインが切れています (https://yay.space/post/1)', since: '2026-10-07T03:00:00.000Z', count: 4, stopped: false }
+  const alive = (p = problem) => ({ lastPost: null, today: 0, at: minutesBefore(1), problem: p })
+
+  it('動いていて報告も届いているのに失敗している間は出す', () => {
+    expect(problemOf(snapshot({ status: alive() }), NOW)).toEqual(problem)
+  })
+
+  it('理由が無い（投稿できた・古い投稿役）なら出さない', () => {
+    expect(problemOf(snapshot({ status: { lastPost: null, today: 0, at: minutesBefore(1) } }), NOW)).toBeNull()
+    expect(problemOf(snapshot({ status: { lastPost: null, today: 0, at: minutesBefore(1), problem: null } }), NOW)).toBeNull()
+  })
+
+  it('画面で止めている・止めると押した間は出さない（投稿しないのが正常）', () => {
+    expect(problemOf(snapshot({ paused: true, status: { ...alive(), paused: true } }), NOW)).toBeNull()
+    expect(problemOf(snapshot({ paused: true, status: alive() }), NOW)).toBeNull()
+  })
+
+  it('止まっていないのに報告が途絶えたら出さない（「Macから応答がありません」のほうが正しい）', () => {
+    expect(problemOf(snapshot({ status: { ...alive(), at: minutesBefore(30) } }), NOW)).toBeNull()
+  })
+
+  it('止まった理由は、報告が途絶えたあとも出し続ける（止まる直前に送った最後の報告に残っている）', () => {
+    const stopped = { ...problem, stopped: true }
+    expect(problemOf(snapshot({ status: { ...alive(stopped), at: minutesBefore(90) } }), NOW)).toEqual(stopped)
+  })
+
+  it('1行にするときは URL を外し、いつから何回失敗しているかを添える', () => {
+    const label = problemLabel(problem)
+    expect(label).not.toContain('https://')
+    expect(label).toMatch(/^投稿できていません：ログインが切れています（.+から4回失敗）$/)
+    expect(problemLabel({ ...problem, message: '止まりました: ログインが切れています', stopped: true })).toMatch(
+      /^止まりました: ログインが切れています（.+から失敗）$/,
+    )
+    // 行用の短い形は、理由を入れない（いちばん上のカードに出す）
+    expect(problemLabel(problem, { short: true })).toMatch(/^投稿できていません（.+から4回失敗）$/)
+    expect(problemLabel({ ...problem, stopped: true }, { short: true })).toMatch(/^止まりました（.+から失敗）$/)
+  })
+
+  it('よく出る英語のエラーは言い換え、知らないものはそのまま出す', () => {
+    expect(readableProblem('locator.click: Timeout 10000ms exceeded.')).toMatch(/^画面のボタンや欄が出てこず、時間切れ/)
+    expect(readableProblem('HTTP 500 (https://x.test/a)')).toBe('HTTP 500')
+    expect(readableProblem('止まりました: ログインが切れています (https://yay.space/)')).toBe('止まりました: ログインが切れています')
   })
 })

@@ -68,3 +68,16 @@ test("pushStatus: いま止まっているかを真偽値で送る（無けれ�
   assert.equal(sent[0].body.paused, true);
   assert.equal(sent[1].body.paused, false);
 });
+
+test("pushStatus: いま投稿できていない理由を載せる（無ければ null で、画面の警告を消す）", async () => {
+  const sent = [];
+  globalThis.fetch = async (url, init) => {
+    sent.push(JSON.parse(init.body));
+    return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const problem = { message: "ログインが切れています", since: "2026-11-25T10:45:00.000Z", count: 2, stopped: true };
+  await pushStatus(cloud, { lastPost: null, today: 0, problem });
+  await pushStatus(cloud, { lastPost: null, today: 0 });
+  assert.deepEqual(sent[0].problem, problem);
+  assert.equal(sent[1].problem, null);
+});

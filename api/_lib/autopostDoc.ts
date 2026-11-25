@@ -155,11 +155,53 @@ export interface PosterStatus {
    * Mac の報告は status ごと入れ替わるので、投稿役が戻って報告すれば自然に消える。Mac は送ってこない。
    */
   alertedAt?: string
+  /**
+   * いま投稿できていない理由（Mac の poster/problem.mjs）。投稿に成功すると Mac が null を送って消す。
+   * 投稿役は動いていて報告も届くのに、投稿だけ失敗し続けている（2026-11-25、Yay のログイン切れ）ことを画面に出すため。
+   * この項目より前の投稿役は送ってこないので、無いことがある。
+   */
+  problem?: PosterProblem | null
+}
+
+export interface PosterProblem {
+  /** 何が起きているか（1行） */
+  message: string
+  /** 失敗が続き始めた時刻（Mac の時計） */
+  since: string
+  /** 続けて何回失敗したか */
+  count: number
+  /** それで投稿役が止まったか（止まると報告も来なくなる） */
+  stopped: boolean
+}
+
+const MAX_PROBLEM_MESSAGE = 300
+
+/** 報告の problem を検める。無い・null は「不調なし」。形が違えば DocError（読み違えて警告を消したり出したりしない） */
+function readProblem(value: unknown): PosterProblem | null | undefined {
+  if (value === undefined || value === null) return value
+  const p = value as Partial<Record<keyof PosterProblem, unknown>>
+  const ok =
+    typeof p.message === 'string' &&
+    p.message.length > 0 &&
+    p.message.length <= MAX_PROBLEM_MESSAGE &&
+    typeof p.since === 'string' &&
+    !Number.isNaN(Date.parse(p.since)) &&
+    typeof p.count === 'number' &&
+    Number.isInteger(p.count) &&
+    p.count >= 1 &&
+    typeof p.stopped === 'boolean'
+  if (!ok) throw new DocError('形が違います')
+  return { message: p.message as string, since: p.since as string, count: p.count as number, stopped: p.stopped as boolean }
 }
 
 /** Mac の投稿役からの報告を検める。形が違えば DocError。 */
 export function readPosterReport(body: unknown): Omit<PosterStatus, 'at'> {
-  const { lastPost, today, paused } = (body ?? {}) as { lastPost?: unknown; today?: unknown; paused?: unknown }
+  const { lastPost, today, paused, problem } = (body ?? {}) as {
+    lastPost?: unknown
+    today?: unknown
+    paused?: unknown
+    problem?: unknown
+  }
   const last = lastPost as { t?: unknown; text?: unknown } | null | undefined
   const okLast =
     last === null ||
@@ -172,10 +214,12 @@ export function readPosterReport(body: unknown): Omit<PosterStatus, 'at'> {
   }
   // paused は無くてもよいが、あるなら真偽値。文字列の "false" などを真と読み違えて止まったことにしない。
   if (paused !== undefined && typeof paused !== 'boolean') throw new DocError('形が違います')
+  const checkedProblem = readProblem(problem)
   return {
     lastPost: last ? { t: last.t as string, text: last.text as string } : null,
     today,
     ...(paused === undefined ? {} : { paused }),
+    ...(checkedProblem === undefined ? {} : { problem: checkedProblem }),
   }
 }
 
