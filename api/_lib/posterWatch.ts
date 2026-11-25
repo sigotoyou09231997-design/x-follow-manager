@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // web-push は CommonJS なので default で受ける（名前付き import だと Vercel 上でだけ落ちる。checkAppUpdate.ts と同じ理由）
 import webpush from 'web-push'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
-import type { ChannelName, PosterStatus } from './autopostDoc.js'
+import { MAC_CHANNELS, type ChannelName, type PosterStatus } from './autopostDoc.js'
 
 // Mac の投稿役（ディスコード・Yay）が止まったことを、スマホへ通知する見張り。
 //
@@ -21,7 +21,7 @@ export const SILENT_AFTER_MINUTES = 20
 /** これより古い報告は「もう使っていない」と見なして通知しない（やめた投稿先を、いつまでも知らせ続けないため）。 */
 export const GIVE_UP_AFTER_MINUTES = 3 * 24 * 60
 
-const CHANNEL_LABEL: Record<ChannelName, string> = { discord: 'ディスコード', yay: 'Yay' }
+const CHANNEL_LABEL: Record<ChannelName, string> = { discord: 'ディスコード', yay: 'Yay', xrepeat: 'X（くり返し）' }
 
 /** 見張りが見る、投稿先1つぶんの状態。 */
 export interface WatchedChannel {
@@ -52,6 +52,8 @@ export function pickSilent(rows: WatchedChannel[], nowMs: number): WatchedChanne
   return rows.filter((row) => {
     const status = row.status
     if (!status) return false
+    // サーバーが投稿している投稿先（xrepeat）は、報告が途絶えても Mac が止まったわけではない
+    if (status.server === true) return false
     // 画面で止めている（表の印・投稿役自身の報告のどちらでも）あいだは、報告が無くても正常
     if (row.paused || status.paused === true) return false
     // 同じ止まりでは1回だけ。投稿役が報告し直すと status ごと入れ替わって、この印は消える
@@ -130,6 +132,9 @@ export function supabasePosterWatchDeps(client: SupabaseClient = getSupabaseAdmi
       const { data, error } = await client
         .from('autopost_channels')
         .select('user_id, channel, status')
+        // Mac の投稿役だけを見る。xrepeat はサーバーが投稿したときにしか書かないので、間隔が長いと
+        // 「報告が途絶えた」と見えてしまい、動いているのに通知が鳴る
+        .in('channel', MAC_CHANNELS)
         .not('status', 'is', null)
         .returns<{ user_id: string; channel: ChannelName; status: PosterStatus | null }[]>()
       if (error) throw new Error(`autopost_channels の読み込みに失敗しました: ${error.message}`)

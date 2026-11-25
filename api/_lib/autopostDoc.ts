@@ -6,7 +6,17 @@ import { createHash } from 'node:crypto'
 export const MAX_LENGTH = 1000
 const MAX_ARCHIVE = 100
 
-export type ChannelName = 'discord' | 'yay'
+/**
+ * 投稿先。discord・yay は Mac の投稿役が投稿する。xrepeat は、決めた文を X へくり返し投稿するもので、
+ * Mac は使わずサーバー（publishDue の毎分の実行。api/_lib/xRepeat.ts）が投稿する。
+ * X の「自動運転」（AI が文を作る。画面では 'x'）とは別物なので、名前をぶつけない。
+ */
+export type ChannelName = 'discord' | 'yay' | 'xrepeat'
+
+/** Mac の投稿役が受け持つ投稿先。合鍵で読み書きできるのはここだけ（xrepeat の状態をサーバー以外に書かせない）。 */
+export type MacChannelName = 'discord' | 'yay'
+export const MAC_CHANNELS: MacChannelName[] = ['discord', 'yay']
+export const isMacChannel = (name: string): name is MacChannelName => (MAC_CHANNELS as string[]).includes(name)
 
 /**
  * 投稿先ごとに持てる文の数。discord は順に回す（最大10）。
@@ -15,6 +25,35 @@ export type ChannelName = 'discord' | 'yay'
 export const CHANNELS: Record<ChannelName, { maxMessages: number }> = {
   discord: { maxMessages: 10 },
   yay: { maxMessages: 5 },
+  // 順に回す。X は同じ文を続けて出すと「重複」で断ることがあるので、複数あるほうが通りやすい
+  xrepeat: { maxMessages: 10 },
+}
+
+/** X のくり返し投稿の間隔（分）。毎分の実行で見るので10分より細かくはできない。既定は1時間（1日24本・月約1,600円）。 */
+export const X_REPEAT_INTERVAL = { min: 10, max: 24 * 60, default: 60 } as const
+
+export interface ChannelSettings {
+  /** xrepeat の投稿の間隔（分）。ほかの投稿先では使わない（間隔は投稿役・サイトの側で決まる）。 */
+  intervalMinutes: number
+}
+
+export const DEFAULT_SETTINGS: ChannelSettings = { intervalMinutes: X_REPEAT_INTERVAL.default }
+
+/** 保存されていた設定を読む。無い・壊れているところは既定値で埋める（読めないから投稿しない、にはしない）。 */
+export function readSettings(value: unknown): ChannelSettings {
+  const v = (value ?? {}) as { intervalMinutes?: unknown }
+  const n = v.intervalMinutes
+  const ok = typeof n === 'number' && Number.isInteger(n) && n >= X_REPEAT_INTERVAL.min && n <= X_REPEAT_INTERVAL.max
+  return { intervalMinutes: ok ? (n as number) : DEFAULT_SETTINGS.intervalMinutes }
+}
+
+/** 画面から来た設定を検める。形が違えば DocError（読めないものを黙って既定値にすると、変えたつもりで変わらない）。 */
+export function cleanSettings(value: unknown): ChannelSettings {
+  const n = (value as { intervalMinutes?: unknown } | null)?.intervalMinutes
+  if (typeof n !== 'number' || !Number.isInteger(n) || n < X_REPEAT_INTERVAL.min || n > X_REPEAT_INTERVAL.max) {
+    throw new DocError(`間隔は${X_REPEAT_INTERVAL.min}分から${X_REPEAT_INTERVAL.max / 60}時間のあいだで選んでください`)
+  }
+  return { intervalMinutes: n }
 }
 
 export function isChannelName(value: unknown): value is ChannelName {
@@ -161,6 +200,20 @@ export interface PosterStatus {
    * この項目より前の投稿役は送ってこないので、無いことがある。
    */
   problem?: PosterProblem | null
+  /**
+   * サーバーが投稿している投稿先（xrepeat）の印。画面はこれを見て「Mac からの報告が途絶えた」の警告を出さない
+   * （サーバーは投稿したときにしか書かないので、間隔が20分を超えると報告が途絶えたように見えてしまう）。
+   */
+  server?: true
+  /** 以下は xrepeat だけ。サーバーが次の投稿で使う控え。 */
+  /** いま X に出ている（次に消す）投稿の番号 */
+  lastId?: string | null
+  /** 次に使う文の順番（messages の何番目から探すか） */
+  nextIndex?: number
+  /** today を数えている日（日本時間の YYYY-MM-DD）。日が変われば 0 から数え直す */
+  day?: string
+  /** 最後に投稿を試みた時刻（失敗も含む）。次の投稿の時刻はここから決める */
+  triedAt?: string
 }
 
 export interface PosterProblem {

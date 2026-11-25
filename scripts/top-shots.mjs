@@ -30,6 +30,7 @@ const PAGES = [
   { name: 'settings' },
   { name: 'detail-discord', feature: /^自動投稿の文と設定/, tab: 'ディスコード' },
   { name: 'detail-x', feature: /^自動投稿の文と設定/, tab: 'X' },
+  { name: 'detail-xrepeat', feature: /^自動投稿の文と設定/, tab: 'X（くり返し）' },
   { name: 'schedule', feature: /^予約投稿/ },
   { name: 'tidy', feature: /^フォロー整理/ },
 ]
@@ -110,6 +111,14 @@ const SCENES = [
         schedule: { hour: 12, activeIndexes: [1], idle: false, nextHour: null },
         status: { lastPost: { t: iso(-2 * MIN), text: 'x' }, today: 96, at: iso(-20 * 1000) },
       }),
+      // サーバーが投稿する X（くり返し）。最後の報告は投稿したときなので古くてよい
+      xrepeat: channel('xrepeat', {
+        messages: ['Xに流す文です', 'Xに流す2つ目の文'],
+        hours: [null, null],
+        schedule: { hour: 12, activeIndexes: [0, 1], idle: false, nextHour: null },
+        settings: { intervalMinutes: 60 },
+        status: { lastPost: { t: iso(-35 * MIN), text: 'Xに流す文です' }, today: 9, at: iso(-35 * MIN), server: true },
+      }),
     },
     posts: [
       { ...post('p1', 'posted', -3 * HOUR, '雨の音を聞きながら昼寝した。'), ai_prompt: null },
@@ -142,6 +151,7 @@ const SCENES = [
     channels: {
       discord: channel('discord', { paused: true, pausedAt: iso(-20 * MIN), status: { lastPost: null, today: 40, at: iso(-30 * 1000), paused: true } }),
       yay: channel('yay', { paused: true, pausedAt: iso(-20 * MIN), status: { lastPost: null, today: 30, at: iso(-30 * 1000), paused: true } }),
+      xrepeat: channel('xrepeat', { paused: true, pausedAt: iso(-20 * MIN), status: { lastPost: null, today: 3, at: iso(-20 * MIN), paused: true, server: true } }),
     },
     posts: [],
   },
@@ -223,7 +233,7 @@ async function shoot(browser, scene, viewport, theme) {
       if (target.feature) {
         await page.getByRole('region', { name: '機能' }).getByRole('button', { name: target.feature }).click()
       }
-      if (target.tab) await page.getByRole('tab', { name: target.tab }).click()
+      if (target.tab) await page.getByRole('tab', { name: target.tab, exact: true }).click()
       await page.waitForTimeout(900)
       const shot = path.join(OUT_DIR, `page-${target.name}-${viewport.name}-${theme}.png`)
       await page.screenshot({ path: shot, fullPage: true })

@@ -293,3 +293,30 @@ describe('AutoPostHome: 投稿できていないときの表示', () => {
     expect(screen.queryByRole('status', { name: '投稿できていない投稿先' })).toBeNull()
   })
 })
+
+describe('AutoPostHome: X（くり返し）', () => {
+  it('行を出し、まだ投稿していなければ「Macからの報告」ではなく、これからの様子を言う', async () => {
+    api.fetchSnapshots.mockResolvedValue({
+      ...snapshots(),
+      xrepeat: channel({ channel: 'xrepeat', messages: ['Xの文'], status: null }),
+    })
+    render(<AutoPostHome onOpenDetail={() => {}} />)
+    expect(await screen.findByRole('switch', { name: 'X（くり返し）の自動投稿' })).toBeInTheDocument()
+    expect(screen.getByText('まもなく最初の投稿をします')).toBeInTheDocument()
+    expect(screen.queryByText(/Macからの報告はまだありません/)).toBeNull()
+  })
+
+  it('サーバーが投稿している印があれば、最後の報告が古くても「応答がありません」にしない', async () => {
+    api.fetchSnapshots.mockResolvedValue({
+      ...snapshots(),
+      xrepeat: channel({
+        channel: 'xrepeat',
+        status: { lastPost: { t: iso(3 * 60 * 60), text: 'Xの文' }, today: 5, at: iso(3 * 60 * 60), server: true },
+      }),
+    })
+    render(<AutoPostHome onOpenDetail={() => {}} />)
+    expect(await screen.findByText(/3時間0分前に投稿 ・ 今日5件/)).toBeInTheDocument()
+    expect(screen.queryByText(/応答がありません/)).toBeNull()
+    expect(screen.queryByText('投稿役が止まっているかもしれません')).toBeNull()
+  })
+})

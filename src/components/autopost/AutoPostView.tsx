@@ -7,6 +7,7 @@ import { registerEditingGuard } from '../../lib/editingGuard'
 import {
   CHANNEL_LABELS,
   CHANNEL_NAMES,
+  presentChannels,
   SaveConflictError,
   saveMessages,
   setPaused,
@@ -28,6 +29,7 @@ import { Icon } from '../Icon'
 import { PauseControl, PosterStatusLine } from './ChannelControls'
 import { DayOverview } from './DayTimeline'
 import { RestartControl } from './RestartControl'
+import { XRepeatInterval } from './XRepeatInterval'
 import { Box } from './TextBox'
 import { XAutopilotPanel } from './XAutopilotPanel'
 
@@ -37,12 +39,16 @@ export { AutoPostHome } from './AutoPostHome'
 const CHANNEL_INFO: Record<ChannelName, string> = {
   discord: 'discord-ch.site の募集掲示板に、約10分おきに投稿される文です。',
   yay: 'Yay のタイムラインと、参加中のサークル全部に、5分ごとに投稿される文です（前の投稿は消されます）。時間帯ごとに文を変えるときは、文を足してください。',
+  xrepeat:
+    'X に、下で決めた間隔で投稿される文です（前の投稿は消されます）。サーバーが投稿するので、Mac が止まっていても動きます。文が2つ以上あると順に回します（同じ文が続くと X に断られることがあります）。',
 }
 
 const HOURS_NOTE: Record<ChannelName, string> = {
   discord:
     '文ごとに「投稿する時間帯」を決められます。時間を決めた文は、その時間になるとその文だけを順に投稿し、当たる文が無い時間は、時間を決めていない文を順に回します。',
   yay: '文ごとに「投稿する時間帯」を決められます。いまの時間に当たる文のうち、いちばん上の1つを投稿します（時間を決めていない文は、当たる文が無い時間に使います）。',
+  xrepeat:
+    '文ごとに「投稿する時間帯」を決められます。時間を決めた文は、その時間になるとその文だけを順に投稿し、当たる文が無い時間は、時間を決めていない文を順に回します。',
 }
 
 /** 書きかけ。見ていた版を覚えておき、サーバー側が進んで中身も同じになったら、書きかけを手放して追従する。 */
@@ -212,7 +218,7 @@ export function AutoPostView() {
   )
   const tabs = (
     <div className="autopost__tabs" role="tablist" aria-label="投稿先">
-      {CHANNEL_NAMES.map((name) => (
+      {(snapshots ? presentChannels(snapshots) : CHANNEL_NAMES).map((name) => (
         <button
           key={name}
           type="button"
@@ -310,10 +316,15 @@ export function AutoPostView() {
         error={pauseError}
         onChange={(next) => void changePaused(next)}
       />
-      <RestartControl
-        enabled={loggedIn}
-        silent={CHANNEL_NAMES.some((name) => livenessOf(snapshots?.[name]?.status ?? null, now) === 'silent')}
-      />
+      {current === 'xrepeat' ? (
+        // サーバーが投稿するので、Mac の投稿役の再起動は関係ない。代わりに間隔を決める
+        <XRepeatInterval snapshot={snap} onChanged={applySnapshot} />
+      ) : (
+        <RestartControl
+          enabled={loggedIn}
+          silent={CHANNEL_NAMES.some((name) => livenessOf(snapshots?.[name]?.status ?? null, now) === 'silent')}
+        />
+      )}
 
       <section className="surface-card autopost__card">
         {draft.some((slot) => slot.hours !== null) && (

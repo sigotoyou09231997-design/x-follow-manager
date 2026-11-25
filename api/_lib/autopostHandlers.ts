@@ -5,8 +5,10 @@ import {
   DocError,
   MAX_LENGTH,
   applySave,
+  cleanSettings,
   hashPosterKey,
   isChannelName,
+  isMacChannel,
   readPosterReport,
   scheduleAt,
   type ChannelName,
@@ -62,6 +64,7 @@ function snapshot(row: ChannelRow, at: Date) {
     paused: row.paused,
     pausedAt: row.pausedAt,
     pauseReady: row.pauseReady,
+    settings: row.settings,
     limits: { maxLength: MAX_LENGTH, maxMessages: CHANNELS[row.channel].maxMessages },
   }
 }
@@ -78,6 +81,15 @@ function channelOf(req: VercelRequest, body: Record<string, unknown> | null): Ch
   // 指定が無ければ discord。以前の投稿側（ディスコード用）はこの形で呼んでくる。
   const name = fromQuery ?? body?.channel ?? 'discord'
   return isChannelName(name) ? name : null
+}
+
+/**
+ * Mac の投稿役（合鍵）が触れる投稿先だけ。xrepeat はサーバーが投稿していて、その状態（次に消す投稿の番号など）を
+ * 合鍵で書き換えられると、別の投稿を消しに行く・二重に投稿するが起きうるので、Mac からは読み書きさせない。
+ */
+function macChannelOf(req: VercelRequest, body: Record<string, unknown> | null): ChannelName | null {
+  const channel = channelOf(req, body)
+  return channel && isMacChannel(channel) ? channel : null
 }
 
 function failure(res: VercelResponse, error: unknown) {
@@ -131,6 +143,20 @@ export function createAutopostHandler(deps?: Deps, now: () => Date = () => new D
 
       const channel = channelOf(req, body)
       if (!channel) return res.status(400).json({ error: '投稿先が正しくありません' })
+
+      if (body.settings !== undefined) {
+        // 設定（いまは X のくり返し投稿の間隔だけ）。文の保存・止めるとは混ぜない
+        if (channel !== 'xrepeat' || body.messages !== undefined || body.paused !== undefined) {
+          return res.status(400).json({ error: 'リクエストの形式が不正です' })
+        }
+        try {
+          const settings = cleanSettings(body.settings)
+          return res.status(200).json({ snapshot: snapshot(await store.saveSettings(userId, channel, settings), now()) })
+        } catch (error) {
+          if (error instanceof DocError) return res.status(400).json({ error: error.message })
+          throw error
+        }
+      }
 
       if (body.paused !== undefined) {
         // 止める／再開するは、文の保存とは別の操作。1回の送信に文を混ぜない
@@ -191,7 +217,7 @@ export function createPosterTextHandler(deps?: Pick<Deps, 'store'>, now: () => D
       const store = (deps ?? defaultDeps()).store
       const userId = await posterUserId(store, req.headers.authorization)
       if (!userId) return res.status(401).json({ error: 'unauthorized' })
-      const channel = channelOf(req, null)
+      const channel = macChannelOf(req, null)
       if (!channel) return res.status(400).json({ error: '投稿先が正しくありません' })
 
       const row = await store.getChannel(userId, channel)
@@ -226,7 +252,7 @@ export function createPosterStatusHandler(deps?: Pick<Deps, 'store'>, now: () =>
       const userId = await posterUserId(store, req.headers.authorization)
       if (!userId) return res.status(401).json({ error: 'unauthorized' })
       const body = readBody(req)
-      const channel = channelOf(req, body)
+      const channel = macChannelOf(req, body)
       if (!body || !channel) return res.status(400).json({ error: '形が違います' })
 
       let report: ReturnType<typeof readPosterReport>

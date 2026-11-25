@@ -12,6 +12,7 @@ import { morningWindow } from '../src/lib/xAutopilot/morning.js'
 import { supabaseAutopilotStore } from './_lib/autopilotStore.js'
 import { composeAutopilotPost, reviseAutopilotPost, writeAutopilotPost, writeProfile } from './_lib/autopilotWriter.js'
 import { supabasePosterWatchDeps, watchPosters } from './_lib/posterWatch.js'
+import { runXRepeats, supabaseXRepeatDeps } from './_lib/xRepeat.js'
 import { isOverLimit } from '../src/lib/schedule/textLength.js'
 import type { PostSegment, RepeatRule } from '../src/lib/schedule/types.js'
 import { AUTOPILOT_PREFIX, DELETED_MARK } from '../src/lib/xAutopilot/types.js'
@@ -78,6 +79,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     retrying: 0,
     posterSilent: 0,
     posterNotified: 0,
+    xRepeatPosted: 0,
+    xRepeatFailed: 0,
   }
 
   // Mac の自動投稿（ディスコード・Yay）が止まっていないかの見張り。予約の投稿とは別の仕事なので、
@@ -109,6 +112,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     await cancelLateMorningDrafts(startedAt)
+
+    // 決めた文の X へのくり返し投稿（自動投稿タブの「X（くり返し）」）。AI を呼ぶ仕事より前に出す
+    // （時刻どおりに出すほうを優先）。ここで失敗しても、予約の投稿の結果は変えない
+    try {
+      const repeated = await runXRepeats(supabaseXRepeatDeps(db), startedAt)
+      result.xRepeatPosted = repeated.posted
+      result.xRepeatFailed = repeated.failed
+    } catch (error) {
+      console.error('xRepeat failed:', error)
+    }
 
     // 次回分の用意は投稿のあと。AIおまかせの繰り返しではここでAIを呼ぶので、
     // 先に走らせると、その待ち時間のぶん時刻を過ぎた投稿が遅れる。

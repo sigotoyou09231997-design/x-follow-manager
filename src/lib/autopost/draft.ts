@@ -60,6 +60,9 @@ export type Liveness = 'never' | 'alive' | 'silent'
 
 export function livenessOf(status: PosterStatus | null, now: number): Liveness {
   if (!status) return 'never'
+  // サーバーが投稿している投稿先（xrepeat）は、投稿したときにしか書かれない。間隔が20分を超えると
+  // 「Macから応答がありません」と出てしまうので、報告の新しさは見ない（失敗は problem で出る）
+  if (status.server) return 'alive'
   return minutesAgo(status.at, now) < ALIVE_WITHIN_MINUTES ? 'alive' : 'silent'
 }
 

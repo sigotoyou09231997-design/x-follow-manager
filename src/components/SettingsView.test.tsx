@@ -75,7 +75,7 @@ describe('SettingsView: まとめて止める・再開の対象', () => {
 
     expect(within(section).getByRole('switch', { name: 'ディスコード' })).not.toBeChecked()
     expect(within(section).getByRole('switch', { name: 'X' })).toBeChecked()
-    expect(JSON.parse(localStorage.getItem('sns-all-pause-targets') ?? '{}')).toEqual({ x: true, discord: false, yay: true })
+    expect(JSON.parse(localStorage.getItem('sns-all-pause-targets') ?? '{}')).toEqual({ x: true, discord: false, yay: true, xrepeat: true })
   })
 
   it('開き直しても、切り替えを覚えている', () => {
@@ -98,7 +98,7 @@ describe('SettingsView: トップに出す投稿先', () => {
     fireEvent.click(within(shown).getByRole('switch', { name: 'Xをトップに出す' }))
 
     expect(within(shown).getByRole('switch', { name: 'Xをトップに出す' })).not.toBeChecked()
-    expect(JSON.parse(localStorage.getItem('sns-top-shown') ?? '{}')).toEqual({ x: false, discord: true, yay: true })
+    expect(JSON.parse(localStorage.getItem('sns-top-shown') ?? '{}')).toEqual({ x: false, discord: true, yay: true, xrepeat: true })
     const bulk = screen.getByRole('region', { name: 'まとめて止める・再開の対象' })
     expect(within(bulk).getByRole('switch', { name: 'X' })).toBeDisabled()
     expect(within(bulk).getByText('トップに出していないので、対象外です')).toBeInTheDocument()

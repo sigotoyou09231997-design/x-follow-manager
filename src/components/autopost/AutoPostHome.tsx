@@ -52,7 +52,8 @@ export function AutoPostHome({ onOpenDetail }: Props) {
     )
   }
 
-  const shownChannels = CHANNEL_NAMES.filter((name) => shown[name])
+  // 返事に無い投稿先（xrepeat より前のサーバー）は出さない。読み込み中は、設定で出すものを全部数える
+  const shownChannels = CHANNEL_NAMES.filter((name) => shown[name] && (!snapshots || !!snapshots[name]))
   const silent = shownChannels.some((name) => livenessOf(snapshots?.[name]?.status ?? null, now) === 'silent')
   // 投稿役は動いていて報告も届くのに、投稿できていない（2026-11-25、Yay のログイン切れで30分空回りしてから止まった）。
   // 行の中だけだと見落とすので、いちばん上にも出す。
@@ -81,9 +82,10 @@ export function AutoPostHome({ onOpenDetail }: Props) {
     ) : loading || !snapshots ? (
       <p className="autopost__empty">読み込み中…</p>
     ) : (
-      shownChannels.map((name) => (
-        <ChannelRow key={name} channel={name} snapshot={snapshots[name]} now={now} onChanged={applySnapshot} />
-      ))
+      shownChannels.flatMap((name) => {
+        const snapshot = snapshots[name]
+        return snapshot ? [<ChannelRow key={name} channel={name} snapshot={snapshot} now={now} onChanged={applySnapshot} />] : []
+      })
     )
 
   return (

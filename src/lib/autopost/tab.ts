@@ -11,7 +11,7 @@ const TAB_KEY = 'autopost_tab'
 export function readAutopostTab(): AutopostTab {
   try {
     const stored = localStorage.getItem(TAB_KEY)
-    if (stored === 'discord' || stored === 'yay' || stored === 'x') return stored
+    if (stored === 'discord' || stored === 'yay' || stored === 'xrepeat' || stored === 'x') return stored
   } catch {
     // 保存できない環境（プライベートウィンドウなど）では、いつもの先頭に戻るだけ。
   }

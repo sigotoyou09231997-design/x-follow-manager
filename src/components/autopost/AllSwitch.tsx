@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { optimisticPause } from '../../lib/autopost/draft'
 import { useBulkTargets, useTopShown } from '../../lib/autopost/bulkTargets'
 import { Icon } from '../Icon'
-import { CHANNEL_LABELS, CHANNEL_NAMES, setPaused, type ChannelName, type ChannelSnapshot, type Snapshots } from '../../lib/autopost/api'
+import { CHANNEL_LABELS, CHANNEL_NAMES, presentChannels, setPaused, type ChannelName, type ChannelSnapshot, type Snapshots } from '../../lib/autopost/api'
 
 // トップの「すべての投稿を止める／再開する」。X の自動運転・ディスコード・Yay を、1回の操作でまとめて止める・戻す。
 // 個々の行のスイッチと同じ操作（X は止める／始める、ディスコード・Yay は setPaused）を並べて呼ぶだけで、新しいサーバー処理は無い。
@@ -17,7 +17,9 @@ const STORAGE_KEY = 'sns-all-pause-stopped'
 function readStopped(): Target[] {
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
-    return Array.isArray(raw) ? raw.filter((t): t is Target => t === 'x' || t === 'discord' || t === 'yay') : []
+    return Array.isArray(raw)
+      ? raw.filter((t): t is Target => t === 'x' || t === 'discord' || t === 'yay' || t === 'xrepeat')
+      : []
   } catch {
     return []
   }
@@ -59,12 +61,18 @@ export function AllSwitch({ x, snapshots, onChanged }: Props) {
   // トップに出していない投稿先（設定の「トップに出す投稿先」で外したもの）も、使っていないものとして触らない。
   const [bulk] = useBulkTargets()
   const [shown] = useTopShown()
-  const included = { x: bulk.x && shown.x, discord: bulk.discord && shown.discord, yay: bulk.yay && shown.yay }
+  const included = {
+    x: bulk.x && shown.x,
+    discord: bulk.discord && shown.discord,
+    yay: bulk.yay && shown.yay,
+    xrepeat: bulk.xrepeat && shown.xrepeat,
+  }
 
-  const channels = snapshots ? CHANNEL_NAMES.filter((name) => snapshots[name].pauseReady) : []
+  // 返事に無い投稿先（xrepeat より前のサーバー）は、無いものとして扱う
+  const channels = snapshots ? presentChannels(snapshots).filter((name) => snapshots[name]!.pauseReady) : []
   const targetChannels = channels.filter((name) => included[name])
-  const runningChannels = targetChannels.filter((name) => !snapshots![name].paused)
-  const pausedChannels = targetChannels.filter((name) => snapshots![name].paused)
+  const runningChannels = targetChannels.filter((name) => !snapshots![name]!.paused)
+  const pausedChannels = targetChannels.filter((name) => snapshots![name]!.paused)
 
   const running: Target[] = [...(x.enabled && included.x ? (['x'] as const) : []), ...runningChannels]
   const mode: 'stop' | 'resume' = running.length > 0 ? 'stop' : 'resume'
@@ -76,7 +84,8 @@ export function AllSwitch({ x, snapshots, onChanged }: Props) {
     remembered.length > 0
       ? remembered.filter((t) => (t === 'x' ? included.x && !x.enabled : pausedChannels.includes(t)))
       : pausedChannels
-  const noneSelected = !included.x && !included.discord && !included.yay
+  // 返事に無い投稿先（xrepeat より前のサーバー）は、選ばれていても動かせないので数えない
+  const noneSelected = !included.x && (snapshots ? presentChannels(snapshots) : CHANNEL_NAMES).every((name) => !included[name])
   const nothingToDo = mode === 'resume' && resumeTargets.length === 0
   // 止められるものが何も読めていない（Xは読み込み済みで止まり、投稿先の保存先も無い）ときは、何も出さない。
   if (nothingToDo && channels.length === 0) return null

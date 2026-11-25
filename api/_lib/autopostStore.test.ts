@@ -123,6 +123,7 @@ describe('supabaseAutopostStore の送る要求', () => {
       paused: false,
       pausedAt: null,
       pauseReady: true,
+      settings: { intervalMinutes: 60 },
     })
   })
 
