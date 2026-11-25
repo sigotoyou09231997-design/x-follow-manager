@@ -32,6 +32,11 @@ vi.mock('../../lib/autopost/api', async (importOriginal) => ({
 }))
 
 // X の自動運転の中身は、専用のテストで確かめる。ここではタブの切り替えだけを見る。
+const connect = vi.hoisted(() => ({ startXConnect: vi.fn() }))
+vi.mock('../../lib/schedule/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/schedule/api')>()),
+  startXConnect: connect.startXConnect,
+}))
 vi.mock('./XAutopilotPanel', () => ({ XAutopilotPanel: () => <div>X自動運転の中身</div> }))
 
 // SaveConflictError は本物を使う（画面が instanceof で見分けているため）。
@@ -596,5 +601,26 @@ describe('AutoPostView: X（くり返し）', () => {
     render(<AutoPostView />)
     expect(await screen.findByRole('tab', { name: /ディスコード/ })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: /X（くり返し）/ })).toBeNull()
+  })
+})
+
+describe('AutoPostView: X（くり返し）の投稿するアカウント', () => {
+  it('未連携なら「連携するまで投稿しません」と出し、押すと X（くり返し）用の連携を始める（本アカウント用ではない）', async () => {
+    api.fetchSnapshots.mockResolvedValue({ ...snapshots(), xrepeat: { ...snapshots().xrepeat!, account: null } })
+    connect.startXConnect.mockReset().mockResolvedValue(undefined)
+    render(<AutoPostView />)
+    fireEvent.click(await screen.findByRole('tab', { name: /X（くり返し）/ }))
+    const card = await screen.findByRole('region', { name: '投稿するアカウント' })
+    expect(card).toHaveTextContent('投稿するアカウントがまだありません')
+    expect(card).toHaveTextContent('連携するまで投稿しません')
+    fireEvent.click(screen.getByRole('button', { name: '投稿するアカウントを連携' }))
+    await waitFor(() => expect(connect.startXConnect).toHaveBeenCalledWith('xrepeat'))
+  })
+
+  it('連携していれば、どのアカウントに出るかを出す', async () => {
+    api.fetchSnapshots.mockResolvedValue({ ...snapshots(), xrepeat: { ...snapshots().xrepeat!, account: { username: 'lmpdtdgtd' } } })
+    render(<AutoPostView />)
+    fireEvent.click(await screen.findByRole('tab', { name: /X（くり返し）/ }))
+    expect(await screen.findByText('投稿するアカウント：@lmpdtdgtd')).toBeInTheDocument()
   })
 })

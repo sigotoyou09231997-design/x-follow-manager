@@ -181,7 +181,7 @@ describe('小さな決まり', () => {
   it('X の失敗を、次にやることが分かる言い方にする', () => {
     expect(describeXFailure(new XApiError('x', 401, false))).toMatch(/連携が切れています/)
     expect(describeXFailure(new XApiError('x', 429, true))).toMatch(/回数制限/)
-    expect(describeXFailure(new XApiError('Xアカウントが連携されていません', 400, false))).toMatch(/^X と連携していません/)
+    expect(describeXFailure(new XApiError('Xアカウントが連携されていません', 400, false))).toMatch(/^投稿するアカウントが連携されていません/)
     expect(describeXFailure(new Error('a\n b'))).toBe('a b')
   })
 })

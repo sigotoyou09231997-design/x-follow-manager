@@ -244,8 +244,13 @@ export function ChannelSwitchRow({ snapshot, now, busy, error, onChange, onOpenT
             : 'まもなく最初の投稿をします'
           : 'Macからの報告はまだありません'
 
+  // X（くり返し）の投稿先アカウントが未連携。投稿しないので、ほかの何より先に言う（無いと「動いています」に見える）
+  const noAccount = snapshot.channel === 'xrepeat' && snapshot.account === null
+
   const view: Record<typeof state, { tone: SwitchTone; status: string }> = {
-    running: problem
+    running: noAccount
+      ? { tone: 'warn', status: '投稿するアカウントが未連携です（連携するまで投稿しません）' }
+      : problem
       ? { tone: 'warn', status: problemLabel(problem, { short: true }) }
       : snapshot.schedule.idle && liveness === 'alive'
         ? {

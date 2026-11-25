@@ -11,14 +11,24 @@ interface XAccountRow {
   expires_at: string
 }
 
+/**
+ * 連携の置き場所。x_accounts は本アカウント（予約投稿・自動運転）、x_repeat_accounts は X（くり返し）専用
+ * （2026-11-25、X（くり返し）が本アカウントに投稿してしまったため分けた）。
+ */
+export type XAccountTable = 'x_accounts' | 'x_repeat_accounts'
+
 /** 期限が近ければ更新しつつ、有効なアクセストークンを返す。cache は同じ実行の中で同じ人のトークンを何度も更新しないため。 */
-export async function getAccessToken(userId: string, cache?: Map<string, string>): Promise<string> {
+export async function getAccessToken(
+  userId: string,
+  cache?: Map<string, string>,
+  table: XAccountTable = 'x_accounts'
+): Promise<string> {
   const cached = cache?.get(userId)
   if (cached) return cached
 
   const db = getSupabaseAdmin()
   const { data, error } = await db
-    .from('x_accounts')
+    .from(table)
     .select('user_id, access_token, refresh_token, expires_at')
     .eq('user_id', userId)
     .maybeSingle()
@@ -37,7 +47,7 @@ export async function getAccessToken(userId: string, cache?: Map<string, string>
   // 保存に失敗すると次回以降ずっと更新できなくなるため、必ず書き戻す。
   const tokens = await refreshAccessToken(account.refresh_token)
   const { error: saveError } = await db
-    .from('x_accounts')
+    .from(table)
     .update({
       access_token: tokens.accessToken,
       refresh_token: tokens.refreshToken,

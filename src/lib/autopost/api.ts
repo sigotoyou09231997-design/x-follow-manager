@@ -65,6 +65,11 @@ export interface ChannelSnapshot {
   channel: ChannelName
   /** この項目より前のサーバーは返さない。無ければ既定（60分）。 */
   settings?: ChannelSettings
+  /**
+   * X（くり返し）が投稿するアカウント（専用の連携）。null は未連携（連携するまで投稿しない）。
+   * xrepeat 以外と、この項目より前のサーバーでは無い。
+   */
+  account?: { username: string } | null
   messages: string[]
   /** messages と同じ並びで、それぞれの文を投稿する時間帯。null は終日。 */
   hours: Hours[]

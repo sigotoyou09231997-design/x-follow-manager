@@ -62,6 +62,13 @@ export async function generatePosts(request: GenerateRequest): Promise<Generated
 
 const VERIFIER_KEY = 'x-oauth-code-verifier'
 const STATE_KEY = 'x-oauth-state'
+/**
+ * どちらの連携か。main は本アカウント（予約投稿・自動運転）、xrepeat は X（くり返し）が投稿するアカウント。
+ * X から戻ってくる口（/x-callback）は1つなので、出るときに覚えておき、戻ってきたら保存先を分ける
+ * （2026-11-25、X（くり返し）が本アカウントに投稿してしまったので分けた）。
+ */
+export type XConnectPurpose = 'main' | 'xrepeat'
+const PURPOSE_KEY = 'x-oauth-purpose'
 
 /** XのリダイレクトURI。Xアプリの設定にこの値をそのまま登録する必要がある。 */
 export function xRedirectUri(): string {
@@ -83,7 +90,7 @@ async function createPkcePair(): Promise<{ verifier: string; challenge: string }
 }
 
 /** Xの認可画面へ遷移する。 */
-export async function startXConnect(): Promise<void> {
+export async function startXConnect(purpose: XConnectPurpose = 'main'): Promise<void> {
   const { clientId, scopes } = await authorizedFetch<{ clientId: string; scopes: string[] }>(
     '/api/xAuth',
     { action: 'config' }
@@ -94,6 +101,7 @@ export async function startXConnect(): Promise<void> {
   // 認可後に戻ってきたとき検証するため、この端末に一時保存する。
   sessionStorage.setItem(VERIFIER_KEY, verifier)
   sessionStorage.setItem(STATE_KEY, state)
+  sessionStorage.setItem(PURPOSE_KEY, purpose)
 
   const params = new URLSearchParams({
     response_type: 'code',
@@ -107,12 +115,17 @@ export async function startXConnect(): Promise<void> {
   window.location.href = `https://x.com/i/oauth2/authorize?${params.toString()}`
 }
 
-/** /x-callback に戻ってきたときの処理。成功したら連携済みのusernameを返す。 */
-export async function completeXConnect(code: string, state: string): Promise<string> {
+/** /x-callback に戻ってきたときの処理。成功したら連携済みのusernameと、どちらの連携だったかを返す。 */
+export async function completeXConnect(
+  code: string,
+  state: string
+): Promise<{ username: string; purpose: XConnectPurpose }> {
   const savedState = sessionStorage.getItem(STATE_KEY)
   const verifier = sessionStorage.getItem(VERIFIER_KEY)
+  const purpose: XConnectPurpose = sessionStorage.getItem(PURPOSE_KEY) === 'xrepeat' ? 'xrepeat' : 'main'
   sessionStorage.removeItem(STATE_KEY)
   sessionStorage.removeItem(VERIFIER_KEY)
+  sessionStorage.removeItem(PURPOSE_KEY)
 
   if (!verifier) throw new Error('連携の途中経過が失われました。もう一度お試しください')
   // stateが一致しない＝別のサイトから誘導された可能性があるので中断する。
@@ -123,10 +136,11 @@ export async function completeXConnect(code: string, state: string): Promise<str
     code,
     codeVerifier: verifier,
     redirectUri: xRedirectUri(),
+    purpose,
   })
-  return data.username
+  return { username: data.username, purpose }
 }
 
-export async function disconnectX(): Promise<void> {
-  await authorizedFetch('/api/xAuth', { action: 'disconnect' })
+export async function disconnectX(purpose: XConnectPurpose = 'main'): Promise<void> {
+  await authorizedFetch('/api/xAuth', { action: 'disconnect', purpose })
 }

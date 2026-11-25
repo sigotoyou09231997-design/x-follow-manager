@@ -18,16 +18,20 @@ import { emptyChannel, PauseNotReadyError, type AutopostStore, type ChannelRow }
 function memoryStore(): AutopostStore & {
   rows: Map<string, ChannelRow>
   keys: Map<string, string>
+  /** X（くり返し）の専用の連携（user_id → username）。 */
+  repeatAccounts: Map<string, { username: string }>
   /** 止める機能の表（SQL 006）があるか。false にすると、本番で表がまだ無いときを再現する。 */
   pauseTable: { ready: boolean }
 } {
   const rows = new Map<string, ChannelRow>()
   const keys = new Map<string, string>()
+  const repeatAccounts = new Map<string, { username: string }>()
   const pauseTable = { ready: true }
   const id = (userId: string, channel: ChannelName) => `${userId}/${channel}`
   return {
     rows,
     keys,
+    repeatAccounts,
     pauseTable,
     async getChannel(userId, channel) {
       const row = rows.get(id(userId, channel)) ?? emptyChannel(channel)
@@ -68,6 +72,9 @@ function memoryStore(): AutopostStore & {
       return [...rows.entries()]
         .filter(([key, row]) => key.endsWith(`/${channel}`) && row.messages.length > 0)
         .map(([key, row]) => ({ userId: key.split('/')[0], row: structuredClone(row) }))
+    },
+    async repeatAccount(userId) {
+      return repeatAccounts.get(userId) ?? null
     },
     async userIdForPosterKey(tokenHash) {
       return keys.get(tokenHash) ?? null
@@ -408,6 +415,15 @@ describe('Mac の投稿役向け（合鍵）', () => {
   })
 
   describe('X のくり返し投稿（xrepeat）', () => {
+    it('X（くり返し）だけに、投稿するアカウント（専用の連携の username）を付ける。無ければ null', async () => {
+      const read = async () =>
+        (await call(t.screen, { method: 'GET', ...AS_OWNER })).body as { channels: Record<string, { account?: unknown }> }
+      expect((await read()).channels.xrepeat.account).toBeNull()
+      expect((await read()).channels.discord).not.toHaveProperty('account')
+      t.store.repeatAccounts.set(OWNER, { username: 'lmpdtdgtd' })
+      expect((await read()).channels.xrepeat.account).toEqual({ username: 'lmpdtdgtd' })
+    })
+
     it('画面には xrepeat も並び、間隔は既定の60分', async () => {
       const r = await call(t.screen, { method: 'GET', ...AS_OWNER })
       const { channels } = r.body as { channels: Record<string, { settings: { intervalMinutes: number } }> }

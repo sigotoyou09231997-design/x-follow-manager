@@ -29,6 +29,7 @@ import { Icon } from '../Icon'
 import { PauseControl, PosterStatusLine } from './ChannelControls'
 import { DayOverview } from './DayTimeline'
 import { RestartControl } from './RestartControl'
+import { XRepeatAccount } from './XRepeatAccount'
 import { XRepeatInterval } from './XRepeatInterval'
 import { Box } from './TextBox'
 import { XAutopilotPanel } from './XAutopilotPanel'
@@ -318,7 +319,10 @@ export function AutoPostView() {
       />
       {current === 'xrepeat' ? (
         // サーバーが投稿するので、Mac の投稿役の再起動は関係ない。代わりに間隔を決める
-        <XRepeatInterval snapshot={snap} onChanged={applySnapshot} />
+        <>
+          <XRepeatAccount snapshot={snap} />
+          <XRepeatInterval snapshot={snap} onChanged={applySnapshot} />
+        </>
       ) : (
         <RestartControl
           enabled={loggedIn}
