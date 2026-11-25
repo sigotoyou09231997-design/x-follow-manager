@@ -50,8 +50,10 @@ function readBody(req: VercelRequest): Record<string, unknown> | null {
   }
 }
 
-function snapshot(row: ChannelRow, at: Date) {
+function snapshot(row: ChannelRow, at: Date, account?: { username: string } | null) {
   return {
+    // X（くり返し）が投稿するアカウント（専用の連携）。ほかの投稿先には付けない
+    ...(row.channel === 'xrepeat' ? { account: account ?? null } : {}),
     channel: row.channel,
     messages: row.messages,
     hours: row.hours,
@@ -120,8 +122,13 @@ export function createAutopostHandler(deps?: Deps, now: () => Date = () => new D
         if (part === 'restart') return res.status(200).json({ restart: (await restart?.get(userId)) ?? NOT_READY })
 
         const names = Object.keys(CHANNELS) as ChannelName[]
-        const rows = await Promise.all(names.map((name) => store.getChannel(userId, name)))
-        return res.status(200).json({ channels: Object.fromEntries(rows.map((r) => [r.channel, snapshot(r, now())])) })
+        const [rows, account] = await Promise.all([
+          Promise.all(names.map((name) => store.getChannel(userId, name))),
+          store.repeatAccount(userId),
+        ])
+        return res
+          .status(200)
+          .json({ channels: Object.fromEntries(rows.map((r) => [r.channel, snapshot(r, now(), account)])) })
       }
 
       const body = readBody(req)

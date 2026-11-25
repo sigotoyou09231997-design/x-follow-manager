@@ -70,6 +70,11 @@ export interface AutopostStore {
   saveSettings(userId: string, channel: ChannelName, settings: ChannelSettings): Promise<ChannelRow>
   /** その投稿先の行を、全員ぶん読む（X のくり返し投稿を、毎分の実行が回すため）。文が無い人は除く。 */
   listChannel(channel: ChannelName): Promise<{ userId: string; row: ChannelRow }[]>
+  /**
+   * X（くり返し）が投稿する X アカウント（専用の連携。x_repeat_accounts）。画面に出す username だけ。
+   * 連携していない・表（SQL 012）がまだ無いときは null（null のあいだ、X（くり返し）は投稿しない）。
+   */
+  repeatAccount(userId: string): Promise<{ username: string } | null>
   /** 合鍵（の sha256）から持ち主を引く。無ければ null。 */
   userIdForPosterKey(tokenHash: string): Promise<string | null>
 }
@@ -275,6 +280,19 @@ export function supabaseAutopostStore(client: SupabaseClient = getSupabaseAdmin(
       return Promise.all(
         rows.map(async (r) => ({ userId: r.user_id, row: toChannelRow(channel, r, await readPause(r.user_id, channel)) }))
       )
+    },
+
+    async repeatAccount(userId) {
+      const { data, error } = await client
+        .from('x_repeat_accounts')
+        .select('username')
+        .eq('user_id', userId)
+        .maybeSingle<{ username: string }>()
+      if (error) {
+        if (error.code && MISSING_TABLE_CODES.includes(error.code)) return null
+        throw new Error(`x_repeat_accounts の読み込みに失敗しました: ${error.message}`)
+      }
+      return data ? { username: data.username } : null
     },
 
     async userIdForPosterKey(tokenHash) {

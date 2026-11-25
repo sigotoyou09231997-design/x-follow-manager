@@ -65,8 +65,12 @@ export function ScheduleView({
 
     void (async () => {
       try {
-        const username = await completeXConnect(code, state)
-        setCallbackMessage(`@${username} と連携しました`)
+        const { username, purpose } = await completeXConnect(code, state)
+        setCallbackMessage(
+          purpose === 'xrepeat'
+            ? `@${username} を X（くり返し）の投稿先として連携しました。自動投稿の「X（くり返し）」を再開すると投稿が始まります`
+            : `@${username} と連携しました`
+        )
         await reload()
       } catch (err) {
         setCallbackError(err instanceof Error ? err.message : String(err))

@@ -320,3 +320,14 @@ describe('AutoPostHome: X（くり返し）', () => {
     expect(screen.queryByText('投稿役が止まっているかもしれません')).toBeNull()
   })
 })
+
+describe('AutoPostHome: X（くり返し）の投稿先が未連携', () => {
+  it('「動いています」ではなく、未連携で投稿しないことを行に出す', async () => {
+    api.fetchSnapshots.mockResolvedValue({
+      ...snapshots(),
+      xrepeat: { ...channel({ channel: 'xrepeat', messages: ['Xの文'] }), account: null },
+    })
+    render(<AutoPostHome onOpenDetail={() => {}} />)
+    expect(await screen.findByText('投稿するアカウントが未連携です（連携するまで投稿しません）')).toBeInTheDocument()
+  })
+})

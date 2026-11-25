@@ -55,7 +55,9 @@ export function describeXFailure(error: unknown): string {
   if (status === 401) return 'X との連携が切れています。設定の「X と連携」からつなぎ直してください'
   if (status === 429) return 'X の回数制限にかかっています（時間をおいて、自動でやり直します）'
   if (status === 402 || /credit/i.test(message)) return 'X API の残高（クレジット）が足りません'
-  if (/連携されていません/.test(message)) return 'X と連携していません。設定の「X と連携」からつないでください'
+  // 本アカウントの連携は使わない（2026-11-25、本アカウントに投稿してしまった）。専用の連携が無ければここに来る
+  if (/連携されていません|x_repeat_accounts/.test(message))
+    return '投稿するアカウントが連携されていません。自動投稿の「X（くり返し）」で連携してください'
   return message.replace(/\s+/g, ' ').slice(0, 200)
 }
 
@@ -158,7 +160,8 @@ export function supabaseXRepeatDeps(client: SupabaseClient = getSupabaseAdmin())
       if (error) throw new Error(`状態を保存できませんでした: ${error.message}`)
       return (data ?? []).length > 0
     },
-    token: (userId) => getAccessToken(userId, tokens),
+    // X（くり返し）専用の連携だけを使う。本アカウント（x_accounts）には決して出さない
+    token: (userId) => getAccessToken(userId, tokens, 'x_repeat_accounts'),
     post: (token, text) => createPost(token, { text }),
     remove: (token, id) => deletePost(token, id),
   }
