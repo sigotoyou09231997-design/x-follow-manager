@@ -6,6 +6,7 @@
 // playwright は、このアプリ（poster/ の2つ上）の node_modules を使う（poster/discord と同じ）。
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -39,10 +40,33 @@ async function attach() {
   }
 }
 
+// Chrome を起動するときの引数。headless のとき画面（ウインドウ）を出さずに裏で動かす
+export function chromeArgs({ port, profile, headless = false }) {
+  return [
+    `--remote-debugging-port=${port}`,
+    `--user-data-dir=${profile}`,
+    "--no-first-run",
+    "--no-default-browser-check",
+    // 画面なしの既定の大きさは 800x600 と狭く、Yay が携帯向けの並びになって投稿欄（textarea）が出ない
+    // （2026-11-13 の試験で「locator.click: Timeout」になった）。普通の画面の大きさにそろえる
+    ...(headless ? ["--headless=new", "--window-size=1280,900"] : []),
+    "https://yay.space/",
+  ];
+}
+
+// config.json の "headless": true で画面なしにする（試験中。通らなければ false か項目ごと消せば元の画面ありに戻る）
+function headlessFromConfig() {
+  try {
+    return JSON.parse(readFileSync(join(HERE, "config.json"), "utf8")).headless === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function connect() {
   let browser = await attach().catch(() => null);
   if (!browser) {
-    spawn(CHROME, [`--remote-debugging-port=${PORT}`, `--user-data-dir=${PROFILE}`, "--no-first-run", "--no-default-browser-check", "https://yay.space/"], { detached: true, stdio: "ignore" }).unref();
+    spawn(CHROME, chromeArgs({ port: PORT, profile: PROFILE, headless: headlessFromConfig() }), { detached: true, stdio: "ignore" }).unref();
     for (let i = 0; i < 40 && !browser; i++) {
       await sleep(1000);
       browser = await attach().catch(() => null);
@@ -259,7 +283,14 @@ export async function deletePost(page, id) {
   try {
     await card.scrollIntoViewIfNeeded({ timeout: 10000 }).catch(() => {});
     await waitSettled(card);
-    await card.locator(".Menu__handle").first().click({ timeout: 10000 });
+    try {
+      await card.locator(".Menu__handle").first().click({ timeout: 10000 });
+    } catch (e) {
+      // ログインが切れていると、自分の投稿にもメニューが出ず、ここで時間切れになる。それを「一時的な不調」と
+      // 見なして30分空回りしてから止まっていた（2026-11-25）。ログイン切れなら、すぐ止まって通知する言い方で投げ直す
+      if (await loggedOutNow(page)) throw new Error(`ログインが切れています (${page.url()})`);
+      throw e;
+    }
     await card.locator(".Menu__panel__ul__a", { hasText: /^削除$/ }).first().click({ timeout: 10000 });
     await confirmDelete(page);
     await card.waitFor({ state: "detached", timeout: 15000 });
@@ -268,6 +299,13 @@ export async function deletePost(page, id) {
     await sleep(500);
     for (const p of ctx.pages()) if (!p.isClosed() && p !== page && /youtube\.com/.test(p.url())) await p.close().catch(() => {});
   }
+}
+
+// 画面の上の帯に「ログイン」「新規登録」が出ているか（ログアウトした人の見た目）
+export async function loggedOutNow(page) {
+  const login = await page.getByText("ログイン", { exact: true }).first().isVisible().catch(() => false);
+  const signup = await page.getByText("新規登録", { exact: true }).first().isVisible().catch(() => false);
+  return login && signup;
 }
 
 // 要素の位置が2回続けて同じになるまで待つ（最長4秒）。落ち着かなくても投げない（その先の操作が判断する）

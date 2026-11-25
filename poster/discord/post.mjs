@@ -26,6 +26,7 @@ import { checkBoard } from "../board-visibility.mjs";
 import { createVisibilityWatch } from "../yay/visibility.mjs";
 import { acquireLock, keepAwake } from "./single-instance.mjs";
 import { holdAfterReboot } from "../boot-guard.mjs";
+import { chromeArgs } from "./chrome-args.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(join(HERE, "../../node_modules/"));
@@ -245,13 +246,7 @@ async function connect() {
   log("Chrome を起動します");
   spawn(
     CHROME,
-    [
-      `--remote-debugging-port=${CONFIG.debugPort}`,
-      `--user-data-dir=${PROFILE}`,
-      "--no-first-run",
-      "--no-default-browser-check",
-      CONFIG.url,
-    ],
+    chromeArgs({ port: CONFIG.debugPort, profile: PROFILE, url: CONFIG.url, headless: CONFIG.headless === true }),
     { detached: true, stdio: "ignore" },
   ).unref();
   for (let i = 0; i < 30; i++) {
