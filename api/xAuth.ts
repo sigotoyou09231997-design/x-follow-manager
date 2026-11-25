@@ -80,6 +80,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
 
+      if (purpose === 'main') {
+        // X（くり返し）が使っているアカウントを、本アカウントとして許可させない。同じアカウント・同じアプリで許可し直すと、
+        // X は前の鍵を無効にするので、X（くり返し）が「連携が切れています」で止まる（2026-11-25 に実際に起きた）。
+        // 本アカウントにも同じ文がくり返し出る形になってしまうので、どちらの意味でも止める
+        const { data: repeat, error: repeatError } = await getSupabaseAdmin()
+          .from('x_repeat_accounts')
+          .select('x_user_id')
+          .eq('user_id', userId)
+          .maybeSingle<{ x_user_id: string }>()
+        // 表がまだ無い（SQL 012 の前）なら、X（くり返し）の連携も無いので止める理由が無い
+        if (!repeatError && repeat && repeat.x_user_id === me.id) {
+          return res.status(400).json({
+            error: `@${me.username} は X（くり返し）の投稿先です。X で本アカウントに切り替えてから、もう一度連携してください`,
+          })
+        }
+      }
+
       const { error } = await getSupabaseAdmin().from(TABLE[purpose]).upsert(
         {
           user_id: userId,
