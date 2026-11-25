@@ -883,6 +883,10 @@ describe('XAutopilotPanel: 投稿可能（確認してから投稿する）', ()
   })
 
   it('すでに投稿可能な予約があれば、同じ半日には入れない（午前と午後で1本ずつ）', async () => {
+    // 昼（日本時間10時）に固定する。走らせる時刻で結果が変わっていた（2026-11-25 22時台に、同じ午後の22:28へ入れて落ちた）。
+    // 夜の時間帯の振る舞いは、この試験の対象（昼の半日の決まり）とは別に確かめる
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-25T01:00:00.000Z'))
     const taken = future(1)
     posts.list = [post('early', { scheduledAt: taken }), post('a', { status: 'draft', scheduledAt: future(30) })]
     render(<XAutopilotPanel />)
@@ -899,6 +903,7 @@ describe('XAutopilotPanel: 投稿可能（確認してから投稿する）', ()
       return `${day}${h < 7 ? 'night' : h < 12 ? 'am' : 'pm'}`
     }
     expect(sameHalf(patch.scheduledAt)).not.toBe(sameHalf(taken))
+    vi.useRealTimers()
   })
 
   it('前にあるのが確認待ちだけなら、確認待ちは順番を塞がない（時刻が決まる）', async () => {
