@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
-import type { ChannelName, Hours, PosterStatus } from './autopostDoc.js'
+import { DEFAULT_SETTINGS, readSettings, type ChannelName, type ChannelSettings, type Hours, type PosterStatus } from './autopostDoc.js'
 
 /** 投稿先1つぶん。まだ何も保存していない投稿先は version 0・文なしで返す。 */
 export interface ChannelRow {
@@ -18,6 +18,8 @@ export interface ChannelRow {
   pausedAt: string | null
   /** 止める機能の表があるか。無ければ画面は、止めるボタンの代わりに SQL 006 を案内する。 */
   pauseReady: boolean
+  /** 投稿先ごとの設定（いまは xrepeat の間隔だけ）。保存していなければ既定値。 */
+  settings: ChannelSettings
 }
 
 export function emptyChannel(channel: ChannelName): ChannelRow {
@@ -32,6 +34,7 @@ export function emptyChannel(channel: ChannelName): ChannelRow {
     paused: false,
     pausedAt: null,
     pauseReady: true,
+    settings: DEFAULT_SETTINGS,
   }
 }
 
@@ -63,6 +66,10 @@ export interface AutopostStore {
    * 表が無ければ PauseNotReadyError。
    */
   setPaused(userId: string, channel: ChannelName, paused: boolean): Promise<ChannelRow>
+  /** 設定を保存する（文の版は動かさない。間隔を変えても、書きかけの文の取り合いには関係しないため）。 */
+  saveSettings(userId: string, channel: ChannelName, settings: ChannelSettings): Promise<ChannelRow>
+  /** その投稿先の行を、全員ぶん読む（X のくり返し投稿を、毎分の実行が回すため）。文が無い人は除く。 */
+  listChannel(channel: ChannelName): Promise<{ userId: string; row: ChannelRow }[]>
   /** 合鍵（の sha256）から持ち主を引く。無ければ null。 */
   userIdForPosterKey(tokenHash: string): Promise<string | null>
 }
@@ -105,6 +112,7 @@ interface DbRow {
   version: number
   saved_at: string | null
   status: PosterStatus | null
+  settings?: unknown
 }
 
 type PauseLookup = { ready: true; paused: boolean; pausedAt: string | null } | { ready: false }
@@ -119,6 +127,7 @@ function toChannelRow(channel: ChannelName, row: DbRow | null, pause: PauseLooku
         version: row.version,
         savedAt: row.saved_at,
         status: row.status,
+        settings: readSettings(row.settings),
       }
     : emptyChannel(channel)
   return {
@@ -129,7 +138,7 @@ function toChannelRow(channel: ChannelName, row: DbRow | null, pause: PauseLooku
   }
 }
 
-const COLUMNS = 'channel, messages, archive, version, saved_at, status'
+const COLUMNS = 'channel, messages, archive, version, saved_at, status, settings'
 /** Postgres の unique_violation。別の端末が先に最初の保存をした。 */
 const UNIQUE_VIOLATION = '23505'
 
@@ -243,6 +252,29 @@ export function supabaseAutopostStore(client: SupabaseClient = getSupabaseAdmin(
         }
       }
       return store.getChannel(userId, channel)
+    },
+
+    async saveSettings(userId, channel, settings) {
+      // 文と同じく、行が無ければ作る（設定だけ先に決めてもよい）。文の版には触らない
+      const { error } = await client
+        .from('autopost_channels')
+        .upsert({ user_id: userId, channel, settings }, { onConflict: 'user_id,channel' })
+      if (error) throw new Error(`設定を保存できませんでした: ${error.message}`)
+      return store.getChannel(userId, channel)
+    },
+
+    async listChannel(channel) {
+      const { data, error } = await client
+        .from('autopost_channels')
+        .select(`user_id, ${COLUMNS}`)
+        .eq('channel', channel)
+        .returns<(DbRow & { user_id: string })[]>()
+      if (error) throw new Error(`autopost_channels の読み込みに失敗しました: ${error.message}`)
+      const rows = (data ?? []).filter((r) => Array.isArray(r.messages) && r.messages.length > 0)
+      // 止めているかは1人ずつ読む（使う人は数人なので、まとめて読む仕組みは置かない）
+      return Promise.all(
+        rows.map(async (r) => ({ userId: r.user_id, row: toChannelRow(channel, r, await readPause(r.user_id, channel)) }))
+      )
     },
 
     async userIdForPosterKey(tokenHash) {

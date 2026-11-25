@@ -4,12 +4,13 @@ import type { Hours } from './hours'
 // 掲示板・Yay の自動投稿（Mac で動く投稿役）の文と状態を、サーバー（/api/autopost）と
 // やり取りする。Supabase のアクセストークンを添えて、サーバー側で本人確認する。
 
-export type ChannelName = 'discord' | 'yay'
+/** xrepeat は、決めた文を X へくり返し投稿する（サーバーが投稿。Mac は使わない）。AI の自動運転（'x'）とは別物。 */
+export type ChannelName = 'discord' | 'yay' | 'xrepeat'
 
-export const CHANNEL_NAMES: ChannelName[] = ['discord', 'yay']
+export const CHANNEL_NAMES: ChannelName[] = ['discord', 'yay', 'xrepeat']
 
 /** 画面に出す投稿先の名前。 */
-export const CHANNEL_LABELS: Record<ChannelName, string> = { discord: 'ディスコード', yay: 'Yay' }
+export const CHANNEL_LABELS: Record<ChannelName, string> = { discord: 'ディスコード', yay: 'Yay', xrepeat: 'X（くり返し）' }
 
 export interface PosterStatus {
   lastPost: { t: string; text: string } | null
@@ -26,6 +27,8 @@ export interface PosterStatus {
    * この項目より前の投稿役は送ってこないので、無いことがある。
    */
   problem?: PosterProblem | null
+  /** サーバーが投稿している投稿先（xrepeat）の印。Mac からの報告の途絶えを見ない（投稿したときにしか書かれないため）。 */
+  server?: true
 }
 
 export interface PosterProblem {
@@ -50,8 +53,18 @@ export interface Schedule {
   nextHour: number | null
 }
 
+/** 投稿先ごとの設定。いまは X（くり返し）の間隔だけ。 */
+export interface ChannelSettings {
+  intervalMinutes: number
+}
+
+/** X（くり返し）の間隔として選べるもの（分）。サーバーは10分〜24時間を受ける。 */
+export const X_REPEAT_INTERVALS = [10, 15, 30, 60, 120, 180, 360, 720, 1440] as const
+
 export interface ChannelSnapshot {
   channel: ChannelName
+  /** この項目より前のサーバーは返さない。無ければ既定（60分）。 */
+  settings?: ChannelSettings
   messages: string[]
   /** messages と同じ並びで、それぞれの文を投稿する時間帯。null は終日。 */
   hours: Hours[]
@@ -71,7 +84,16 @@ export interface ChannelSnapshot {
   limits: { maxLength: number; maxMessages: number }
 }
 
-export type Snapshots = Record<ChannelName, ChannelSnapshot>
+/**
+ * 投稿先ごとの状態。xrepeat はあとから足した投稿先なので、それより前のサーバー（公開の切り替わりの一瞬など）は返さない。
+ * 無いときは、その投稿先を画面に出さないだけにする（無い前提で読むと画面ごと落ちる）。
+ */
+export type Snapshots = Record<'discord' | 'yay', ChannelSnapshot> & Partial<Record<'xrepeat', ChannelSnapshot>>
+
+/** 返事にある投稿先だけ（並びは CHANNEL_NAMES のまま）。 */
+export function presentChannels(snapshots: Snapshots | null | undefined): ChannelName[] {
+  return CHANNEL_NAMES.filter((name) => !!snapshots?.[name])
+}
 
 /** 保存が別の端末と取り合いになった。最新の中身を添えて知らせる。 */
 export class SaveConflictError extends Error {
@@ -142,6 +164,13 @@ export async function saveMessages(
  */
 export async function setPaused(channel: ChannelName, paused: boolean): Promise<ChannelSnapshot> {
   const { status, data } = await call<{ snapshot: ChannelSnapshot; error?: string }>('POST', { channel, paused })
+  if (status < 200 || status >= 300) throw new Error(failureMessage(status, data))
+  return data.snapshot
+}
+
+/** X（くり返し）の間隔を保存する。 */
+export async function saveSettings(channel: ChannelName, settings: ChannelSettings): Promise<ChannelSnapshot> {
+  const { status, data } = await call<{ snapshot: ChannelSnapshot; error?: string }>('POST', { channel, settings })
   if (status < 200 || status >= 300) throw new Error(failureMessage(status, data))
   return data.snapshot
 }

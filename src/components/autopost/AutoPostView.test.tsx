@@ -19,6 +19,7 @@ const api = vi.hoisted(() => ({
   setPaused: vi.fn(),
   fetchRestart: vi.fn(),
   requestRestart: vi.fn(),
+  saveSettings: vi.fn(),
 }))
 vi.mock('../../lib/autopost/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/autopost/api')>()),
@@ -27,6 +28,7 @@ vi.mock('../../lib/autopost/api', async (importOriginal) => ({
   setPaused: api.setPaused,
   fetchRestart: api.fetchRestart,
   requestRestart: api.requestRestart,
+  saveSettings: api.saveSettings,
 }))
 
 // X の自動運転の中身は、専用のテストで確かめる。ここではタブの切り替えだけを見る。
@@ -63,6 +65,7 @@ function snapshots(): Snapshots {
       status: { lastPost: { t: new Date().toISOString(), text: '保存してある文' }, today: 12, at: new Date().toISOString() },
     }),
     yay: channel({ channel: 'yay', messages: ['やっほー'], version: 1 }),
+    xrepeat: channel({ channel: 'xrepeat', messages: ['Xの文'], version: 1, settings: { intervalMinutes: 60 } }),
   }
 }
 
@@ -566,5 +569,32 @@ describe('AutoPostView', () => {
     fireEvent.click(screen.getByRole('button', { name: '保存する' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('保存できませんでした')
     expect(container.querySelector('.autopost__box--saved')).toBeNull()
+  })
+})
+
+describe('AutoPostView: X（くり返し）', () => {
+  it('タブで開くと、間隔と月の料金の目安を出し、選んだ間隔を保存する（Mac の再起動の案内は出さない）', async () => {
+    const saved = { ...snapshots().xrepeat!, settings: { intervalMinutes: 30 } }
+    api.saveSettings.mockReset().mockResolvedValue(saved)
+    render(<AutoPostView />)
+    fireEvent.click(await screen.findByRole('tab', { name: /X（くり返し）/ }))
+
+    const interval = await screen.findByRole('region', { name: '投稿の間隔' })
+    expect(interval).toHaveTextContent('1時間おき・1日24本')
+    expect(interval).toHaveTextContent('月約1,620円')
+    expect(screen.queryByRole('region', { name: '投稿役の再起動' })).toBeNull()
+
+    fireEvent.change(screen.getByRole('combobox', { name: '投稿の間隔' }), { target: { value: '30' } })
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith('xrepeat', { intervalMinutes: 30 }))
+    expect(await screen.findByText(/30分おき・1日48本/)).toBeInTheDocument()
+  })
+
+  it('サーバーの返事に X（くり返し）が無ければ（前の版のサーバー）、タブを出さず、画面も落ちない', async () => {
+    const { xrepeat: _omit, ...older } = snapshots()
+    void _omit
+    api.fetchSnapshots.mockResolvedValue(older)
+    render(<AutoPostView />)
+    expect(await screen.findByRole('tab', { name: /ディスコード/ })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /X（くり返し）/ })).toBeNull()
   })
 })

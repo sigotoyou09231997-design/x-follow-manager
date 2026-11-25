@@ -5,16 +5,16 @@ import { useCallback, useEffect, useState } from 'react'
 //   - 「トップに出す投稿先」       … トップに出すか（使っていない投稿先を隠す。隠したものは、まとめて止める・再開でも動かさない）
 // どちらもこの端末のブラウザに覚える（アカウントや Mac の投稿役には関係しない、画面の出し方と押したときの対象を決めるだけの設定のため）。
 
-export type BulkTarget = 'x' | 'discord' | 'yay'
+export type BulkTarget = 'x' | 'discord' | 'yay' | 'xrepeat'
 
-export const BULK_TARGETS: BulkTarget[] = ['x', 'discord', 'yay']
+export const BULK_TARGETS: BulkTarget[] = ['x', 'discord', 'yay', 'xrepeat']
 
-export const BULK_TARGET_LABELS: Record<BulkTarget, string> = { x: 'X', discord: 'ディスコード', yay: 'Yay' }
+export const BULK_TARGET_LABELS: Record<BulkTarget, string> = { x: 'X', discord: 'ディスコード', yay: 'Yay', xrepeat: 'X（くり返し）' }
 
 export type BulkTargetSettings = Record<BulkTarget, boolean>
 
 /** 何も決めていなければ、3つともオン（「すべて」止める・ふだんどおり全部出す）。 */
-export const DEFAULT_BULK_TARGETS: BulkTargetSettings = { x: true, discord: true, yay: true }
+export const DEFAULT_BULK_TARGETS: BulkTargetSettings = { x: true, discord: true, yay: true, xrepeat: true }
 
 function targetSetting(storageKey: string) {
   const changed = `${storageKey}-changed`
@@ -24,7 +24,7 @@ function targetSetting(storageKey: string) {
       const raw = JSON.parse(localStorage.getItem(storageKey) ?? 'null') as Partial<Record<BulkTarget, unknown>> | null
       if (!raw || typeof raw !== 'object') return { ...DEFAULT_BULK_TARGETS }
       // 書かれていない・壊れた値はオンのままにする（押しても何も動かない・何も出ない、を黙って作らない）。
-      return { x: raw.x !== false, discord: raw.discord !== false, yay: raw.yay !== false }
+      return { x: raw.x !== false, discord: raw.discord !== false, yay: raw.yay !== false, xrepeat: raw.xrepeat !== false }
     } catch {
       return { ...DEFAULT_BULK_TARGETS }
     }

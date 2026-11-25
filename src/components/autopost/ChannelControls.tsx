@@ -14,7 +14,15 @@ export function PosterStatusLine({ snapshot, now }: { snapshot: ChannelSnapshot;
   const { status } = snapshot
   const liveness = livenessOf(status, now)
   if (!status) {
-    return <p className="autopost__status">投稿側(Mac)からの報告はまだありません</p>
+    return (
+      <p className="autopost__status">
+        {snapshot.channel === 'xrepeat'
+          ? snapshot.messages.length === 0
+            ? '文を保存すると、サーバーから投稿が始まります（Mac は使いません）'
+            : 'まもなく最初の投稿をします（サーバーから。Mac は使いません）'
+          : '投稿側(Mac)からの報告はまだありません'}
+      </p>
+    )
   }
   const last = status.lastPost
   const problem = problemOf(snapshot, now)
@@ -23,7 +31,9 @@ export function PosterStatusLine({ snapshot, now }: { snapshot: ChannelSnapshot;
       {problem && <span className="autopost__problem">{problemLabel(problem)}</span>}
       <span className="autopost__live">
         <span className={`autopost__dot autopost__dot--${liveness === 'alive' ? 'on' : 'off'}`} aria-hidden="true" />
-        {liveness === 'alive'
+        {status.server
+          ? 'サーバーから投稿しています（Mac は使いません）'
+          : liveness === 'alive'
           ? `Macは動いています（${agoLabel(status.at, now)}に確認）`
           : `Macから応答がありません（最後は${agoLabel(status.at, now)}）`}
       </span>
@@ -40,6 +50,7 @@ export function PosterStatusLine({ snapshot, now }: { snapshot: ChannelSnapshot;
 const PAUSE_DETAIL: Record<ChannelName, string> = {
   discord: '止めても Mac の投稿役は動いたままで、投稿だけを見合わせます。',
   yay: '止めても Mac の投稿役は動いたままで、投稿だけを見合わせます。いま出ている投稿は消えずに残ります。',
+  xrepeat: '止めると、次の投稿から出さなくなります（1分以内）。いま X に出ている投稿は消えずに残ります。',
 }
 
 interface PauseControlProps {
@@ -132,6 +143,7 @@ export type SwitchTone = 'on' | 'off' | 'warn' | 'rest'
 const CHANNEL_ICONS: Record<ChannelName, IconName> = {
   discord: 'board',
   yay: 'users',
+  xrepeat: 'repeat',
 }
 
 interface SwitchRowProps {
@@ -225,7 +237,12 @@ export function ChannelSwitchRow({ snapshot, now, busy, error, onChange, onOpenT
       ? [status.lastPost ? `${agoLabel(status.lastPost.t, now)}に投稿` : '投稿待ち', `今日${status.today}件`].join(' ・ ')
       : liveness === 'silent' && status
         ? `Macから応答がありません（最後は${agoLabel(status.at, now)}）`
-        : 'Macからの報告はまだありません'
+        : snapshot.channel === 'xrepeat'
+          ? // サーバーが投稿する投稿先。まだ1度も投稿していない（文が無い・最初の1分を待っている）
+            snapshot.messages.length === 0
+            ? '文がまだありません（「文」から書くと始まります）'
+            : 'まもなく最初の投稿をします'
+          : 'Macからの報告はまだありません'
 
   const view: Record<typeof state, { tone: SwitchTone; status: string }> = {
     running: problem
@@ -235,7 +252,10 @@ export function ChannelSwitchRow({ snapshot, now, busy, error, onChange, onOpenT
             tone: 'rest',
             status: `いまは投稿を休む時間帯です${snapshot.schedule.nextHour !== null ? `（${snapshot.schedule.nextHour}時から再開）` : ''}`,
           }
-        : { tone: liveness === 'alive' ? 'on' : 'warn', status: running },
+        : {
+            tone: liveness === 'alive' ? 'on' : snapshot.channel === 'xrepeat' && !status ? (snapshot.messages.length === 0 ? 'rest' : 'on') : 'warn',
+            status: running,
+          },
     pausing: {
       tone: 'warn',
       status:

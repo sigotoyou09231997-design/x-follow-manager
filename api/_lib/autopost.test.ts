@@ -59,6 +59,16 @@ function memoryStore(): AutopostStore & {
       rows.set(id(userId, channel), next)
       return structuredClone(next)
     },
+    async saveSettings(userId, channel, settings) {
+      const current = rows.get(id(userId, channel)) ?? emptyChannel(channel)
+      rows.set(id(userId, channel), { ...current, settings })
+      return structuredClone({ ...current, settings })
+    },
+    async listChannel(channel) {
+      return [...rows.entries()]
+        .filter(([key, row]) => key.endsWith(`/${channel}`) && row.messages.length > 0)
+        .map(([key, row]) => ({ userId: key.split('/')[0], row: structuredClone(row) }))
+    },
     async userIdForPosterKey(tokenHash) {
       return keys.get(tokenHash) ?? null
     },
@@ -137,7 +147,7 @@ describe('画面向け /api/autopost', () => {
     const r = await call(t.screen, { method: 'GET', ...AS_OWNER })
     expect(r.status).toBe(200)
     const { channels } = r.body as { channels: Record<string, { messages: string[]; version: number; limits: { maxMessages: number } }> }
-    expect(Object.keys(channels).sort()).toEqual(['discord', 'yay'])
+    expect(Object.keys(channels).sort()).toEqual(['discord', 'xrepeat', 'yay'])
     expect(channels.discord).toMatchObject({ messages: [], version: 0, limits: { maxMessages: 10 } })
     expect(channels.yay.limits.maxMessages).toBe(5) // 時間帯ごとに文を変えるため
   })
@@ -393,6 +403,33 @@ describe('Mac の投稿役向け（合鍵）', () => {
       expect((await post('false')).status).toBe(400)
       expect((await post(0)).status).toBe(400)
       expect((await post(null)).status).toBe(400)
+      expect(t.store.rows.size).toBe(0)
+    })
+  })
+
+  describe('X のくり返し投稿（xrepeat）', () => {
+    it('画面には xrepeat も並び、間隔は既定の60分', async () => {
+      const r = await call(t.screen, { method: 'GET', ...AS_OWNER })
+      const { channels } = r.body as { channels: Record<string, { settings: { intervalMinutes: number } }> }
+      expect(Object.keys(channels).sort()).toEqual(['discord', 'xrepeat', 'yay'])
+      expect(channels.xrepeat.settings).toEqual({ intervalMinutes: 60 })
+    })
+
+    it('画面から間隔を保存できる。範囲の外・xrepeat 以外・文と混ぜた送信は受けない', async () => {
+      const post = (body: unknown) => call(t.screen, { method: 'POST', ...AS_OWNER, body })
+      const ok = await post({ channel: 'xrepeat', settings: { intervalMinutes: 30 } })
+      expect(ok.status).toBe(200)
+      expect((ok.body as { snapshot: { settings: unknown } }).snapshot.settings).toEqual({ intervalMinutes: 30 })
+      expect((await post({ channel: 'xrepeat', settings: { intervalMinutes: 5 } })).status).toBe(400)
+      expect((await post({ channel: 'xrepeat', settings: { intervalMinutes: 30.5 } })).status).toBe(400)
+      expect((await post({ channel: 'discord', settings: { intervalMinutes: 30 } })).status).toBe(400)
+      expect((await post({ channel: 'xrepeat', settings: { intervalMinutes: 30 }, messages: ['x'] })).status).toBe(400)
+    })
+
+    it('Mac の合鍵では xrepeat を読めず、状態も書けない（次に消す投稿の番号を書き換えさせない）', async () => {
+      expect((await call(t.posterText, { method: 'GET', ...AS_MAC, query: { ch: 'xrepeat' } })).status).toBe(400)
+      const report = { lastPost: null, today: 0 }
+      expect((await call(t.posterStatus, { method: 'POST', ...AS_MAC, query: { ch: 'xrepeat' }, body: report })).status).toBe(400)
       expect(t.store.rows.size).toBe(0)
     })
   })
