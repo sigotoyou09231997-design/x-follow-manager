@@ -18,6 +18,7 @@
 //   ・ここでの失敗は、ディスコードの投稿に影響させない（例外は呼び出し元へ出さない）
 import { appendFileSync } from "node:fs";
 import { afterFailure } from "./eroype.mjs";
+import { createReloginGate } from "../relogin.mjs";
 
 export const DISSOKU_DEFAULTS = {
   enabled: false,
@@ -54,10 +55,34 @@ export function dissokuConfig(cfg) {
 
 const firstLine = (e) => String(e?.message ?? e).split("\n")[0];
 
-export function createDissokuPoster({ config, logFile, log, notify, isHeld, now = () => Date.now() }) {
+// approveConsent: Discord の許可画面で「認証」を押す（relogin.mjs）。渡されなければ、自分ではログインし直さない
+export function createDissokuPoster({ config, logFile, log, notify, isHeld, now = () => Date.now(), approveConsent }) {
   const cfg = dissokuConfig(config);
   const origin = new URL(cfg.url).origin;
   const profilePath = new URL(cfg.url).pathname;
+  // ログインが切れたら、止まる前に自分でログインし直す（2026-11-26 本人の指示。手でやった手順そのまま）:
+  //   Discord の許可画面へ送られていなければ、Discord でのログインを始める → 許可画面で確かめてから「認証」。1時間に1回まで
+  const reloginGate = createReloginGate({ now });
+  async function relogin(page) {
+    if (!approveConsent || !reloginGate.take()) return false;
+    log("ログインが切れています。自分でログインし直します");
+    if (new URL(page.url()).hostname !== "discord.com") {
+      await page.goto(`${origin}/accounts/discord/login/?process=login`, { waitUntil: "domcontentloaded" });
+      // 「Discord で続けますか？」の確認（ボタン1つ）が挟まることがある
+      if (new URL(page.url()).hostname !== "discord.com") {
+        const go = page.locator("form button[type=submit], form input[type=submit]").first();
+        if (await go.isVisible().catch(() => false)) await go.click();
+      }
+      await page.waitForURL((u) => new URL(u).hostname === "discord.com", { timeout: 15000 }).catch(() => {});
+    }
+    const r = await approveConsent(page);
+    if (r.status !== "approved") {
+      log(`自分ではログインし直せませんでした: ${r.reason ?? `許可画面ではない (${page.url()})`}`);
+      return false;
+    }
+    await page.goto(cfg.url, { waitUntil: "domcontentloaded" });
+    return new URL(page.url()).pathname === profilePath;
+  }
   let failures = 0;
   let stopped = false;
   let loginNoticeSent = false;
@@ -89,7 +114,14 @@ export function createDissokuPoster({ config, logFile, log, notify, isHeld, now 
     await page.goto(cfg.url, { waitUntil: "domcontentloaded" });
     const box = page.locator(cfg.textSelector);
     // ログインしていないと、プロフィール編集の欄が出ない（別の画面へ移る）。出るまで少し待つ
-    const shown = await box.waitFor({ state: "visible", timeout: 15000 }).then(() => true, () => false);
+    let shown = await box.waitFor({ state: "visible", timeout: 15000 }).then(() => true, () => false);
+    if ((!shown || new URL(page.url()).pathname !== profilePath) && (await relogin(page))) {
+      shown = await box.waitFor({ state: "visible", timeout: 15000 }).then(() => true, () => false);
+      if (shown) {
+        log("ログインし直しました。続けます");
+        notify("ログインが切れたので、自動でログインし直しました");
+      }
+    }
     if (!shown || new URL(page.url()).pathname !== profilePath) {
       log(`ログインが切れています (${page.url()})。Chrome 窓で dissoku.net にログインし直してください。今回は見送ります`);
       if (!loginNoticeSent) {

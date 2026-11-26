@@ -9,6 +9,7 @@ import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { passGooglePopup } from "../relogin.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(join(HERE, "../../node_modules/"));
@@ -306,6 +307,76 @@ export async function loggedOutNow(page) {
   const login = await page.getByText("ログイン", { exact: true }).first().isVisible().catch(() => false);
   const signup = await page.getByText("新規登録", { exact: true }).first().isVisible().catch(() => false);
   return login && signup;
+}
+
+// 専用 Chrome を終わらせる（ウインドウを閉じるのと同じ。プロフィールのログインは残る）。終わるまで待つ
+async function shutChrome() {
+  const b = await chromium.connectOverCDP(`http://127.0.0.1:${PORT}`).catch(() => null);
+  if (!b) return;
+  const s = await b.newBrowserCDPSession().catch(() => null);
+  await s?.send("Browser.close").catch(() => {});
+  await b.close().catch(() => {});
+  for (let i = 0; i < 20; i++) {
+    const alive = await fetch(`http://127.0.0.1:${PORT}/json/version`).then(() => true, () => false);
+    if (!alive) return;
+    await sleep(500);
+  }
+}
+
+function googleAccountFromConfig() {
+  try {
+    return JSON.parse(readFileSync(join(HERE, "config.json"), "utf8")).googleAccount || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * ログインが切れたときに、自分でログインし直す（2026-11-25・26 に手でやった手順そのまま）。
+ *   画面なしの Chrome を終わらせる → 画面ありで開き直す → 「ログイン」→「Google で続ける」→（必要ならアカウントを選ぶ）
+ *   → ログインできたか確かめる → 画面ありの Chrome を終わらせる（次の connect() が config の headless で開き直す）
+ * 画面ありにするのは、Google のログインの窓は画面なしの Chrome を受け付けないことがあるため。数十秒だけ窓が出る。
+ * パスワードを求められたら押さずにやめる（パスワードは扱わない）。
+ * @returns {Promise<{ ok: boolean, reason?: string }>}
+ */
+export async function reloginYay({ log = () => {} } = {}) {
+  await shutChrome();
+  spawn(CHROME, chromeArgs({ port: PORT, profile: PROFILE, headless: false }), { detached: true, stdio: "ignore" }).unref();
+  let browser = null;
+  for (let i = 0; i < 40 && !browser; i++) {
+    await sleep(1000);
+    browser = await attach().catch(() => null);
+  }
+  if (!browser) return { ok: false, reason: "Chrome を開けない" };
+  try {
+    const ctx = browser.contexts()[0];
+    const page = ctx.pages().find((p) => !p.isClosed()) ?? (await ctx.newPage());
+    await page.goto("https://yay.space/", { waitUntil: "domcontentloaded" });
+    await sleep(3000);
+    if (!(await loggedOutNow(page))) return { ok: true }; // 開き直しただけで戻った
+    await page.getByText("ログイン", { exact: true }).first().click();
+    const google = page.getByText("Googleで続ける").first();
+    await google.waitFor({ state: "visible", timeout: 15000 });
+    const popupP = ctx.waitForEvent("page", { timeout: 15000 }).catch(() => null);
+    await google.click();
+    const popup = await popupP;
+    if (popup) {
+      const r = await passGooglePopup(popup, { account: googleAccountFromConfig(), log });
+      if (r.status !== "done") {
+        await popup.close().catch(() => {});
+        return { ok: false, reason: r.reason };
+      }
+    }
+    await sleep(3000);
+    await page.goto("https://yay.space/", { waitUntil: "domcontentloaded" });
+    await sleep(3000);
+    return (await loggedOutNow(page)) ? { ok: false, reason: "Google で続けたあとも、ログアウトしたままの画面" } : { ok: true };
+  } catch (e) {
+    return { ok: false, reason: e.message.split("\n")[0] };
+  } finally {
+    await browser.close().catch(() => {});
+    await shutChrome();
+  }
 }
 
 // 要素の位置が2回続けて同じになるまで待つ（最長4秒）。落ち着かなくても投げない（その先の操作が判断する）

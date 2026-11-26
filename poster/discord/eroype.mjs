@@ -24,6 +24,7 @@
 //   ・HTTP 403/429 か、3回続けての失敗で、このプロセスが動いているあいだは eroype への投稿をやめる
 //   ・ログインが切れたら通知して見送る（ログインし直せば、次の回から再開する）
 import { appendFileSync, existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { createReloginGate } from "../relogin.mjs";
 
 export const EROYPE_DEFAULTS = {
   enabled: false,
@@ -88,8 +89,30 @@ export function createEroypePoster({
   isHeld,
   now = () => Date.now(),
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  approveConsent, // Discord の許可画面で「認証」を押す（relogin.mjs）。渡されなければ、自分ではログインし直さない
 }) {
   const cfg = eroypeConfig(config);
+  // ログインが切れたら、止まる前に自分でログインし直す（2026-11-26 本人の指示。手でやった手順そのまま）:
+  //   サインインの画面で「Sign in with Discord」→ Discord の許可画面で確かめてから「認証」。1時間に1回まで
+  const reloginGate = createReloginGate({ now });
+  async function relogin(page) {
+    if (!approveConsent || !reloginGate.take()) return false;
+    log("ログインが切れています。自分でログインし直します");
+    const viaDiscord = page.getByText(/Sign in with Discord|Discord ?で(ログイン|続ける)/).first();
+    if (await viaDiscord.isVisible().catch(() => false)) {
+      await viaDiscord.click();
+      await page.waitForURL((u) => new URL(u).hostname === "discord.com" || new URL(u).pathname === createPath, { timeout: 15000 }).catch(() => {});
+    }
+    if (new URL(page.url()).hostname === "discord.com") {
+      const r = await approveConsent(page);
+      if (r.status !== "approved") {
+        log(`自分ではログインし直せませんでした: ${r.reason ?? "許可画面ではない"}`);
+        return false;
+      }
+    }
+    await page.goto(cfg.url, { waitUntil: "domcontentloaded" });
+    return new URL(page.url()).pathname === createPath;
+  }
   const createPath = new URL(cfg.url).pathname;
   let failures = 0;
   let stopped = false;
@@ -165,6 +188,10 @@ export function createEroypePoster({
 
   async function attempt(page, text, mayWait = true) {
     await page.goto(cfg.url, { waitUntil: "domcontentloaded" });
+    if (new URL(page.url()).pathname !== createPath && (await relogin(page))) {
+      log("ログインし直しました。続けます");
+      notify("ログインが切れたので、自動でログインし直しました");
+    }
     if (new URL(page.url()).pathname !== createPath) {
       log(`ログインが切れています (${page.url()})。Chrome 窓で eroype.net にログインし直してください。今回は見送ります`);
       if (!loginNoticeSent) {

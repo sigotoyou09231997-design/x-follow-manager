@@ -429,3 +429,60 @@ test("控えのファイルが壊れていても、投稿は止まらない（�
   assert.equal(r.status, "posted");
   assert.deepEqual(t.ids(), ["new-id"]);
 });
+
+test("ログインが切れていたら、Discord の許可画面を通して自分でログインし直し、その回のうちに投稿する", async () => {
+  const t = setup({ landed: "https://eroype.net/api/auth/signin" });
+  const consents = [];
+  // 「Sign in with Discord」を押すと許可画面へ、許可するとサイトへ戻る、の偽物
+  t.page.getByText = () => ({
+    first: () => ({
+      isVisible: async () => t.page.state.landed.includes("/signin"),
+      click: async () => {
+        t.page.state.landed = "https://discord.com/oauth2/authorize?client_id=1477011382099771392";
+      },
+    }),
+  });
+  t.page.waitForURL = async () => {};
+  const poster = createEroypePoster({
+    config: { eroype: { enabled: true } },
+    logFile: t.logFile,
+    idsFile: t.idsFile,
+    log: () => {},
+    notify: (m) => t.notes.push(m),
+    isHeld: () => false,
+    now: () => t.clock.now,
+    sleep: async () => {},
+    approveConsent: async (page) => {
+      consents.push(page.url());
+      t.page.state.landed = "https://eroype.net/create";
+      return { status: "approved" };
+    },
+  });
+  assert.equal((await poster.postTogether(t.page, "文")).status, "posted");
+  assert.equal(consents.length, 1);
+  assert.match(t.notes.join(), /自動でログインし直しました/);
+});
+
+test("自分でログインし直せなければ、今までどおり見送って知らせる。1時間以内は試し直さない", async () => {
+  const t = setup({ landed: "https://discord.com/oauth2/authorize?client_id=1" });
+  let tries = 0;
+  t.page.getByText = () => ({ first: () => ({ isVisible: async () => false }) });
+  const poster = createEroypePoster({
+    config: { eroype: { enabled: true } },
+    logFile: t.logFile,
+    idsFile: t.idsFile,
+    log: () => {},
+    notify: (m) => t.notes.push(m),
+    isHeld: () => false,
+    now: () => t.clock.now,
+    sleep: async () => {},
+    approveConsent: async () => {
+      tries++;
+      return { status: "refused", reason: "知らないアプリ" };
+    },
+  });
+  assert.equal((await poster.postTogether(t.page, "文")).status, "login");
+  assert.equal((await poster.postTogether(t.page, "文")).status, "login");
+  assert.equal(tries, 1);
+  assert.equal(t.notes.length, 1);
+});
