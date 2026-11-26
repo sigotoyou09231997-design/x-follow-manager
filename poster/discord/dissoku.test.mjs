@@ -12,6 +12,9 @@ function fakePage(over = {}) {
   let pendingStatus = 200;
   const page = {
     calls,
+    landed: (u) => {
+      s.landed = u;
+    },
     goto: async (url) => calls.goto.push(url),
     url: () => s.landed,
     waitForTimeout: async () => {},
@@ -150,4 +153,25 @@ test("止められている・無効なときは何もしない", async () => {
   const page = fakePage();
   assert.equal((await held.postTogether(page, "x")).status, "held");
   assert.equal(page.calls.goto.length, 0);
+});
+
+test("ログインが切れて Discord の許可画面に送られていたら、自分で許可してから出す", async () => {
+  let consents = 0;
+  const notes = [];
+  const poster = createDissokuPoster({
+    config: { dissoku: { enabled: true } },
+    logFile: join(mkdtempSync(join(tmpdir(), "dissoku-")), "p.log"),
+    log: () => {},
+    notify: (m) => notes.push(m),
+    isHeld: () => false,
+    approveConsent: async () => {
+      consents++;
+      page.landed("https://dissoku.net/ja/mypage/profile");
+      return { status: "approved" };
+    },
+  });
+  const page = fakePage({ landed: "https://discord.com/oauth2/authorize?client_id=761562078095867916", value: "古い文" });
+  assert.equal((await poster.postTogether(page, "新しい文")).status, "posted");
+  assert.equal(consents, 1);
+  assert.match(notes.join(), /自動でログインし直しました/);
 });

@@ -28,6 +28,7 @@ import { acquireLock, keepAwake } from "./single-instance.mjs";
 import { holdAfterReboot } from "../boot-guard.mjs";
 import { createProblem } from "../problem.mjs";
 import { chromeArgs } from "./chrome-args.mjs";
+import { approveDiscordConsent, createReloginGate } from "../relogin.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(join(HERE, "../../node_modules/"));
@@ -104,6 +105,7 @@ try {
     idsFile: join(LOGS, "eroype-posts.json"), // 投稿して、まだ消していない投稿のID（次の回に消す）
     log: (msg) => log(`[eroype] ${msg}`),
     notify: (msg) => notify(`eroype: ${msg}`),
+    approveConsent: (page) => approveDiscordConsent(page, { log: (msg) => log(`[eroype] ${msg}`) }),
     isHeld: () => (pause.paused && !DRY) || existsSync(STOP),
   });
 } catch (e) {
@@ -119,6 +121,7 @@ try {
     logFile: join(LOGS, "dissoku-posted.log"),
     log: (msg) => log(`[dissoku] ${msg}`),
     notify: (msg) => notify(`ディス速: ${msg}`),
+    approveConsent: (page) => approveDiscordConsent(page, { log: (msg) => log(`[dissoku] ${msg}`) }),
     isHeld: () => (pause.paused && !DRY) || existsSync(STOP),
   });
 } catch (e) {
@@ -270,6 +273,27 @@ async function connect() {
 // 連続で落ちた回数。投稿が1回成功するたびに 0 に戻す
 let crashes = 0;
 
+// ログインが切れたら、止まる前に自分でログインし直す（2026-11-26 本人「毎回切れたら、今の工程を覚えて実行して欲しい」）。
+//   1. 少し待って開き直す … Chrome を立ち上げ直した直後は、ログインを読み込む前に確かめてしまい「切れた」と見えることがある
+//      （11/26 19:25 はこれで止まり、起こし直すだけで戻った）
+//   2. Discord の許可画面に送られていたら、確かめてから「認証」を押す（relogin.mjs。パスワードの画面・知らないアプリでは押さない）
+// 1時間に1回まで（すぐまた切れるなら別の原因なので、今までどおり止まって知らせる）。
+const boardGate = createReloginGate();
+async function reloginBoard(page) {
+  if (!boardGate.take()) return false;
+  log(`ログインが切れているようです (${page.url()})。自分でログインし直します`);
+  await sleep(10000);
+  await page.goto(CONFIG.url, { waitUntil: "domcontentloaded" });
+  if (new URL(page.url()).pathname === CREATE_PATH) return true;
+  const r = await approveDiscordConsent(page, { log });
+  if (r.status !== "approved") {
+    log(`自分ではログインし直せませんでした: ${r.reason ?? `許可画面ではない (${page.url()})`}`);
+    return false;
+  }
+  await page.goto(CONFIG.url, { waitUntil: "domcontentloaded" });
+  return new URL(page.url()).pathname === CREATE_PATH;
+}
+
 async function run(browser) {
   const ctx = browser.contexts()[0];
   // eroype への投稿のあとは、同じタブが eroype.net に居る。つなぎ直したとき、そのタブも見つけて使い回す（タブが増えない）
@@ -319,6 +343,10 @@ async function run(browser) {
     await page.goto(CONFIG.url, { waitUntil: "domcontentloaded" });
     const loadedAt = Date.now();
     reportStatus();
+    if (new URL(page.url()).pathname !== CREATE_PATH && (await reloginBoard(page))) {
+      log("ログインし直しました。続けます");
+      notify("ログインが切れたので、自動でログインし直しました");
+    }
     if (new URL(page.url()).pathname !== CREATE_PATH) {
       log(`ログインが切れています (${page.url()})。Chrome 窓でログインし直してください`);
       notify("ログインが切れました。Chrome 窓でログインし直してください");

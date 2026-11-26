@@ -14,7 +14,7 @@ import { execFile } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { connect, createPost, deletePost, listJoinedGroups, openTarget, parkPage, postState, selfId, usedSelfFallback, waitForCard } from "./yay.mjs";
+import { connect, createPost, deletePost, listJoinedGroups, openTarget, parkPage, postState, reloginYay, selfId, usedSelfFallback, waitForCard } from "./yay.mjs";
 import { backoffMs, isTransient, nextStep, shouldGiveUp } from "./failure.mjs";
 import { append, pending, stats } from "./ledger.mjs";
 import { guardAccount, readId } from "../account-guard.mjs";
@@ -28,6 +28,7 @@ import { createPauseTracker } from "../pause-state.mjs";
 import { acquireLock, keepAwake } from "./single-instance.mjs";
 import { holdAfterReboot } from "../boot-guard.mjs";
 import { createProblem } from "../problem.mjs";
+import { createReloginGate } from "../relogin.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LOGS = join(HERE, "logs");
@@ -312,6 +313,25 @@ async function reattach(reason) {
   page.on("dialog", (d) => d.accept());
   await openTarget(page, TARGETS[0]);
 }
+// ログインが切れたら、止まる前に1回だけ自分でログインし直す（2026-11-26 本人「毎回切れたら、今の工程を覚えて実行して欲しい」）。
+// Yay のログインは約24時間で切れることがあり（11/25 21時→11/26 20:57）、そのたびに止まって本人を待っていた。
+// 1時間に1回まで。ログインし直してもすぐまた切れるなら、制限やパスワード変更など別の原因なので、今までどおり止まって知らせる。
+const reloginGate = createReloginGate();
+async function tryRelogin(msg) {
+  if (!/ログインが切れ/.test(msg) || !reloginGate.take()) return { ok: false, reason: "（試さない）" };
+  log(`ログインが切れています。自分でログインし直します（数十秒だけ Chrome の窓が出ます）`);
+  const r = await reloginYay({ log });
+  if (!r.ok) {
+    log(`自分ではログインし直せませんでした: ${r.reason}`);
+    return r;
+  }
+  log("ログインし直しました。続けます");
+  notify("Yay のログインが切れたので、自動でログインし直しました");
+  await browser.close().catch(() => {});
+  ({ browser, page } = await connect());
+  page.on("dialog", (d) => d.accept());
+  return r;
+}
 // 起動の直後にサイトや Mac が重くて時間切れになっただけで止まらないよう、一時的な不調なら少し待って数回やり直す
 // （2026-10-12 16:19 の再起動は、1回目の確認だけで2分かかった）
 for (let attempt = 1; ; attempt++) {
@@ -327,6 +347,7 @@ for (let attempt = 1; ; attempt++) {
     break;
   } catch (e) {
     const msg = e.message.split("\n")[0];
+    if ((await tryRelogin(msg)).ok) continue;
     if (attempt < 4 && !fatalPattern.test(msg) && isTransient(msg)) {
       log(`起動時の確認が遅れています（${attempt}回目）: ${msg}。少し待ってやり直します`);
       await sleep(backoffMs(attempt));
@@ -411,6 +432,7 @@ try {
           }
           continue;
         }
+        if ((await tryRelogin(msg)).ok) continue; // この投稿先は次の周回で出す（前の投稿は記録にあるので、その時に消す）
         failures++;
         log(`失敗 (${target}) ${failures}回目: ${msg}`);
         problem.fail(msg);
