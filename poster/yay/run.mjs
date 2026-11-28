@@ -112,7 +112,7 @@ let cloudOk = true; // 直前の取得が成功したか。切り替わったと
 // アプリの「投稿を止める」。止められているあいだは、プロセスは動いたまま、投稿だけを見合わせる。
 //   画面の状態が読めなかったときは、最後に分かっていた状態のまま（止めたはずが、通信の失敗で再開しない）。
 //   その状態は logs/paused.json に控えるので、Mac を再起動した直後に通信がつながっていなくても、止めたまま始まる。
-const PAUSE_POLL_MS = 60 * 1000; // 2026-11-12: 15秒→60秒。Vercel 無料枠の CPU 時間(4時間)を超えて全アプリが止まったため
+const PAUSE_POLL_MS = 3 * 60 * 1000; // 2026-11-12: 15秒→60秒、2026-11-28: 60秒→3分。Vercel 無料枠の CPU 時間(4時間)を超えないため(使用量の9割がこの確認)
 const pause = createPauseTracker({
   file: CLOUD ? join(LOGS, "paused.json") : null,
   onChange: (paused) => {

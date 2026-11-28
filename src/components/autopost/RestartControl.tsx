@@ -42,7 +42,7 @@ export function RestartControl({ enabled, silent }: Props) {
       ? '投稿役が止まっているかもしれません'
       : '投稿役を再起動する'
   const detail = pending
-    ? 'Mac が1分以内に受け取って、止まっている投稿役を入れ替えます。このまま待てます。'
+    ? 'Mac が3分以内に受け取って、止まっている投稿役を入れ替えます。このまま待てます。'
     : handled && restart.handledAt
       ? `${timeOf(restart.handledAt)} に処理されました。${restart.result ?? ''}`
       : '止まっている投稿役（Yay・ディスコード）だけを Mac で入れ替えます。動いているものには触りません。Mac 本体は再起動しません。'
