@@ -7,7 +7,7 @@
 # 作りの注意（yay/launchd.sh・discord/launchd.sh と同じ）:
 #   ・ProgramArguments は node を直接指す（launchd から起動した sh は Desktop の中を読めないため）
 #   ・WorkingDirectory は指定しない。出力は ~/Library/Logs/<ラベル>.log（依頼を処理したときだけ書く）
-#   ・常駐ではなく StartInterval（60秒ごとに起動して、依頼を見て、終わる）。KeepAlive は付けない
+#   ・常駐ではなく StartInterval（180秒ごとに起動して、依頼を見て、終わる）。KeepAlive は付けない
 #   ・node のパスは、入れたときの `command -v node` を書き込む。node のバージョンを上げたら、もう一度 install する
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -29,7 +29,7 @@ case "${1:-status}" in
   <key>StandardOutPath</key><string>$HOME/Library/Logs/$LABEL.log</string>
   <key>StandardErrorPath</key><string>$HOME/Library/Logs/$LABEL.log</string>
   <key>RunAtLoad</key><true/>
-  <key>StartInterval</key><integer>60</integer>
+  <key>StartInterval</key><integer>180</integer>
   <key>EnvironmentVariables</key><dict>
     <key>PATH</key><string>$(dirname "$NODE"):/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>HOME</key><string>$HOME</string>
